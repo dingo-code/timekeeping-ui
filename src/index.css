@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Gaya dasar aplikasi kita */
+@layer base {
+  body {
+    background-color: #f9fafb; /* bg-gray-50 */
+    color: #1f2937; /* text-gray-800 */
+  }
+}
