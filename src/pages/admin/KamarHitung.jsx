@@ -12,6 +12,7 @@ export default function KamarHitung() {
   const [stages, setStages] = useState([]);
   const [penalties, setPenalties] = useState([]); 
   const [records, setRecords] = useState([]); 
+  const [restartRequests, setRestartRequests] = useState([]);
   
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
@@ -21,6 +22,8 @@ export default function KamarHitung() {
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedPenaltyId, setSelectedPenaltyId] = useState('');
+  const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
+  const [restartReason, setRestartReason] = useState('');
 
   const [expandedRow, setExpandedRow] = useState(null);
 
@@ -37,6 +40,17 @@ export default function KamarHitung() {
     fetchEvents();
   }, []);
 
+  useEffect(() => {
+    if (!selectedSS) return;
+    fetchRecords(selectedSS);
+    fetchRestartRequests(selectedSS);
+    const timer = setInterval(() => {
+      fetchRecords(selectedSS, true);
+      fetchRestartRequests(selectedSS);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [selectedSS]);
+
   const fetchEvents = async () => {
     try {
       const res = await api.get('/events');
@@ -49,6 +63,7 @@ export default function KamarHitung() {
     setSelectedEvent(eventId);
     setSelectedSS('');
     setRecords([]);
+    setRestartRequests([]);
     
     if (eventId) {
       try {
@@ -65,18 +80,27 @@ export default function KamarHitung() {
   const handleSSChange = (e) => {
     const ssId = e.target.value;
     setSelectedSS(ssId);
-    if (ssId) fetchRecords(ssId);
   };
 
-  const fetchRecords = async (ssId) => {
-    setIsLoading(true);
+  const fetchRecords = async (ssId, silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await api.get(`/timekeeping/stages/${ssId}/records`);
       setRecords(res.data.data || []);
     } catch (e) {
       console.error('Gagal memuat data record timekeeping');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
+    }
+  };
+
+  const fetchRestartRequests = async (ssId) => {
+    if (!ssId) return;
+    try {
+      const res = await api.get(`/timekeeping/stages/${ssId}/restart-requests`);
+      setRestartRequests(res.data.data || []);
+    } catch (e) {
+      console.error('Gagal memuat permintaan restart');
     }
   };
 
@@ -126,6 +150,55 @@ export default function KamarHitung() {
     }
   };
 
+  const openRestartModal = (record) => {
+    setSelectedRecord(record);
+    setRestartReason('');
+    setIsRestartModalOpen(true);
+  };
+
+  const submitRestart = async (e) => {
+    e.preventDefault();
+    if (!restartReason.trim()) return alert('Alasan restart wajib diisi.');
+    if (!window.confirm(`Berikan restart untuk mobil #${selectedRecord?.start_number}? Attempt lama akan menjadi histori.`)) return;
+
+    try {
+      await api.post(`/timekeeping/ss-records/${selectedRecord.id}/restart`, {
+        reason: restartReason.trim()
+      });
+      alert('Restart diberikan. Petugas start/finish bisa input ulang mobil ini.');
+      setIsRestartModalOpen(false);
+      fetchRecords(selectedSS);
+      fetchRestartRequests(selectedSS);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal memberikan restart');
+    }
+  };
+
+  const approveRestartRequest = async (request) => {
+    if (!window.confirm(`Setujui permintaan restart mobil #${request.start_number}?`)) return;
+    try {
+      await api.post(`/timekeeping/restart-requests/${request.id}/approve`);
+      alert('Permintaan restart disetujui. Attempt baru sudah dibuat.');
+      setRestartRequests((prev) => prev.filter((item) => item.id !== request.id));
+      fetchRecords(selectedSS);
+      fetchRestartRequests(selectedSS);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menyetujui permintaan restart');
+    }
+  };
+
+  const rejectRestartRequest = async (request) => {
+    if (!window.confirm(`Tolak permintaan restart mobil #${request.start_number}?`)) return;
+    try {
+      await api.post(`/timekeeping/restart-requests/${request.id}/reject`);
+      alert('Permintaan restart ditolak.');
+      setRestartRequests((prev) => prev.filter((item) => item.id !== request.id));
+      fetchRestartRequests(selectedSS);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menolak permintaan restart');
+    }
+  };
+
   // ==========================================
   // HANDLER EDIT WAKTU
   // ==========================================
@@ -146,7 +219,8 @@ export default function KamarHitung() {
         ss_id: selectedRecord.ss_id,
         participant_id: selectedRecord.participant_id,
         start_time: editForm.start_time,
-        finish_time: editForm.finish_time
+        finish_time: editForm.finish_time,
+        force_update: true
       });
       alert('Waktu berhasil dikoreksi!');
       setIsEditModalOpen(false);
@@ -197,14 +271,21 @@ export default function KamarHitung() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live)</h2>
-              <button onClick={() => fetchRecords(selectedSS)} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded font-bold transition">🔄 Refresh</button>
+              <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded font-black uppercase tracking-wide">Live auto-refresh</span>
             </div>
             
+            <RestartRequestPanel
+              requests={restartRequests}
+              onApprove={approveRestartRequest}
+              onReject={rejectRestartRequest}
+            />
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
                   <tr>
-                    <th className="p-3 text-center border-b">No Pintu</th>
+                    <th className="p-3 text-center border-b">No Start</th>
+                    <th className="p-3 border-b text-center">Attempt</th>
                     <th className="p-3 border-b">Peserta</th>
                     <th className="p-3 border-b text-center">Waktu Start</th>
                     <th className="p-3 border-b text-center">Waktu Finish</th>
@@ -216,17 +297,30 @@ export default function KamarHitung() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {isLoading ? <tr><td colSpan="9" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> : 
-                   records.length === 0 ? <tr><td colSpan="9" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
+                  {isLoading ? <tr><td colSpan="10" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
+                   records.length === 0 ? <tr><td colSpan="10" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
                    records.map((r) => (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
-                    <tr key={r.id} className="hover:bg-gray-50 transition">
+                    <tr key={r.id} className={`hover:bg-gray-50 transition ${!r.is_active ? 'bg-gray-50 text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
                         <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
                       </td>
+                      <td className="p-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-black text-gray-800">#{r.attempt_no || 1}</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                            {r.is_active ? 'Aktif' : 'Histori'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="p-3 font-bold text-gray-800">
                         {r.driver_name} <br/> <span className="text-xs text-gray-500 font-normal">{r.team_name}</span>
+                        {!r.is_active && r.restart_reason && (
+                          <div className="mt-1 text-[11px] font-semibold text-orange-700 bg-orange-50 inline-block px-2 py-1 rounded">
+                            Restart: {r.restart_reason}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-center font-mono text-gray-600">{r.start_time || '-'}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{r.finish_time || '-'}</td>
@@ -250,7 +344,7 @@ export default function KamarHitung() {
                       
                       {/* KOLOM AKSI DIPERBARUI */}
                       <td className="p-3 text-right space-x-1 whitespace-nowrap">
-                        {r.status === 'OK' && (
+                        {r.is_active && r.status === 'OK' && (
                           <>
                             <button onClick={() => openEditModal(r)} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded transition">EDIT ✏️</button>
                             
@@ -263,16 +357,21 @@ export default function KamarHitung() {
                             )}
                             
                             <button onClick={() => handleSetStatus(r.id, 'DNF')} className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-2 py-1 rounded transition">DNF</button>
+                            <button onClick={() => handleSetStatus(r.id, 'DNS')} className="text-xs font-bold text-white bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded transition">DNS</button>
+                            <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
                           </>
                         )}
-                        {r.status !== 'OK' && (
-                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="text-xs font-bold text-gray-500 hover:text-green-600 border border-gray-300 px-2 py-1 rounded transition">BATAL DNF</button>
+                        {r.is_active && r.status !== 'OK' && (
+                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="text-xs font-bold text-gray-500 hover:text-green-600 border border-gray-300 px-2 py-1 rounded transition">BATAL STATUS</button>
+                        )}
+                        {!r.is_active && (
+                          <span className="text-xs font-bold text-gray-400">Histori attempt</span>
                         )}
                       </td>
                     </tr>
                     {expandedRow === r.id && r.penalty_details && r.penalty_details.length > 0 && (
                         <tr className="bg-red-50/50 border-b border-gray-200">
-                          <td colSpan="9" className="px-6 py-3">
+                          <td colSpan="10" className="px-6 py-3">
                             <div className="bg-white border border-red-200 rounded p-3 shadow-inner">
                               <p className="text-xs font-bold text-red-800 mb-2 border-b border-red-100 pb-1">📜 Rincian Penalti Mobil #{r.start_number}:</p>
                               <ul className="space-y-1">
@@ -313,6 +412,30 @@ export default function KamarHitung() {
         </form>
       </Modal>
 
+      {/* MODAL RESTART */}
+      <Modal isOpen={isRestartModalOpen} onClose={() => setIsRestartModalOpen(false)} title="Berikan Restart">
+        <form onSubmit={submitRestart} className="p-6 space-y-4">
+          <div className="bg-orange-50 border border-orange-200 p-3 rounded">
+            <p className="text-sm text-orange-800">
+              Mobil <strong>#{selectedRecord?.start_number} ({selectedRecord?.driver_name})</strong> akan dibuatkan attempt baru.
+              Attempt lama tetap tersimpan sebagai histori dan tidak dipakai untuk leaderboard.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Alasan Restart</label>
+            <textarea
+              required
+              rows="3"
+              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-orange-600 text-sm"
+              value={restartReason}
+              onChange={(e) => setRestartReason(e.target.value)}
+              placeholder="Contoh: Terhalang kendaraan yang mengalami insiden di km 4.2"
+            />
+          </div>
+          <button type="submit" className="w-full py-3 bg-orange-600 text-white font-black uppercase tracking-widest text-xs hover:bg-black transition">Setujui Restart</button>
+        </form>
+      </Modal>
+
       {/* MODAL EDIT WAKTU (BARU) */}
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Koreksi Waktu Manual">
         <form onSubmit={submitEditTime} className="p-6 space-y-4">
@@ -350,4 +473,63 @@ export default function KamarHitung() {
 
     </div>
   );
+}
+
+function RestartRequestPanel({ requests, onApprove, onReject }) {
+  const pendingRequests = (requests || []).filter((request) => request.status === 'PENDING');
+  if (pendingRequests.length === 0) return null;
+
+  const pendingCount = pendingRequests.length;
+
+  return (
+    <div className="border-b border-orange-100 bg-orange-50/70 p-4">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wide text-orange-900">Laporan Permintaan Restart</h3>
+          <p className="text-xs font-semibold text-orange-700">{pendingCount} permintaan menunggu persetujuan Kamar Hitung.</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {pendingRequests.map((request) => (
+          <div key={request.id} className="rounded-lg border border-orange-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded bg-black px-2 py-1 text-xs font-black text-white">#{request.start_number}</span>
+                  <span className="font-black text-gray-800">{request.driver_name}</span>
+                  <span className={`rounded px-2 py-1 text-[10px] font-black uppercase ${restartRequestStatusClass(request.status)}`}>
+                    {request.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-gray-700">{request.reason}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-gray-500">
+                  <span>Attempt #{request.attempt_no || 1}</span>
+                  <span>Start {request.start_time || '-'}</span>
+                  <span>Finish {request.finish_time || '-'}</span>
+                  <span>Pengaju: {request.requested_by || '-'}</span>
+                </div>
+              </div>
+              {request.status === 'PENDING' && (
+                <div className="flex shrink-0 gap-2">
+                  <button onClick={() => onApprove(request)} className="rounded bg-orange-600 px-3 py-2 text-xs font-black uppercase text-white hover:bg-orange-700">
+                    Setujui
+                  </button>
+                  <button onClick={() => onReject(request)} className="rounded bg-gray-200 px-3 py-2 text-xs font-black uppercase text-gray-700 hover:bg-gray-300">
+                    Tolak
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function restartRequestStatusClass(status) {
+  if (status === 'PENDING') return 'bg-yellow-100 text-yellow-800';
+  if (status === 'APPROVED') return 'bg-green-100 text-green-700';
+  if (status === 'REJECTED') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-700';
 }

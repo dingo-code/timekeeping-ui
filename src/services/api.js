@@ -1,8 +1,16 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
+export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:6060';
+
+export function assetUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_ORIGIN}${path}`;
+}
+
 const api = axios.create({
-  baseURL: 'http://localhost:6060/api/v1',
+  baseURL: `${API_ORIGIN}/api/v1`,
   headers: {
     'Content-Type': 'application/json',
   },

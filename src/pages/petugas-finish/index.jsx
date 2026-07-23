@@ -55,7 +55,7 @@ export default function PetugasFinishPage() {
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700">ID Peserta (No. Pintu)</label>
+            <label className="block text-sm font-bold text-gray-700">ID Peserta (No. Start)</label>
             <input type="text" className="w-full p-2 border rounded" required
               value={formData.participant_id} onChange={e => setFormData({...formData, participant_id: e.target.value})} />
           </div>

@@ -15,6 +15,9 @@ import MasterSeries from './pages/admin/MasterSeries';
 import MasterEvent from './pages/admin/MasterEvent';
 import MasterEventDetail from './pages/admin/MasterEventDetail';
 import TimekeepingTerminal from './pages/marshal/TimekeepingTerminal';
+import PrintResults from './pages/admin/PrintResults';
+import Timecard from './pages/public/Timecard';
+import Leaderboard from './pages/public/Leaderboard';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -39,6 +42,9 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<DummyPage title="403 - Akses Ditolak" />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/timecard/:eventId" element={<Timecard />} />
+        <Route path="/timecard/:eventId/:participantId" element={<Timecard />} />
 
         {/* Panel Admin dengan Sub-Rute Baru */}
         <Route path="/admin" element={
@@ -59,6 +65,7 @@ export default function App() {
           <Route path="event/series" element={<MasterSeries />} />
           <Route path="event" element={<MasterEvent />} />
           <Route path="event/:id" element={<MasterEventDetail />} />
+          <Route path="results/print" element={<PrintResults />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
           <Route path="penalty" element={<DummyPage title="Halaman Setup Master Penalti" />} />
@@ -80,6 +87,7 @@ export default function App() {
         {/* Rute Pos Start & Finish yang lama bisa dihapus atau dibiarkan saja sebagai cadangan */}
         <Route path="/pos-start" element={<ProtectedRoute allowedRoles={['petugas_start']}><DummyPage title="Pos Start" /></ProtectedRoute>} />
         <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><DummyPage title="Pos Finish" /></ProtectedRoute>} />
+        <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

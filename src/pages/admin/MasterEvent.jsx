@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import Modal from '../../components/Modal';
 import { Link } from 'react-router-dom';
+import DataTableFooter from '../../components/DataTableFooter';
 
 export default function MasterEvent() {
   const [events, setEvents] = useState([]);
@@ -14,11 +15,12 @@ export default function MasterEvent() {
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [logoFile, setLogoFile] = useState(null);
 
   const [formData, setFormData] = useState({
     series_id: '', point_system_id: '', name: '', 
-    start_date: '', end_date: '', location: ''
+    start_date: '', end_date: '', location: '', logo_url: ''
   });
 
   useEffect(() => {
@@ -49,8 +51,12 @@ export default function MasterEvent() {
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     e.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const totalPages = Math.ceil(filteredEvents.length / itemsPerPage);
-  const currentItems = filteredEvents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const currentItems = filteredEvents.slice(startIndex, startIndex + itemsPerPage);
+
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, itemsPerPage]);
 
   const openModal = (event = null) => {
     if (event) {
@@ -61,20 +67,27 @@ export default function MasterEvent() {
         name: event.name,
         start_date: event.start_date.split('T')[0],
         end_date: event.end_date.split('T')[0],
-        location: event.location
+        location: event.location,
+        logo_url: event.logo_url || ''
       });
     } else {
       setEditingId(null);
-      setFormData({ series_id: series[0]?.id || '', point_system_id: pointSystems[0]?.id || '', name: '', start_date: '', end_date: '', location: '' });
+      setFormData({ series_id: series[0]?.id || '', point_system_id: pointSystems[0]?.id || '', name: '', start_date: '', end_date: '', location: '', logo_url: '' });
     }
+    setLogoFile(null);
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) await api.put(`/admin/events/${editingId}`, formData);
-      else await api.post('/admin/events', formData);
+      const payload = new FormData();
+      Object.entries(formData).forEach(([key, value]) => payload.append(key, value ?? ''));
+      if (logoFile) payload.append('logo', logoFile);
+
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      if (editingId) await api.put(`/admin/events/${editingId}`, payload, config);
+      else await api.post('/admin/events', payload, config);
       setIsModalOpen(false);
       fetchEvents();
     } catch (err) { alert('Gagal menyimpan event'); }
@@ -82,16 +95,25 @@ export default function MasterEvent() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50/50">
+      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
         <div>
           <h2 className="text-xl font-bold text-gray-800">Daftar Event Balap</h2>
+          <p className="text-sm text-gray-500 mt-1">Total {events.length} event terdaftar.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row w-full sm:w-auto sm:items-center gap-3">
           <input 
             type="text" placeholder="Cari event atau lokasi..." 
-            className="mt-2 p-2 w-64 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-red-500"
+            className="w-full sm:w-64 p-2 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-red-500"
             value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
           />
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Tampilkan</label>
+            <select className="p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-red-500" value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}>
+              {[6, 12, 24, 48, 96].map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </div>
+          <button onClick={() => openModal()} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition whitespace-nowrap">+ Buat Event Baru</button>
         </div>
-        <button onClick={() => openModal()} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition">+ Buat Event Baru</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
@@ -99,6 +121,11 @@ export default function MasterEvent() {
          currentItems.length === 0 ? <p className="text-center col-span-full">Tidak ada event ditemukan.</p> :
          currentItems.map(event => (
           <div key={event.id} className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition bg-white">
+            {event.logo_url && (
+              <div className="h-16 mb-3 flex items-center">
+                <img src={`http://localhost:6060${event.logo_url}`} alt={`Logo ${event.name}`} className="max-h-16 max-w-28 object-contain" />
+              </div>
+            )}
             <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
@@ -110,13 +137,9 @@ export default function MasterEvent() {
         ))}
       </div>
 
-      {totalPages > 1 && (
-        <div className="p-4 flex justify-center gap-2 border-t">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1 border rounded text-sm">Prev</button>
-          <span className="px-3 py-1 text-sm font-bold">{currentPage} / {totalPages}</span>
-          <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1 border rounded text-sm">Next</button>
-        </div>
-      )}
+      <div className="p-4 border-t border-gray-100">
+        <DataTableFooter totalItems={filteredEvents.length} currentPage={safeCurrentPage} totalPages={totalPages} pageSize={itemsPerPage} searchTerm={searchTerm} onPageChange={setCurrentPage} />
+      </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Event" : "Konfigurasi Event Baru"}>
         {/* Form Modal tetap sama dengan input formData yang sudah di-bind */}
@@ -134,6 +157,25 @@ export default function MasterEvent() {
             <input type="date" className="w-full p-2 border rounded" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}/>
             <input type="date" className="w-full p-2 border rounded" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})}/>
             <input type="text" className="w-full p-2 border rounded" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Lokasi"/>
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-gray-700">Logo Event</label>
+              {(formData.logo_url || logoFile) && (
+                <div className="h-20 flex items-center border border-gray-200 rounded p-2 bg-gray-50">
+                  <img
+                    src={logoFile ? URL.createObjectURL(logoFile) : `http://localhost:6060${formData.logo_url}`}
+                    alt="Preview logo event"
+                    className="max-h-16 max-w-32 object-contain"
+                  />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="w-full p-2 border rounded text-sm"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+              />
+              {formData.logo_url && !logoFile && <p className="text-xs text-gray-500">Biarkan kosong jika tidak ingin mengganti logo.</p>}
+            </div>
             <button type="submit" className="w-full py-2 bg-red-600 text-white rounded font-bold">Simpan</button>
         </form>
       </Modal>

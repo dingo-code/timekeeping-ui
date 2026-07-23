@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import Modal from '../../components/Modal';
+import DataTableFooter from '../../components/DataTableFooter';
 
 export default function MasterRacer() {
   const [racers, setRacers] = useState([]);
@@ -16,7 +17,7 @@ export default function MasterRacer() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   useEffect(() => {
     fetchRacers();
@@ -46,10 +47,12 @@ export default function MasterRacer() {
     r.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     r.kis_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const totalPages = Math.ceil(filteredRacers.length / itemsPerPage);
-  const currentItems = filteredRacers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredRacers.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const currentItems = filteredRacers.slice(startIndex, startIndex + itemsPerPage);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, itemsPerPage]);
 
   const openModal = (r = null) => {
     if (r) { 
@@ -100,8 +103,14 @@ export default function MasterRacer() {
           <h2 className="text-xl font-bold text-gray-800">Master Pembalap (Racer)</h2>
           <p className="text-sm text-gray-500 mt-1">Total {filteredRacers.length} pembalap terdaftar.</p>
         </div>
-        <div className="flex w-full sm:w-auto items-center space-x-3">
+        <div className="flex flex-col sm:flex-row w-full sm:w-auto sm:items-center gap-3">
           <input type="text" placeholder="Cari no KIS atau nama..." className="w-full sm:w-64 p-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-1 focus:ring-red-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Tampilkan</label>
+            <select className="p-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-red-500" value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}>
+              {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </div>
           <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">+ Tambah</button>
         </div>
       </div>
@@ -139,15 +148,9 @@ export default function MasterRacer() {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
-          <span className="text-sm text-gray-600">Halaman <span className="font-bold">{currentPage}</span> dari <span className="font-bold">{totalPages}</span></span>
-          <div className="space-x-2">
-            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-300 rounded text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50">Sebelumnya</button>
-            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-1.5 border border-gray-300 rounded text-sm font-medium bg-white hover:bg-gray-100 disabled:opacity-50">Selanjutnya</button>
-          </div>
-        </div>
-      )}
+      <div className="p-4 border-t border-gray-100">
+        <DataTableFooter totalItems={filteredRacers.length} currentPage={safeCurrentPage} totalPages={totalPages} pageSize={itemsPerPage} searchTerm={searchTerm} onPageChange={setCurrentPage} />
+      </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? 'Edit Pembalap' : 'Pendaftaran Pembalap'}>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

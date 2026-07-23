@@ -36,6 +36,7 @@ export default function Login() {
           break;
         case 'petugas_start':
         case 'petugas_finish':
+        case 'petugas_tc':
           navigate('/marshal', { replace: true });
           break;
         default:
