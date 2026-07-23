@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../../services/api';
+import api, { assetUrl } from '../../services/api';
 import Modal from '../../components/Modal';
 import { Link } from 'react-router-dom';
 import DataTableFooter from '../../components/DataTableFooter';
@@ -123,7 +123,7 @@ export default function MasterEvent() {
           <div key={event.id} className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition bg-white">
             {event.logo_url && (
               <div className="h-16 mb-3 flex items-center">
-                <img src={`http://localhost:6060${event.logo_url}`} alt={`Logo ${event.name}`} className="max-h-16 max-w-28 object-contain" />
+                <img src={assetUrl(event.logo_url)} alt={`Logo ${event.name}`} className="max-h-16 max-w-28 object-contain" />
               </div>
             )}
             <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
@@ -162,7 +162,7 @@ export default function MasterEvent() {
               {(formData.logo_url || logoFile) && (
                 <div className="h-20 flex items-center border border-gray-200 rounded p-2 bg-gray-50">
                   <img
-                    src={logoFile ? URL.createObjectURL(logoFile) : `http://localhost:6060${formData.logo_url}`}
+                    src={logoFile ? URL.createObjectURL(logoFile) : assetUrl(formData.logo_url)}
                     alt="Preview logo event"
                     className="max-h-16 max-w-32 object-contain"
                   />

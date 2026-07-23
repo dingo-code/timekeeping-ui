@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 
 export default function PetugasFinishPage() {
   const [formData, setFormData] = useState({
@@ -37,7 +37,7 @@ export default function PetugasFinishPage() {
     };
 
     try {
-      await axios.post('http://localhost:6060/api/v1/timekeeping/ss-records', payload);
+      await api.post('/timekeeping/ss-records', payload);
       alert('✅ Waktu berhasil dikirim ke Server (RabbitMQ)!');
       // Reset form
       setFormData({ ...formData, participant_id: '', start_time: '', finish_time: '' });

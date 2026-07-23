@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../../services/api';
+import api, { assetUrl } from '../../services/api';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -314,12 +314,6 @@ export default function PrintResults() {
       </div>
     </div>
   );
-}
-
-function assetUrl(path) {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return `http://localhost:6060${path}`;
 }
 
 function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel, regionalLabel }) {
