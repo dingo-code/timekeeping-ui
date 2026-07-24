@@ -62,6 +62,7 @@ export default function MasterEventDetail() {
   const [savingTCParticipantId, setSavingTCParticipantId] = useState('');
   const [isSavingStartingList, setIsSavingStartingList] = useState(false);
   const [isGeneratingTC, setIsGeneratingTC] = useState(false);
+  const [startingListImportSummary, setStartingListImportSummary] = useState('');
 
   // --- State Search & Pagination (Peserta) ---
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,6 +218,14 @@ export default function MasterEventDetail() {
     setIsSavingStartingList(true);
     try {
       await api.put(`/admin/stages/${selectedTCStageId}/starting-list`, { entries });
+      const targetEntries = Object.entries(tcTargetDrafts).filter(([, targetTime]) => targetTime);
+      if (targetEntries.length > 0) {
+        await Promise.all(targetEntries.map(([participantId, targetTime]) => (
+          api.put(`/admin/stages/${selectedTCStageId}/participants/${participantId}/tc-target`, {
+            target_tc_time: targetTime,
+          })
+        )));
+      }
       await refreshTCSetup(selectedTCStageId);
       if (!silent) alert('Starting list berhasil disimpan.');
     } finally {
@@ -251,6 +260,56 @@ export default function MasterEventDetail() {
       alert(err.response?.data?.error || err.message || 'Gagal generate jadwal TC.');
     } finally {
       setIsGeneratingTC(false);
+    }
+  };
+
+  const handleImportStartingListExcel = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const XLSX = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      if (rows.length === 0) return alert('File Excel kosong.');
+
+      const participantsByCarNo = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
+      const nextStartOrderDrafts = { ...startOrderDrafts };
+      const nextTCTargetDrafts = { ...tcTargetDrafts };
+      const unmatched = [];
+      const imported = [];
+
+      rows.forEach((row, index) => {
+        const carNo = readExcelValue(row, ['CAR NO', 'CARNO', 'NO START', 'START NO']);
+        const participant = participantsByCarNo.get(String(carNo).trim());
+        if (!participant) {
+          if (carNo) unmatched.push(carNo);
+          return;
+        }
+
+        const startOrder = Number(readExcelValue(row, ['*', 'START KE', 'START ORDER', 'ORDER']));
+        if (!Number.isInteger(startOrder) || startOrder <= 0) {
+          throw new Error(`Start Ke tidak valid pada baris Excel ${index + 2}.`);
+        }
+
+        nextStartOrderDrafts[participant.id] = startOrder;
+        const targetTime = normalizeImportedClock(readExcelValue(row, ['TC TIME', 'TARGET TC', 'TARGET TC TIME']));
+        if (targetTime) nextTCTargetDrafts[participant.id] = targetTime;
+        imported.push(participant.start_number);
+      });
+
+      if (imported.length === 0) return alert('Tidak ada CAR NO yang cocok dengan Entry List event ini.');
+
+      setStartOrderDrafts(nextStartOrderDrafts);
+      setTcTargetDrafts(nextTCTargetDrafts);
+      const summary = `${imported.length} peserta diimport dari ${file.name}${unmatched.length ? `, ${unmatched.length} CAR NO tidak cocok` : ''}.`;
+      setStartingListImportSummary(summary);
+      alert(summary);
+    } catch (err) {
+      alert(err.message || 'Gagal membaca file Excel starting list.');
     }
   };
 
@@ -732,11 +791,21 @@ export default function MasterEventDetail() {
               </div>
             </div>
 
-            <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_170px_130px_auto_auto] lg:items-end">
+            <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_auto_170px_130px_auto_auto] lg:items-end">
               <div>
                 <p className="text-sm font-black text-gray-800 uppercase">Generate Jadwal TC</p>
                 <p className="mt-1 text-xs text-gray-500">Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.</p>
+                {startingListImportSummary && <p className="mt-2 text-xs font-bold text-green-700">{startingListImportSummary}</p>}
               </div>
+              <label className="cursor-pointer rounded bg-white px-4 py-2 text-center text-xs font-black uppercase tracking-wide text-gray-800 ring-1 ring-gray-300 hover:bg-gray-100">
+                Import Excel
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleImportStartingListExcel}
+                />
+              </label>
               <label>
                 <span className="mb-1 block text-xs font-bold text-gray-500">TC peserta pertama</span>
                 <input
@@ -1197,4 +1266,40 @@ function SearchableSelect({ label, value, options, onChange, placeholder, emptyL
       )}
     </div>
   );
+}
+
+function readExcelValue(row, candidateHeaders) {
+  const entries = Object.entries(row);
+  for (const header of candidateHeaders) {
+    const normalizedHeader = normalizeExcelHeader(header);
+    const match = entries.find(([key]) => normalizeExcelHeader(key) === normalizedHeader);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+function normalizeExcelHeader(value) {
+  const text = String(value || '').trim().toUpperCase();
+  if (text === '*') return '*';
+  return text.replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeImportedClock(value) {
+  if (value === null || value === undefined) return '';
+  let text = String(value).trim();
+  if (!text) return '';
+
+  text = text.replace(',', ':');
+  if (/^\d{1,2}\.\d{2}(?:\.\d{2})?$/.test(text)) {
+    text = text.replace(/\./g, ':');
+  }
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [hour, minute] = text.split(':');
+    return `${hour.padStart(2, '0')}:${minute}:00`;
+  }
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(text)) {
+    const [hour, minute, second] = text.split(':');
+    return `${hour.padStart(2, '0')}:${minute}:${second}`;
+  }
+  return text.slice(0, 8);
 }
