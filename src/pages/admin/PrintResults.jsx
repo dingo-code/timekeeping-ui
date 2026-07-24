@@ -180,7 +180,7 @@ export default function PrintResults() {
   const selectedEventLogo = assetUrl(selectedEvent?.logo_url);
   const printDateText = formatPrintDate(new Date());
   const selectedStageLabel = reportScope === 'final'
-    ? 'Hasil Akhir'
+    ? 'Final Result'
     : selectedStageId === 'all'
       ? 'Semua SS'
       : (() => {
@@ -226,8 +226,8 @@ export default function PrintResults() {
       <div className="no-print bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Cetak Hasil Balapan</h2>
-            <p className="text-sm text-gray-500 mt-1">Format hasil akhir dan hasil setiap SS.</p>
+            <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
+            <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_190px_190px_150px_190px_auto] gap-3 w-full xl:w-auto">
             <div>
@@ -240,12 +240,12 @@ export default function PrintResults() {
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Bentuk</label>
               <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={reportScope} onChange={(e) => setReportScope(e.target.value)}>
-                <option value="final">Hasil Akhir</option>
+                <option value="final">Final Result</option>
                 <option value="stage">Setiap SS</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Jenis Hasil</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Result Type</label>
               <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={reportType} onChange={(e) => setReportType(e.target.value)}>
                 {reportTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </select>
@@ -265,7 +265,7 @@ export default function PrintResults() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Status Hasil</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Result Status</label>
               <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={resultStatus} onChange={(e) => handleResultStatusChange(e.target.value)}>
                 <option value="unofficial">Unofficial Result</option>
                 <option value="official">Official Result</option>

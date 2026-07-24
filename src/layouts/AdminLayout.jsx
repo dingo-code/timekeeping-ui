@@ -244,7 +244,7 @@ export default function AdminLayout() {
             }`}
           >
             <Icon name="print" />
-            <span>Cetak Hasil</span>
+            <span>Result</span>
           </Link>
           <Link
             to="/admin/results/shakedown"
@@ -253,7 +253,7 @@ export default function AdminLayout() {
             }`}
           >
             <Icon name="print" />
-            <span>Report Shakedown</span>
+            <span>Shakedown Result</span>
           </Link>
           <Link
             to="/admin/monitoring-input"

@@ -66,7 +66,7 @@ export default function ShakedownReport() {
       const res = await api.get(`/public/shakedown-report/${selectedEventId}${stageParam}`);
       setReport(res.data.data || { max_attempts: 0, entries: [] });
     } catch {
-      alert('Gagal memuat report shakedown.');
+      alert('Gagal memuat result shakedown.');
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +115,7 @@ export default function ShakedownReport() {
       <div className="no-print rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Report Shakedown</h2>
+            <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Shakedown Result</h2>
             <p className="mt-1 text-sm text-gray-500">Rekap multi-run shakedown per peserta.</p>
           </div>
           <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto] xl:w-auto">
@@ -142,11 +142,11 @@ export default function ShakedownReport() {
 
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <PrintHeader
-          eventName={selectedEvent?.name || 'Report Shakedown'}
+          eventName={selectedEvent?.name || 'Shakedown Result'}
           eventDateText={selectedEventDateText}
           eventLocation={selectedEvent?.location || '-'}
           logoUrl={selectedEventLogo}
-          resultStatusLabel="SHAKEDOWN REPORT"
+          resultStatusLabel="SHAKEDOWN RESULT"
           printDateText={printDateText}
           lineFourLabel={selectedStageLabel}
         />
