@@ -110,10 +110,7 @@ export default function PrintResults() {
   };
 
   const resultRowClass = (status) => {
-    if (status === 'DNF') return 'bg-orange-100 text-orange-950';
-    if (status === 'DNS') return 'bg-yellow-100 text-yellow-950';
-    if (status === 'DSQ') return 'bg-red-100 text-red-950';
-    if (status && status !== 'OK') return 'bg-gray-100 text-gray-700';
+    if (status && status !== 'OK') return 'text-gray-900';
     return '';
   };
 
@@ -228,6 +225,8 @@ export default function PrintResults() {
           .print-group-title span { font-size: 8px !important; }
           table { page-break-inside: auto; font-size: 8.5px !important; line-height: 1.12 !important; table-layout: fixed; width: 100%; }
           th, td { padding: 2px 3px !important; vertical-align: top !important; }
+          tbody td { background: #fff !important; }
+          thead th { background: #f3f4f6 !important; }
           th { font-weight: 900 !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; page-break-after: auto; }
