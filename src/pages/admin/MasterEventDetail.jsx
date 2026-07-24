@@ -52,11 +52,16 @@ export default function MasterEventDetail() {
 
   // --- State Jadwal TC ---
   const [selectedTCStageId, setSelectedTCStageId] = useState('');
+  const [startingList, setStartingList] = useState([]);
+  const [startOrderDrafts, setStartOrderDrafts] = useState({});
+  const [tcGenerateForm, setTcGenerateForm] = useState({ first_target_tc_time: '', interval_minutes: 2 });
   const [tcTargetDrafts, setTcTargetDrafts] = useState({});
   const [tcSearchTerm, setTcSearchTerm] = useState('');
   const [tcCurrentPage, setTcCurrentPage] = useState(1);
   const [tcItemsPerPage, setTcItemsPerPage] = useState(10);
   const [savingTCParticipantId, setSavingTCParticipantId] = useState('');
+  const [isSavingStartingList, setIsSavingStartingList] = useState(false);
+  const [isGeneratingTC, setIsGeneratingTC] = useState(false);
 
   // --- State Search & Pagination (Peserta) ---
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,7 +91,7 @@ export default function MasterEventDetail() {
 
   useEffect(() => {
     if (activeTab === 'tc' && selectedTCStageId) {
-      fetchTCRecords(selectedTCStageId);
+      refreshTCSetup(selectedTCStageId);
     }
   }, [activeTab, selectedTCStageId]);
 
@@ -151,6 +156,27 @@ export default function MasterEventDetail() {
     }
   };
 
+  const fetchStartingList = async (stageId) => {
+    if (!stageId) return;
+    try {
+      const res = await api.get(`/admin/stages/${stageId}/starting-list`);
+      const nextList = res.data.data || [];
+      setStartingList(nextList);
+      setStartOrderDrafts(Object.fromEntries(nextList.map((entry) => [entry.participant_id, entry.start_order || entry.start_number])));
+    } catch (e) {
+      console.error('Gagal memuat starting list');
+      setStartingList([]);
+      setStartOrderDrafts({});
+    }
+  };
+
+  const refreshTCSetup = async (stageId) => {
+    await Promise.all([
+      fetchTCRecords(stageId),
+      fetchStartingList(stageId),
+    ]);
+  };
+
   const handleSaveTCTarget = async (participantId) => {
     const targetTime = tcTargetDrafts[participantId] ?? tcRecordByParticipantId.get(participantId)?.target_tc_time ?? '';
     if (!selectedTCStageId) return alert('Pilih SS terlebih dahulu.');
@@ -166,6 +192,65 @@ export default function MasterEventDetail() {
       alert(err.response?.data?.error || 'Gagal menyimpan target TC');
     } finally {
       setSavingTCParticipantId('');
+    }
+  };
+
+  const startingListPayload = () => {
+    const rows = tcRows.map((row) => ({
+      participant_id: row.id,
+      start_order: Number(startOrderDrafts[row.id] ?? row.start_order ?? row.start_number),
+    }));
+    const invalidRow = rows.find((row) => !Number.isInteger(row.start_order) || row.start_order <= 0);
+    if (invalidRow) {
+      throw new Error('Semua Start Ke harus berupa angka lebih besar dari 0.');
+    }
+    const duplicateOrder = rows.find((row, index) => rows.some((other, otherIndex) => otherIndex !== index && other.start_order === row.start_order));
+    if (duplicateOrder) {
+      throw new Error(`Start Ke ${duplicateOrder.start_order} dipakai lebih dari satu peserta.`);
+    }
+    return rows;
+  };
+
+  const saveStartingList = async ({ silent = false } = {}) => {
+    if (!selectedTCStageId) throw new Error('Pilih SS terlebih dahulu.');
+    const entries = startingListPayload();
+    setIsSavingStartingList(true);
+    try {
+      await api.put(`/admin/stages/${selectedTCStageId}/starting-list`, { entries });
+      await refreshTCSetup(selectedTCStageId);
+      if (!silent) alert('Starting list berhasil disimpan.');
+    } finally {
+      setIsSavingStartingList(false);
+    }
+  };
+
+  const handleSaveStartingList = async () => {
+    try {
+      await saveStartingList();
+    } catch (err) {
+      alert(err.response?.data?.error || err.message || 'Gagal menyimpan starting list.');
+    }
+  };
+
+  const handleGenerateTCTargets = async () => {
+    if (!selectedTCStageId) return alert('Pilih SS terlebih dahulu.');
+    if (!tcGenerateForm.first_target_tc_time) return alert('Jam TC peserta pertama wajib diisi.');
+    if (!Number(tcGenerateForm.interval_minutes) || Number(tcGenerateForm.interval_minutes) <= 0) return alert('Interval harus lebih besar dari 0 menit.');
+    if (!window.confirm('Generate jadwal TC akan menimpa target TC pada SS ini sesuai starting list. Lanjutkan?')) return;
+
+    setIsGeneratingTC(true);
+    try {
+      await saveStartingList({ silent: true });
+      await api.post(`/admin/stages/${selectedTCStageId}/tc-targets/generate`, {
+        first_target_tc_time: tcGenerateForm.first_target_tc_time,
+        interval_minutes: Number(tcGenerateForm.interval_minutes),
+      });
+      await refreshTCSetup(selectedTCStageId);
+      alert('Jadwal TC berhasil digenerate.');
+    } catch (err) {
+      alert(err.response?.data?.error || err.message || 'Gagal generate jadwal TC.');
+    } finally {
+      setIsGeneratingTC(false);
     }
   };
 
@@ -203,17 +288,20 @@ export default function MasterEventDetail() {
   useEffect(() => { setPenaltyCurrentPage(1); }, [penaltySearchTerm, penaltyItemsPerPage]);
 
   const tcRecordByParticipantId = new Map(tcRecords.map((record) => [record.participant_id, record]));
+  const startingListByParticipantId = new Map(startingList.map((entry) => [entry.participant_id, entry]));
   const tcRows = participants.map((participant) => {
     const record = tcRecordByParticipantId.get(participant.id);
+    const listEntry = startingListByParticipantId.get(participant.id);
     return {
       ...participant,
       record,
+      start_order: Number(startOrderDrafts[participant.id] ?? listEntry?.start_order ?? participant.start_number),
       target_tc_time: tcTargetDrafts[participant.id] ?? record?.target_tc_time ?? '',
       tc_time: record?.tc_time || '',
       tc_status: record?.tc_status || 'NOT_SCHEDULED',
       tc_delta_ms: record?.tc_delta_ms || 0,
     };
-  });
+  }).sort((a, b) => (Number(a.start_order) || 0) - (Number(b.start_order) || 0) || (Number(a.start_number) || 0) - (Number(b.start_number) || 0));
   const normalizedTCSearch = tcSearchTerm.trim().toLowerCase();
   const filteredTCRows = tcRows.filter((row) => (
     [
@@ -613,11 +701,11 @@ export default function MasterEventDetail() {
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Jadwal Time Control per SS</h3>
-                <p className="text-xs text-gray-500">Atur jam wajib TC peserta untuk SS yang dipilih.</p>
+                <p className="text-xs text-gray-500">Atur starting list per SS lalu generate target TC otomatis berdasarkan interval.</p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+              <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto xl:grid-cols-[220px_260px_110px]">
                 <select
-                  className="w-full sm:w-56 p-2 border border-gray-300 rounded text-sm outline-none bg-white focus:ring-1 focus:ring-red-500"
+                  className="w-full p-2 border border-gray-300 rounded text-sm outline-none bg-white focus:ring-1 focus:ring-red-500"
                   value={selectedTCStageId}
                   onChange={(e) => setSelectedTCStageId(e.target.value)}
                 >
@@ -627,7 +715,7 @@ export default function MasterEventDetail() {
                 <input
                   type="text"
                   placeholder="Cari no start, entrant, driver, atau status..."
-                  className="w-full sm:w-72 p-2 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-red-500"
+                  className="w-full p-2 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-red-500"
                   value={tcSearchTerm}
                   onChange={(e) => setTcSearchTerm(e.target.value)}
                 />
@@ -644,10 +732,54 @@ export default function MasterEventDetail() {
               </div>
             </div>
 
+            <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_170px_130px_auto_auto] lg:items-end">
+              <div>
+                <p className="text-sm font-black text-gray-800 uppercase">Generate Jadwal TC</p>
+                <p className="mt-1 text-xs text-gray-500">Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.</p>
+              </div>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-gray-500">TC peserta pertama</span>
+                <input
+                  type="time"
+                  step="1"
+                  className="w-full rounded border border-gray-300 bg-white p-2 font-mono text-sm outline-none focus:ring-1 focus:ring-red-500"
+                  value={tcGenerateForm.first_target_tc_time}
+                  onChange={(e) => setTcGenerateForm({ ...tcGenerateForm, first_target_tc_time: e.target.value })}
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold text-gray-500">Interval menit</span>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full rounded border border-gray-300 bg-white p-2 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500"
+                  value={tcGenerateForm.interval_minutes}
+                  onChange={(e) => setTcGenerateForm({ ...tcGenerateForm, interval_minutes: e.target.value })}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleSaveStartingList}
+                disabled={!selectedTCStageId || isSavingStartingList || isGeneratingTC}
+                className="rounded bg-gray-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-black disabled:opacity-50"
+              >
+                {isSavingStartingList ? 'Menyimpan...' : 'Simpan Starting List'}
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateTCTargets}
+                disabled={!selectedTCStageId || isGeneratingTC}
+                className="rounded bg-red-600 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isGeneratingTC ? 'Generate...' : 'Generate TC'}
+              </button>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse border border-gray-200">
                 <thead className="bg-gray-100 text-sm">
                   <tr>
+                    <th className="p-3 text-center">Start Ke</th>
                     <th className="p-3 text-center">No Start</th>
                     <th className="p-3">Peserta</th>
                     <th className="p-3 text-center">Target TC</th>
@@ -658,11 +790,20 @@ export default function MasterEventDetail() {
                 </thead>
                 <tbody>
                   {!selectedTCStageId ? (
-                    <tr><td colSpan="6" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur jadwal TC.</td></tr>
+                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur jadwal TC.</td></tr>
                   ) : currentTCRows.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
+                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
                   ) : currentTCRows.map((row) => (
                     <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                      <td className="p-3 text-center">
+                        <input
+                          type="number"
+                          min="1"
+                          className="w-20 rounded border border-gray-300 p-2 text-center text-sm font-black outline-none focus:ring-1 focus:ring-red-500"
+                          value={startOrderDrafts[row.id] ?? row.start_order ?? ''}
+                          onChange={(e) => setStartOrderDrafts({ ...startOrderDrafts, [row.id]: e.target.value })}
+                        />
+                      </td>
                       <td className="p-3 text-center">
                         <span className="bg-black text-white font-black text-xl px-3 py-1 rounded">{row.start_number}</span>
                       </td>
