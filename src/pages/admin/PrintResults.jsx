@@ -227,6 +227,11 @@ export default function PrintResults() {
           tbody td { background: #fff !important; }
           thead th { background: #f3f4f6 !important; }
           th { font-weight: 900 !important; }
+          th:nth-child(1), th:nth-child(2), th:nth-child(6), th:nth-child(7),
+          td:nth-child(1), td:nth-child(2), td:nth-child(6), td:nth-child(7) {
+            text-align: center !important;
+            white-space: nowrap !important;
+          }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; page-break-after: auto; }
           .print-driver-name { font-size: 8.5px !important; line-height: 1.1 !important; }
@@ -394,7 +399,59 @@ function categoryCode(value) {
   return String(value).split(' - ')[0] || '-';
 }
 
+function finalResultColumnWidths(stageCount) {
+  const safeStageCount = Math.max(stageCount, 1);
+  const fixed = {
+    rank: 4,
+    noStart: 5,
+    regional: 7,
+    className: 4,
+    category: 4,
+    total: 7,
+    remark: 8,
+  };
+  const fixedTotal = Object.values(fixed).reduce((sum, value) => sum + value, 0);
+  const availableForStageTimes = 100 - fixedTotal - 27;
+  const stageTime = Math.max(3.4, Math.min(6, availableForStageTimes / safeStageCount));
+  const remaining = Math.max(22, 100 - fixedTotal - (stageTime * safeStageCount));
+  const driver = remaining * 0.58;
+  const entrant = remaining - driver;
+
+  return {
+    rank: `${fixed.rank}%`,
+    noStart: `${fixed.noStart}%`,
+    driver: `${driver.toFixed(1)}%`,
+    entrant: `${entrant.toFixed(1)}%`,
+    regional: `${fixed.regional}%`,
+    className: `${fixed.className}%`,
+    category: `${fixed.category}%`,
+    stageTime: `${stageTime.toFixed(1)}%`,
+    total: `${fixed.total}%`,
+    remark: `${fixed.remark}%`,
+  };
+}
+
+function stageResultColumnWidths() {
+  return {
+    rank: '4%',
+    noStart: '5%',
+    driver: '20%',
+    entrant: '14%',
+    regional: '7%',
+    className: '4%',
+    category: '4%',
+    start: '6%',
+    finish: '6%',
+    time: '6%',
+    penalty: '6%',
+    total: '6%',
+    diff: '5%',
+    remark: '7%',
+  };
+}
+
 function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, resultRowClass, excludedStatuses }) {
+  const columnWidths = finalResultColumnWidths(stages.length);
   const printableGroups = groups
     .map((group) => ({
       ...group,
@@ -414,6 +471,20 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[11px]">
+          <colgroup>
+            <col style={{ width: columnWidths.rank }} />
+            <col style={{ width: columnWidths.noStart }} />
+            <col style={{ width: columnWidths.driver }} />
+            <col style={{ width: columnWidths.entrant }} />
+            <col style={{ width: columnWidths.regional }} />
+            <col style={{ width: columnWidths.className }} />
+            <col style={{ width: columnWidths.category }} />
+            {stages.map((stage) => (
+              <col key={stage.id} style={{ width: columnWidths.stageTime }} />
+            ))}
+            <col style={{ width: columnWidths.total }} />
+            <col style={{ width: columnWidths.remark }} />
+          </colgroup>
           <thead>
             <tr className="bg-gray-100 text-gray-700">
               <th className="border border-gray-300 p-2 text-center">Rank</th>
@@ -463,6 +534,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
 }
 
 function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass }) {
+  const columnWidths = stageResultColumnWidths();
   if (stages.length === 0) {
     return <div className="p-10 text-center text-gray-500">Belum ada SS untuk dicetak.</div>;
   }
@@ -483,6 +555,22 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
               <div className="mb-1 text-sm font-black uppercase text-gray-700">{group.label}</div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-[11px]">
+                  <colgroup>
+                    <col style={{ width: columnWidths.rank }} />
+                    <col style={{ width: columnWidths.noStart }} />
+                    <col style={{ width: columnWidths.driver }} />
+                    <col style={{ width: columnWidths.entrant }} />
+                    <col style={{ width: columnWidths.regional }} />
+                    <col style={{ width: columnWidths.className }} />
+                    <col style={{ width: columnWidths.category }} />
+                    <col style={{ width: columnWidths.start }} />
+                    <col style={{ width: columnWidths.finish }} />
+                    <col style={{ width: columnWidths.time }} />
+                    <col style={{ width: columnWidths.penalty }} />
+                    <col style={{ width: columnWidths.total }} />
+                    <col style={{ width: columnWidths.diff }} />
+                    <col style={{ width: columnWidths.remark }} />
+                  </colgroup>
                   <thead>
                     <tr className="bg-gray-100 text-gray-700">
                       <th className="border border-gray-300 p-2 text-center">Rank</th>
