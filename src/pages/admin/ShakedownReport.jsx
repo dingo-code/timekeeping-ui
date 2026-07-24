@@ -76,6 +76,7 @@ export default function ShakedownReport() {
   const selectedEventLogo = assetUrl(selectedEvent?.logo_url);
   const selectedStageLabel = selectedStage?.ss_name || 'Semua Shakedown';
   const printDateText = formatPrintDate(new Date());
+  const tableColumnWidths = shakedownColumnWidths(attemptColumns.length);
 
   const handlePrint = () => {
     const originalTitle = document.title;
@@ -108,9 +109,6 @@ export default function ShakedownReport() {
           th, td { padding: 3px !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; }
-          .print-driver { width: 22%; }
-          .print-small { width: 10%; }
-          .print-time { width: 8%; }
         }
       `}</style>
 
@@ -155,13 +153,23 @@ export default function ShakedownReport() {
 
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
+            <colgroup>
+              <col style={{ width: tableColumnWidths.noStart }} />
+              <col style={{ width: tableColumnWidths.driver }} />
+              <col style={{ width: tableColumnWidths.entrant }} />
+              <col style={{ width: tableColumnWidths.className }} />
+              <col style={{ width: tableColumnWidths.regional }} />
+              {attemptColumns.map((attemptNo) => (
+                <col key={attemptNo} style={{ width: tableColumnWidths.time }} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
-                <th className="border border-gray-300 p-2 text-center">No Start</th>
-                <th className="print-driver border border-gray-300 p-2">Driver / Co Driver</th>
-                <th className="print-small border border-gray-300 p-2">Entrant</th>
-                <th className="print-small border border-gray-300 p-2">Class</th>
-                <th className="print-small border border-gray-300 p-2">Regional</th>
+                <th className="border border-gray-300 p-2 text-center">No</th>
+                <th className="border border-gray-300 p-2">Driver / Co Driver</th>
+                <th className="border border-gray-300 p-2">Entrant</th>
+                <th className="border border-gray-300 p-2">Class</th>
+                <th className="border border-gray-300 p-2">Regional</th>
                 {attemptColumns.map((attemptNo) => (
                   <th key={attemptNo} className="print-time border border-gray-300 p-2 text-right">Time {attemptNo}</th>
                 ))}
@@ -228,6 +236,27 @@ function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultS
       </div>
     </div>
   );
+}
+
+function shakedownColumnWidths(attemptCount) {
+  const safeAttempts = Math.max(attemptCount, 1);
+  const noStart = 6;
+  const className = safeAttempts <= 2 ? 9 : 8;
+  const regional = safeAttempts <= 2 ? 10 : 9;
+  const time = safeAttempts <= 2 ? 9 : Math.max(6, Math.min(8, Math.floor(40 / safeAttempts)));
+  const timeTotal = time * safeAttempts;
+  const remaining = Math.max(30, 100 - noStart - className - regional - timeTotal);
+  const driver = Math.round(remaining * (safeAttempts <= 2 ? 0.58 : 0.55));
+  const entrant = remaining - driver;
+
+  return {
+    noStart: `${noStart}%`,
+    driver: `${driver}%`,
+    entrant: `${entrant}%`,
+    className: `${className}%`,
+    regional: `${regional}%`,
+    time: `${time}%`,
+  };
 }
 
 function formatPrintDate(date) {
