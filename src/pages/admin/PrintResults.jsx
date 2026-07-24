@@ -98,15 +98,14 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
-    if (entry.status !== 'OK') return entry.status;
-    return '';
+    const remarks = (entry.stage_times || [])
+      .map((stageTime) => stageTime.remark_penalty)
+      .filter(Boolean);
+    return [...new Set(remarks)].join(', ');
   };
 
   const stageRemark = (stageTime) => {
-    if (!stageTime) return '';
-    const status = stageTime.status && stageTime.status !== 'OK' ? stageTime.status : '';
-    if (status && stageTime.remark_penalty) return `${status} - ${stageTime.remark_penalty}`;
-    return status || stageTime.remark_penalty || '';
+    return stageTime?.remark_penalty || '';
   };
 
   const resultRowClass = (status) => {
@@ -385,6 +384,16 @@ function formatEventDateRange(event) {
   return `${formatDate(event.start_date)} - ${formatDate(event.end_date)}`;
 }
 
+function classCode(value) {
+  if (!value) return '-';
+  return String(value).split(' - ')[0] || '-';
+}
+
+function categoryCode(value) {
+  if (!value) return '-';
+  return String(value).split(' - ')[0] || '-';
+}
+
 function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, resultRowClass, excludedStatuses }) {
   const printableGroups = groups
     .map((group) => ({
@@ -411,8 +420,9 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
               <th className="border border-gray-300 p-2 text-center">No Start</th>
               <th className="border border-gray-300 p-2 text-left">Driver/Co driver</th>
               <th className="border border-gray-300 p-2 text-left">Entrant</th>
-              <th className="border border-gray-300 p-2 text-left">Class</th>
               <th className="border border-gray-300 p-2 text-left">Regional</th>
+              <th className="border border-gray-300 p-2 text-left">Class</th>
+              <th className="border border-gray-300 p-2 text-left">Cat</th>
               {stages.map((stage) => (
                 <th key={stage.id} className="border border-gray-300 p-2 text-right">Time SS{stage.ss_order}</th>
               ))}
@@ -430,8 +440,9 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                   <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                 </td>
                 <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
-                <td className="border border-gray-300 p-2">{entry.class_name}</td>
                 <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
+                <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
+                <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
                 {stages.map((stage) => {
                   const stageTime = stageTimeFor(entry, stage.id);
                   return (
@@ -478,15 +489,16 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                       <th className="border border-gray-300 p-2 text-center">No Start</th>
                       <th className="border border-gray-300 p-2 text-left">Driver/Co driver</th>
                       <th className="border border-gray-300 p-2 text-left">Entrant</th>
-                      <th className="border border-gray-300 p-2 text-left">Class</th>
                       <th className="border border-gray-300 p-2 text-left">Regional</th>
+                      <th className="border border-gray-300 p-2 text-left">Class</th>
+                      <th className="border border-gray-300 p-2 text-left">Cat</th>
                       <th className="border border-gray-300 p-2 text-center">Start</th>
                       <th className="border border-gray-300 p-2 text-center">Finish</th>
                       <th className="border border-gray-300 p-2 text-right">Time</th>
                       <th className="border border-gray-300 p-2 text-right">time Penalty</th>
                       <th className="border border-gray-300 p-2 text-right">Total</th>
                       <th className="border border-gray-300 p-2 text-right">Dif</th>
-                      <th className="border border-gray-300 p-2 text-left">Remark Penalty</th>
+                      <th className="border border-gray-300 p-2 text-left">Keterangan</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -499,15 +511,16 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                           <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                         </td>
                         <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
-                        <td className="border border-gray-300 p-2">{entry.class_name}</td>
                         <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
+                        <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
+                        <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
                         <td className="border border-gray-300 p-2 text-center font-mono">{stageTime.start_time || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-mono">{formatClockCentiseconds(stageTime.finish_time)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.elapsed_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.penalty_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(stageTime.total_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{diffMs ? `+${formatMs(diffMs)}` : '-'}</td>
-                        <td className="border border-gray-300 p-2">{stageRemark(stageTime) || '-'}</td>
+                        <td className="border border-gray-300 p-2">{stageRemark(stageTime)}</td>
                       </tr>
                     ))}
                   </tbody>
