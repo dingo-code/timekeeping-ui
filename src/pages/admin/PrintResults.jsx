@@ -208,18 +208,31 @@ export default function PrintResults() {
     <div className="min-h-full space-y-6">
       <style>{`
         @media print {
-          @page { size: landscape; margin: 0; }
+          @page { size: landscape; margin: 5mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body { background: #fff !important; margin: 0 !important; }
           aside, header, .no-print { display: none !important; }
           main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
-          .print-page { box-shadow: none !important; border: 0 !important; padding: 8mm !important; }
-          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
-          .print-group { page-break-inside: auto; break-inside: auto; margin-bottom: 14px !important; }
-          .print-group-title { break-after: avoid; page-break-after: avoid; }
-          table { page-break-inside: auto; font-size: 10px; }
+          .print-page { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 4px !important; padding-bottom: 4px !important; }
+          .print-header-grid { grid-template-columns: 120px 1fr 132px !important; min-height: 72px !important; gap: 6px !important; }
+          .print-logo-box, .print-meta-box { height: 72px !important; }
+          .print-logo-img { max-height: 72px !important; }
+          .print-title { font-size: 16px !important; line-height: 1.05 !important; }
+          .print-subtitle { font-size: 9px !important; line-height: 1.12 !important; }
+          .print-status { border-width: 1px !important; padding: 3px 8px !important; font-size: 9px !important; line-height: 1.1 !important; }
+          .print-date { font-size: 8px !important; line-height: 1.1 !important; }
+          .print-group { page-break-inside: auto; break-inside: auto; margin-bottom: 7px !important; }
+          .print-group-title { break-after: avoid; page-break-after: avoid; margin-bottom: 2px !important; }
+          .print-group-title h2 { font-size: 12px !important; line-height: 1.1 !important; }
+          .print-group-title span { font-size: 8px !important; }
+          table { page-break-inside: auto; font-size: 8.5px !important; line-height: 1.12 !important; table-layout: fixed; width: 100%; }
+          th, td { padding: 2px 3px !important; vertical-align: top !important; }
+          th { font-weight: 900 !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; page-break-after: auto; }
+          .print-driver-name { font-size: 8.5px !important; line-height: 1.1 !important; }
+          .print-codriver-name { font-size: 7.5px !important; line-height: 1.1 !important; }
         }
       `}</style>
 
@@ -229,49 +242,49 @@ export default function PrintResults() {
             <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
             <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_190px_190px_150px_190px_auto] gap-3 w-full xl:w-auto">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_160px_160px_120px_160px_110px]">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
                 <option value="">-- Pilih Event --</option>
                 {events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Bentuk</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={reportScope} onChange={(e) => setReportScope(e.target.value)}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={reportScope} onChange={(e) => setReportScope(e.target.value)}>
                 <option value="final">Final Result</option>
                 <option value="stage">Setiap SS</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Result Type</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={reportType} onChange={(e) => setReportType(e.target.value)}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={reportType} onChange={(e) => setReportType(e.target.value)}>
                 {reportTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Regional</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={selectedRegionalId} onChange={(e) => setSelectedRegionalId(e.target.value)}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedRegionalId} onChange={(e) => setSelectedRegionalId(e.target.value)}>
                 <option value="all">Semua Regional</option>
                 {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">SS</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50" value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} disabled={reportScope === 'final'}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50" value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} disabled={reportScope === 'final'}>
                 <option value="all">Semua SS</option>
                 {report.stages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Result Status</label>
-              <select className="w-full p-3 border border-gray-300 rounded-lg bg-white font-bold text-sm outline-none focus:ring-1 focus:ring-red-500" value={resultStatus} onChange={(e) => handleResultStatusChange(e.target.value)}>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultStatus} onChange={(e) => handleResultStatusChange(e.target.value)}>
                 <option value="unofficial">Unofficial Result</option>
                 <option value="official">Official Result</option>
               </select>
             </div>
-            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="self-end px-5 py-3 bg-red-600 text-white rounded-lg font-black text-sm hover:bg-red-700 disabled:opacity-50">
+            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="h-[42px] w-full self-end rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50">
               CETAK
             </button>
           </div>
@@ -320,26 +333,26 @@ export default function PrintResults() {
 function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel, regionalLabel }) {
   return (
     <div className="print-header border-b border-gray-300 pb-4 mb-5">
-      <div className="grid grid-cols-[230px_1fr_230px] items-center gap-4 min-h-32">
-        <div className="h-32 flex items-center justify-center bg-white">
+      <div className="print-header-grid grid grid-cols-[230px_1fr_230px] items-center gap-4 min-h-32">
+        <div className="print-logo-box h-32 flex items-center justify-center bg-white">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo event" className="max-h-32 w-auto max-w-full object-contain" />
+            <img src={logoUrl} alt="Logo event" className="print-logo-img max-h-32 w-auto max-w-full object-contain" />
           ) : (
             <span className="text-[10px] font-black text-gray-400 text-center uppercase">Logo Event</span>
           )}
         </div>
         <div className="text-center self-center">
-          <h1 className="text-2xl font-black uppercase tracking-wide text-gray-900">{eventName}</h1>
-          <p className="text-sm font-bold text-gray-700 capitalize">{eventDateText}</p>
-          <p className="text-sm font-semibold text-gray-600">{eventLocation}</p>
-          {regionalLabel && <p className="mt-2 text-xs font-bold text-gray-500 uppercase tracking-wide">{regionalLabel}</p>}
-          <p className={`${regionalLabel ? '' : 'mt-2'} text-xs font-bold text-gray-500 uppercase tracking-wide`}>{lineFourLabel}</p>
+          <h1 className="print-title text-2xl font-black uppercase tracking-wide text-gray-900">{eventName}</h1>
+          <p className="print-subtitle text-sm font-bold text-gray-700 capitalize">{eventDateText}</p>
+          <p className="print-subtitle text-sm font-semibold text-gray-600">{eventLocation}</p>
+          {regionalLabel && <p className="print-subtitle mt-2 text-xs font-bold text-gray-500 uppercase tracking-wide">{regionalLabel}</p>}
+          <p className={`print-subtitle ${regionalLabel ? '' : 'mt-2'} text-xs font-bold text-gray-500 uppercase tracking-wide`}>{lineFourLabel}</p>
         </div>
-        <div className="h-32 flex flex-col items-center justify-center gap-2">
-          <span className="inline-block border-2 border-gray-900 px-4 py-2 text-sm font-black uppercase tracking-wide text-center leading-tight">
+        <div className="print-meta-box h-32 flex flex-col items-center justify-center gap-2">
+          <span className="print-status inline-block border-2 border-gray-900 px-4 py-2 text-sm font-black uppercase tracking-wide text-center leading-tight">
             {resultStatusLabel}
           </span>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-600">Tanggal Cetak: {printDateText}</p>
+          <p className="print-date text-[10px] font-bold uppercase tracking-wide text-gray-600">Tanggal Cetak: {printDateText}</p>
         </div>
       </div>
     </div>
@@ -414,8 +427,8 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.rank || '-'}</td>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                 <td className="border border-gray-300 p-2">
-                  <div className="font-bold text-gray-800">{entry.driver_name}</div>
-                  <div className="text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
+                  <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
+                  <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                 </td>
                 <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{entry.class_name}</td>
@@ -483,8 +496,8 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2 text-center font-black">{rank || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                         <td className="border border-gray-300 p-2">
-                          <div className="font-bold text-gray-800">{entry.driver_name}</div>
-                          <div className="text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
+                          <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
+                          <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                         </td>
                         <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{entry.class_name}</td>
