@@ -79,13 +79,17 @@ export default function ShakedownReport() {
     <div className="min-h-full space-y-6">
       <style>{`
         @media print {
-          @page { size: landscape; margin: 8mm; }
+          @page { size: portrait; margin: 7mm; }
           aside, header, .no-print { display: none !important; }
           main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
           .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
-          table { font-size: 10px; }
+          table { font-size: 8px; table-layout: fixed; width: 100%; }
+          th, td { padding: 3px !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; }
+          .print-driver { width: 22%; }
+          .print-small { width: 10%; }
+          .print-time { width: 8%; }
         }
       `}</style>
 
@@ -128,12 +132,12 @@ export default function ShakedownReport() {
             <thead>
               <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
                 <th className="border border-gray-300 p-2 text-center">No Start</th>
-                <th className="border border-gray-300 p-2">Driver / Co Driver</th>
-                <th className="border border-gray-300 p-2">Entrant</th>
-                <th className="border border-gray-300 p-2">Class</th>
-                <th className="border border-gray-300 p-2">Regional</th>
+                <th className="print-driver border border-gray-300 p-2">Driver / Co Driver</th>
+                <th className="print-small border border-gray-300 p-2">Entrant</th>
+                <th className="print-small border border-gray-300 p-2">Class</th>
+                <th className="print-small border border-gray-300 p-2">Regional</th>
                 {attemptColumns.map((attemptNo) => (
-                  <th key={attemptNo} className="border border-gray-300 p-2 text-right">Time Shakedown {attemptNo}</th>
+                  <th key={attemptNo} className="print-time border border-gray-300 p-2 text-right">Time {attemptNo}</th>
                 ))}
               </tr>
             </thead>
