@@ -32,6 +32,9 @@ export default function KamarHitung() {
     else setExpandedRow(id);
   };
 
+  const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
+  const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
+
   // State Modal Edit Waktu
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({ start_time: '', finish_time: '' });
@@ -252,8 +255,8 @@ export default function KamarHitung() {
           </select>
 
           <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
-            <option value="">-- PILIH SS --</option>
-            {stages.map(s => <option key={s.id} value={s.id}>SS {s.ss_order} : {s.ss_name}</option>)}
+            <option value="">-- PILIH STAGE --</option>
+            {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
           </select>
           
           <button onClick={() => { logout(); navigate('/login'); }} className="text-xs font-bold text-gray-500 hover:text-red-600 transition">LOGOUT</button>
@@ -270,7 +273,7 @@ export default function KamarHitung() {
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live)</h2>
+              <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live) {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</h2>
               <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded font-black uppercase tracking-wide">Live auto-refresh</span>
             </div>
             

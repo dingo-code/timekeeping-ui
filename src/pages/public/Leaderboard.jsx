@@ -28,6 +28,7 @@ export default function Leaderboard() {
     () => stages.find((stage) => stage.id === selectedStageId),
     [stages, selectedStageId]
   );
+  const selectedStageLabel = selectedStage?.is_shakedown ? 'Shakedown' : selectedStage ? `SS ${selectedStage.ss_order}` : 'SS';
 
   useEffect(() => {
     fetchEvents();
@@ -210,7 +211,7 @@ export default function Leaderboard() {
                   {stages.length === 0 ? (
                     <option value="">Belum ada SS</option>
                   ) : (
-                    stages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order}</option>)
+                    stages.map((stage) => <option key={stage.id} value={stage.id}>{stageLabel(stage)}</option>)
                   )}
                 </select>
               </label>
@@ -226,7 +227,7 @@ export default function Leaderboard() {
         )}
 
         <section className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
+          <Summary label={selectedStageLabel} value={selectedStage?.ss_name || '-'} />
           <Summary label="Peserta Live" value={entries.length} />
           <Summary label="Fastest" value={leaderName(entries[0])} />
         </section>
@@ -301,6 +302,10 @@ export default function Leaderboard() {
       </div>
     </div>
   );
+}
+
+function stageLabel(stage) {
+  return stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order}`;
 }
 
 function normalizeStageEntries(records) {

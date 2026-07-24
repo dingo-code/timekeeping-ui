@@ -105,8 +105,8 @@ export default function Timecard() {
 
             <section>
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-black uppercase tracking-wide">Rincian SS</h2>
-                <span className="text-xs font-bold text-gray-400">{timecard.stages.length} SS</span>
+                <h2 className="text-lg font-black uppercase tracking-wide">Rincian Stage</h2>
+                <span className="text-xs font-bold text-gray-400">{timecard.total_ss_count} SS resmi</span>
               </div>
 
               <div className="space-y-3 lg:hidden">
@@ -136,7 +136,7 @@ export default function Timecard() {
                       {timecard.stages.map((stage) => (
                         <tr key={stage.ss_id} className="border-t border-gray-200">
                           <td className="p-3">
-                            <div className="font-black">SS {stage.ss_order}</div>
+                            <div className="font-black">{stageLabel(stage)}</div>
                             <div className="text-xs font-semibold text-gray-500">{stage.ss_name}</div>
                           </td>
                           <td className="p-3 text-center font-mono">{shortClock(stage.target_tc_time)}</td>
@@ -203,8 +203,8 @@ function StageCard({ stage }) {
     <article className="rounded-lg bg-white p-4 text-gray-950 shadow-xl">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Special Stage</p>
-          <h3 className="text-xl font-black">SS {stage.ss_order}</h3>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{stage.is_shakedown ? 'Shakedown' : 'Special Stage'}</p>
+          <h3 className="text-xl font-black">{stageLabel(stage)}</h3>
           <p className="text-sm font-bold text-gray-500">{stage.ss_name}</p>
         </div>
         <span className={`rounded px-2.5 py-1 text-[10px] font-black uppercase ${stageStatusClass(stage.status)}`}>
@@ -249,6 +249,10 @@ function MiniMetric({ label, value, strong = false }) {
       <p className={`mt-1 break-words font-mono text-sm ${strong ? 'font-black text-red-700' : 'font-bold text-gray-950'}`}>{value || '-'}</p>
     </div>
   );
+}
+
+function stageLabel(stage) {
+  return stage?.is_shakedown ? 'Shakedown' : `SS ${stage.ss_order}`;
 }
 
 function TCBadge({ status }) {

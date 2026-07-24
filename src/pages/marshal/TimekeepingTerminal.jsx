@@ -119,6 +119,9 @@ export default function TimekeepingTerminal() {
     return sourceRecords.find(r => r.start_number.toString() === number.toString() && r.is_active !== false) || null;
   };
 
+  const selectedStage = stages.find(stage => stage.id === selectedSS) || null;
+  const isShakedownStage = Boolean(selectedStage?.is_shakedown);
+  const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
   const selectedParticipant = startNumber ? getParticipantByStartNumber(startNumber) : null;
   const activeRecord = startNumber ? getActiveRecordByStartNumber(startNumber) : null;
   const hasKnownStartNumber = !startNumber || Boolean(selectedParticipant);
@@ -127,7 +130,7 @@ export default function TimekeepingTerminal() {
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
   const canSubmitStart = isStarter && hasKnownStartNumber && (!activeRecord || !startAlreadyRecorded);
   const canSubmitFinish = isFinisher && hasKnownStartNumber && !finishAlreadyRecorded;
-  const canSubmitTC = isTCOfficer && hasKnownStartNumber && !tcAlreadyRecorded;
+  const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber && !tcAlreadyRecorded;
   const canSubmit = Boolean(startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
 
@@ -148,6 +151,7 @@ export default function TimekeepingTerminal() {
     if (isFinisher && !activeRecord?.start_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya waktu start aktif.` };
     if (isFinisher && finishAlreadyRecorded) return { tone: 'danger', text: `Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.` };
     if (isFinisher) return { tone: 'ready', text: `Siap input finish untuk attempt #${activeRecord?.attempt_no || 1}.` };
+    if (isTCOfficer && isShakedownStage) return { tone: 'warning', text: 'Shakedown tidak memakai input TC. Gunakan petugas start dan finish untuk mencatat waktu latihan.' };
     if (isTCOfficer && tcAlreadyRecorded) return { tone: 'danger', text: `TC mobil #${startNumber} sudah tercatat. Koreksi ulang sebaiknya lewat admin/kamar hitung.` };
     if (isTCOfficer && !activeRecord?.target_tc_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya target TC pada SS ini. Input masih bisa dicatat sebagai aktual tanpa target.` };
     if (isTCOfficer) return { tone: 'ready', text: `Target TC mobil #${startNumber}: ${activeRecord.target_tc_time}.` };
@@ -199,6 +203,9 @@ export default function TimekeepingTerminal() {
       }
       if (isTCOfficer && latestActiveRecord?.tc_time) {
         return alert(`TC mobil #${startNumber} sudah tercatat. Koreksi ulang sebaiknya lewat admin/kamar hitung.`);
+      }
+      if (isTCOfficer && isShakedownStage) {
+        return alert('Shakedown tidak memakai input TC.');
       }
 
       if (isTCOfficer) {
@@ -292,10 +299,10 @@ export default function TimekeepingTerminal() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Pilih Special Stage (SS)</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Pilih Stage</label>
               <select className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg text-lg font-bold disabled:opacity-50 outline-none focus:border-gray-800" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
-                <option value="">-- Pilih SS --</option>
-                {stages.map(s => <option key={s.id} value={s.id}>SS {s.ss_order} : {s.ss_name}</option>)}
+                <option value="">-- Pilih Stage --</option>
+                {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
               </select>
             </div>
           </div>
@@ -314,14 +321,14 @@ export default function TimekeepingTerminal() {
           <div className={`${themeColor} font-black text-xl tracking-widest`}>
             {isStarter ? 'POS START' : isFinisher ? 'POS FINISH' : 'POS TC'}
           </div>
-          <div className="text-gray-400 text-sm font-bold uppercase">{displayRole}</div>
+          <div className="text-gray-400 text-sm font-bold uppercase">{displayRole} {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => fetchRecords(selectedSS)} className="bg-gray-800 text-white px-3 py-2 rounded font-bold text-xs hover:bg-gray-700 transition">
             REFRESH
           </button>
           <button type="button" onClick={() => setSelectedSS('')} className="bg-gray-800 text-white px-4 py-2 rounded font-bold text-sm hover:bg-gray-700 transition">
-            GANTI SS
+            GANTI STAGE
           </button>
         </div>
       </header>

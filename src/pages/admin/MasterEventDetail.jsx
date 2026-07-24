@@ -29,7 +29,7 @@ export default function MasterEventDetail() {
   // --- State Modal & Edit SS ---
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [editingStageId, setEditingStageId] = useState(null);
-  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '' });
+  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false });
   const [stageSearchTerm, setStageSearchTerm] = useState('');
   const [stageCurrentPage, setStageCurrentPage] = useState(1);
   const [stageItemsPerPage, setStageItemsPerPage] = useState(5);
@@ -64,6 +64,8 @@ export default function MasterEventDetail() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
+  const officialStages = stages.filter((stage) => !stage.is_shakedown);
+  const shakedownCount = stages.length - officialStages.length;
 
   useEffect(() => {
     fetchEventData();
@@ -71,8 +73,14 @@ export default function MasterEventDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (activeTab === 'tc' && !selectedTCStageId && stages.length > 0) {
-      setSelectedTCStageId(stages[0].id);
+    if (activeTab !== 'tc') return;
+    const selectableTCStages = stages.filter((stage) => !stage.is_shakedown);
+    if (selectedTCStageId && !selectableTCStages.some((stage) => stage.id === selectedTCStageId)) {
+      setSelectedTCStageId(selectableTCStages[0]?.id || '');
+      return;
+    }
+    if (!selectedTCStageId && selectableTCStages.length > 0) {
+      setSelectedTCStageId(selectableTCStages[0].id);
     }
   }, [activeTab, selectedTCStageId, stages]);
 
@@ -88,6 +96,7 @@ export default function MasterEventDetail() {
       ss.ss_order,
       ss.ss_name,
       ss.distance_km,
+      ss.is_shakedown ? 'shakedown' : 'ss',
     ].join(' ').toLowerCase().includes(normalizedStageSearch)
   ));
   const stageTotalPages = Math.max(1, Math.ceil(filteredStages.length / stageItemsPerPage));
@@ -229,10 +238,10 @@ export default function MasterEventDetail() {
   const openStageModal = (ss = null) => {
     if (ss) {
       setEditingStageId(ss.id);
-      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km });
+      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km, is_shakedown: Boolean(ss.is_shakedown) });
     } else {
       setEditingStageId(null);
-      setStageForm({ ss_name: '', ss_order: '', distance_km: '' });
+      setStageForm({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false });
     }
     setIsStageModalOpen(true);
   };
@@ -240,7 +249,12 @@ export default function MasterEventDetail() {
   const handleStageSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = { ...stageForm, ss_order: parseInt(stageForm.ss_order), distance_km: parseFloat(stageForm.distance_km) };
+      const payload = {
+        ...stageForm,
+        ss_order: parseInt(stageForm.ss_order),
+        distance_km: parseFloat(stageForm.distance_km),
+        is_shakedown: Boolean(stageForm.is_shakedown),
+      };
       
       if (editingStageId) {
         await api.put(`/admin/events/${id}/stages/${editingStageId}`, payload);
@@ -455,13 +469,13 @@ export default function MasterEventDetail() {
           <div className="p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Rute Balap (Special Stages)</h3>
-                <p className="text-xs text-gray-500">Total {stages.length} rute terdaftar.</p>
+                <h3 className="text-lg font-bold text-gray-800">Rute Balap & Shakedown</h3>
+                <p className="text-xs text-gray-500">Total {officialStages.length} SS resmi dan {shakedownCount} shakedown terdaftar.</p>
               </div>
               <div className="flex flex-col sm:flex-row w-full sm:w-auto sm:items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Cari nama, urutan, atau jarak SS..."
+                  placeholder="Cari nama, urutan, jenis, atau jarak..."
                   className="w-full sm:w-64 p-2 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-red-500"
                   value={stageSearchTerm}
                   onChange={(e) => setStageSearchTerm(e.target.value)}
@@ -477,24 +491,30 @@ export default function MasterEventDetail() {
                   </select>
                 </div>
               </div>
-              <button onClick={() => openStageModal()} className="px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700">+ Tambah SS</button>
+              <button onClick={() => openStageModal()} className="px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700">+ Tambah Stage</button>
             </div>
             
             <table className="w-full text-left border-collapse border border-gray-200 rounded overflow-hidden">
               <thead className="bg-gray-100 text-sm">
                 <tr>
-                  <th className="p-3">Urutan SS</th>
-                  <th className="p-3">Nama SS</th>
+                  <th className="p-3">Urutan</th>
+                  <th className="p-3">Jenis</th>
+                  <th className="p-3">Nama Stage</th>
                   <th className="p-3">Jarak (KM)</th>
                   <th className="p-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td colSpan="4" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
-                  currentStages.length === 0 ? <tr><td colSpan="4" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
+                {isLoading ? <tr><td colSpan="5" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
+                  currentStages.length === 0 ? <tr><td colSpan="5" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
                   currentStages.map(ss => (
                     <tr key={ss.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="p-3 font-bold text-red-600">SS {ss.ss_order}</td>
+                      <td className="p-3 font-bold text-red-600">{ss.is_shakedown ? '-' : `SS ${ss.ss_order}`}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${ss.is_shakedown ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                          {ss.is_shakedown ? 'Shakedown' : 'Special Stage'}
+                        </span>
+                      </td>
                       <td className="p-3 font-medium">{ss.ss_name}</td>
                       <td className="p-3 text-gray-600">{ss.distance_km} km</td>
                       <td className="p-3 text-right space-x-3">
@@ -602,7 +622,7 @@ export default function MasterEventDetail() {
                   onChange={(e) => setSelectedTCStageId(e.target.value)}
                 >
                   <option value="">-- Pilih SS --</option>
-                  {stages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order} : {stage.ss_name}</option>)}
+                  {officialStages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order} : {stage.ss_name}</option>)}
                 </select>
                 <input
                   type="text"
@@ -763,12 +783,21 @@ export default function MasterEventDetail() {
       ========================================== */}
 
       {/* --- MODAL FORM SS --- */}
-      <Modal isOpen={isStageModalOpen} onClose={() => setIsStageModalOpen(false)} title={editingStageId ? "Edit Special Stage" : "Tambah Special Stage (SS)"}>
+      <Modal isOpen={isStageModalOpen} onClose={() => setIsStageModalOpen(false)} title={editingStageId ? "Edit Stage" : "Tambah Stage"}>
         <form onSubmit={handleStageSubmit} className="p-6 space-y-4">
+          <label className="flex items-center gap-3 rounded border border-gray-200 bg-gray-50 p-3 text-sm font-bold text-gray-700">
+            <input
+              type="checkbox"
+              checked={Boolean(stageForm.is_shakedown)}
+              onChange={(e) => setStageForm({ ...stageForm, is_shakedown: e.target.checked })}
+              className="h-4 w-4 accent-red-600"
+            />
+            Shakedown
+          </label>
           <div className="flex gap-4">
             <div className="w-1/3">
-              <label className="block text-sm font-bold text-gray-700 mb-1">Urutan (SS Ke-)</label>
-              <input type="number" required min="1" className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_order} onChange={e => setStageForm({...stageForm, ss_order: e.target.value})} />
+              <label className="block text-sm font-bold text-gray-700 mb-1">Urutan</label>
+              <input type="number" required min="0" className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_order} onChange={e => setStageForm({...stageForm, ss_order: e.target.value})} />
             </div>
             <div className="w-2/3">
               <label className="block text-sm font-bold text-gray-700 mb-1">Jarak (KM)</label>
@@ -776,12 +805,12 @@ export default function MasterEventDetail() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">Nama / Lokasi SS</label>
-            <input type="text" required placeholder="Contoh: SS1 - Cikampek" className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_name} onChange={e => setStageForm({...stageForm, ss_name: e.target.value})} />
+            <label className="block text-sm font-bold text-gray-700 mb-1">Nama / Lokasi Stage</label>
+            <input type="text" required placeholder={stageForm.is_shakedown ? 'Contoh: Shakedown Area' : 'Contoh: SS1 - Cikampek'} className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_name} onChange={e => setStageForm({...stageForm, ss_name: e.target.value})} />
           </div>
           <div className="pt-4 flex justify-end">
             <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700">
-              {editingStageId ? 'Update Rute' : 'Simpan Rute'}
+              {editingStageId ? 'Update Stage' : 'Simpan Stage'}
             </button>
           </div>
         </form>
