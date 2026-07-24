@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
+import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 export default function TimekeepingTerminal() {
   const navigate = useNavigate();
@@ -190,7 +191,7 @@ export default function TimekeepingTerminal() {
       return alert('Format waktu tidak valid. Gunakan format HH:mm (contoh: 08:15)');
     }
     if (isFinisher && !submittedTime.includes(':')) {
-      return alert('Format waktu tidak valid. Gunakan format HH:mm:ss.SSS (contoh: 08:15:30.000)');
+      return alert('Format waktu tidak valid. Gunakan format HH:mm:ss.SS (contoh: 08:15:30.00)');
     }
 
     const confirmMsg = isStarter 
@@ -384,7 +385,7 @@ export default function TimekeepingTerminal() {
                 <div>Target TC: <span className="font-mono text-white">{displayRecord?.target_tc_time || '-'}</span></div>
                 <div>TC: <span className="font-mono text-white">{displayRecord?.tc_time || '-'}</span></div>
                 <div>Start: <span className="font-mono text-white">{displayRecord?.start_time || '-'}</span></div>
-                <div>Finish: <span className="font-mono text-white">{displayRecord?.finish_time || '-'}</span></div>
+                <div>Finish: <span className="font-mono text-white">{formatClockCentiseconds(displayRecord?.finish_time)}</span></div>
                 <div>Status: <span className="font-bold text-white">{displayRecord?.status || 'Belum ada record'}</span></div>
               </div>
             )}
@@ -431,10 +432,10 @@ export default function TimekeepingTerminal() {
               value={manualTime} 
               onChange={e => setManualTime(e.target.value)}
               className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white transition-colors"
-              placeholder={usesMinuteOnlyInput ? '08:15' : '08:15:30.000'}
+              placeholder={usesMinuteOnlyInput ? '08:15' : '08:15:30.00'}
             />
             <p className="text-gray-500 text-xs mt-2 italic">
-              Format: {usesMinuteOnlyInput ? 'HH:mm' : 'HH:mm:ss.SSS'}
+              Format: {usesMinuteOnlyInput ? 'HH:mm' : 'HH:mm:ss.SS'}
             </p>
           </div>
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import Modal from '../../components/Modal';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
 
 export default function KamarHitung() {
   const navigate = useNavigate();
@@ -234,14 +235,6 @@ export default function KamarHitung() {
     }
   };
 
-  // Helper Format Milidetik
-  const formatTime = (ms) => {
-    if (!ms || ms === 0) return "-";
-    const minutes = Math.floor(ms / 60000).toString().padStart(2, '0');
-    const seconds = ((ms % 60000) / 1000).toFixed(3).padStart(6, '0');
-    return `${minutes}:${seconds}`;
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 p-4 shadow-sm flex justify-between items-center">
@@ -327,19 +320,19 @@ export default function KamarHitung() {
                         )}
                       </td>
                       <td className="p-3 text-center font-mono text-gray-600">{r.start_time || '-'}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{r.finish_time || '-'}</td>
-                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatTime(r.elapsed_time_ms)}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time)}</td>
+                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
                           {r.penalty_time_ms > 0 ? (
                             <div className="flex items-center justify-center gap-2 cursor-pointer" onClick={() => toggleRow(r.id)}>
-                              <span>+{formatTime(r.penalty_time_ms)}</span>
+                              <span>+{formatMs(r.penalty_time_ms)}</span>
                               <span className="text-[10px] bg-red-200 text-red-800 px-1 rounded hover:bg-red-300">
                                 {expandedRow === r.id ? '▲' : '▼'}
                               </span>
                             </div>
                           ) : '-'}
                         </td>
-                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">{formatTime(r.total_time_ms)}</td>
+                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">{formatMs(r.total_time_ms)}</td>
                       <td className="p-3 text-center">
                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${r.status === 'OK' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {r.status}
@@ -384,7 +377,7 @@ export default function KamarHitung() {
                                 {r.penalty_details.map((pd, idx) => (
                                   <li key={idx} className="text-xs flex justify-between text-gray-700">
                                     <span>• {pd.name}</span>
-                                    <span className="font-mono text-red-600 font-bold">+{formatTime(pd.time_ms)}</span>
+                                    <span className="font-mono text-red-600 font-bold">+{formatMs(pd.time_ms)}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -448,24 +441,24 @@ export default function KamarHitung() {
           <p className="text-sm text-gray-600 mb-2">Koreksi waktu untuk Mobil <strong>#{selectedRecord?.start_number} ({selectedRecord?.driver_name})</strong></p>
           
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU START (Format: 08:15:30.000)</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU START (Format: 08:15:30.00)</label>
             <input 
               type="text" 
               className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
               value={editForm.start_time}
               onChange={(e) => setEditForm({...editForm, start_time: e.target.value})}
-              placeholder="00:00:00.000"
+              placeholder="00:00:00.00"
             />
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU FINISH (Format: 08:15:30.000)</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU FINISH (Format: 08:15:30.00)</label>
             <input 
               type="text" 
               className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
               value={editForm.finish_time}
               onChange={(e) => setEditForm({...editForm, finish_time: e.target.value})}
-              placeholder="00:00:00.000"
+              placeholder="00:00:00.00"
             />
           </div>
 
@@ -511,7 +504,7 @@ function RestartRequestPanel({ requests, onApprove, onReject }) {
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-gray-500">
                   <span>Attempt #{request.attempt_no || 1}</span>
                   <span>Start {request.start_time || '-'}</span>
-                  <span>Finish {request.finish_time || '-'}</span>
+                  <span>Finish {formatClockCentiseconds(request.finish_time)}</span>
                   <span>Pengaju: {request.requested_by || '-'}</span>
                 </div>
               </div>

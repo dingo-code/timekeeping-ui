@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
+import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -489,7 +490,7 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2">{entry.class_name}</td>
                         <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-mono">{stageTime.start_time || '-'}</td>
-                        <td className="border border-gray-300 p-2 text-center font-mono">{stageTime.finish_time || '-'}</td>
+                        <td className="border border-gray-300 p-2 text-center font-mono">{formatClockCentiseconds(stageTime.finish_time)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.elapsed_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.penalty_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(stageTime.total_time_ms)}</td>

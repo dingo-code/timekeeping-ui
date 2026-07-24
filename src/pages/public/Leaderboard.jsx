@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
+import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 
@@ -276,7 +277,7 @@ export default function Leaderboard() {
                         <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
                       </td>
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.finish_time || '-'}</td>
+                      <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time)}</td>
                       <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
                       <td className="p-4">
@@ -390,7 +391,7 @@ function LeaderboardCard({ entry }) {
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="Start" value={entry.start_time || '-'} />
-        <MiniMetric label="Finish" value={entry.finish_time || '-'} />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time)} />
         <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
         <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN } from '../../services/api';
+import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 
@@ -284,7 +285,7 @@ export default function InputMonitoring() {
                     <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{record.tc_time || '-'}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{record.start_time || '-'}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{record.finish_time || '-'}</td>
+                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
                     <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms)}</td>
                     <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
                   </tr>
@@ -328,7 +329,7 @@ function RecordCard({ record }) {
         <MiniMetric label="Waktu Input" value={formatDateTime(record.updated_at || record.created_at)} />
         <MiniMetric label="TC" value={record.tc_time || '-'} />
         <MiniMetric label="Start" value={record.start_time || '-'} />
-        <MiniMetric label="Finish" value={record.finish_time || '-'} />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time)} />
         <MiniMetric label="Total" value={formatMs(record.total_time_ms)} highlight />
       </div>
       <div className="mt-3">

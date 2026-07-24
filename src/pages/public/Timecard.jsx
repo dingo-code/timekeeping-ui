@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { assetUrl } from '../../services/api';
+import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 export default function Timecard() {
   const { eventId, participantId } = useParams();
@@ -148,7 +149,7 @@ export default function Timecard() {
                             )}
                           </td>
                           <td className="p-3 text-center font-mono">{stage.start_time || '-'}</td>
-                          <td className="p-3 text-center font-mono">{stage.finish_time || '-'}</td>
+                          <td className="p-3 text-center font-mono">{formatClockCentiseconds(stage.finish_time)}</td>
                           <td className="p-3 text-right font-mono">{formatMs(stage.elapsed_time_ms)}</td>
                           <td className="p-3 text-right font-mono">{formatMs(stage.penalty_time_ms)}</td>
                           <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms)}</td>
@@ -216,7 +217,7 @@ function StageCard({ stage }) {
         <MiniMetric label="Target TC" value={shortClock(stage.target_tc_time)} />
         <MiniMetric label="TC" value={shortClock(stage.tc_time)} />
         <MiniMetric label="Start" value={stage.start_time || '-'} />
-        <MiniMetric label="Finish" value={stage.finish_time || '-'} />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(stage.finish_time)} />
       </div>
 
       <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
