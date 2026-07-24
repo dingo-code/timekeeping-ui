@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../../services/api';
+import api, { assetUrl } from '../../services/api';
+import { formatMs } from '../../utils/timeFormat';
 
 export default function ShakedownReport() {
   const [events, setEvents] = useState([]);
@@ -71,8 +72,25 @@ export default function ShakedownReport() {
     }
   };
 
+  const selectedEventDateText = formatEventDateRange(selectedEvent);
+  const selectedEventLogo = assetUrl(selectedEvent?.logo_url);
+  const selectedStageLabel = selectedStage?.ss_name || 'Semua Shakedown';
+  const printDateText = formatPrintDate(new Date());
+
   const handlePrint = () => {
+    const originalTitle = document.title;
+    let restored = false;
+    const restoreTitle = () => {
+      if (restored) return;
+      restored = true;
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+
+    window.addEventListener('afterprint', restoreTitle);
+    document.title = ' ';
     window.print();
+    window.setTimeout(restoreTitle, 3000);
   };
 
   return (
@@ -80,9 +98,12 @@ export default function ShakedownReport() {
       <style>{`
         @media print {
           @page { size: portrait; margin: 7mm; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { background: #fff !important; margin: 0 !important; }
           aside, header, .no-print { display: none !important; }
           main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
           .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
           table { font-size: 8px; table-layout: fixed; width: 100%; }
           th, td { padding: 3px !important; }
           thead { display: table-header-group; }
@@ -122,10 +143,15 @@ export default function ShakedownReport() {
       </div>
 
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-5 border-b border-gray-200 pb-4 text-center">
-          <h1 className="text-2xl font-black uppercase text-gray-900">{selectedEvent?.name || 'Report Shakedown'}</h1>
-          <p className="mt-1 text-sm font-bold uppercase text-gray-500">{selectedStage?.ss_name || 'Semua Shakedown'}</p>
-        </div>
+        <PrintHeader
+          eventName={selectedEvent?.name || 'Report Shakedown'}
+          eventDateText={selectedEventDateText}
+          eventLocation={selectedEvent?.location || '-'}
+          logoUrl={selectedEventLogo}
+          resultStatusLabel="SHAKEDOWN REPORT"
+          printDateText={printDateText}
+          lineFourLabel={selectedStageLabel}
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
@@ -176,17 +202,57 @@ export default function ShakedownReport() {
   );
 }
 
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
+function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel }) {
+  return (
+    <div className="print-header mb-5 border-b border-gray-300 pb-4">
+      <div className="grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
+        <div className="flex h-28 items-center justify-center bg-white">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo event" className="max-h-28 w-auto max-w-full object-contain" />
+          ) : (
+            <span className="text-center text-[10px] font-black uppercase text-gray-400">Logo Event</span>
+          )}
+        </div>
+        <div className="self-center text-center">
+          <h1 className="text-xl font-black uppercase tracking-wide text-gray-900">{eventName}</h1>
+          <p className="text-sm font-bold capitalize text-gray-700">{eventDateText}</p>
+          <p className="text-sm font-semibold text-gray-600">{eventLocation}</p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{lineFourLabel}</p>
+        </div>
+        <div className="flex h-28 flex-col items-center justify-center gap-2">
+          <span className="inline-block border-2 border-gray-900 px-3 py-2 text-center text-xs font-black uppercase leading-tight tracking-wide">
+            {resultStatusLabel}
+          </span>
+          <p className="text-center text-[10px] font-bold text-gray-600">Tanggal Cetak: {printDateText}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
+function formatPrintDate(date) {
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
 
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
+function formatEventDateRange(event) {
+  if (!event?.start_date) return '-';
+
+  const formatDate = (value) => new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(value));
+
+  if (!event.end_date || event.end_date === event.start_date) {
+    return formatDate(event.start_date);
+  }
+
+  return `${formatDate(event.start_date)} - ${formatDate(event.end_date)}`;
 }
