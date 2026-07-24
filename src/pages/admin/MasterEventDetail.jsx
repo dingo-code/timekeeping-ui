@@ -50,7 +50,7 @@ export default function MasterEventDetail() {
   const [penaltyCurrentPage, setPenaltyCurrentPage] = useState(1);
   const [penaltyItemsPerPage, setPenaltyItemsPerPage] = useState(5);
 
-  // --- State Jadwal TC ---
+  // --- State Starting List & Jadwal TC ---
   const [selectedTCStageId, setSelectedTCStageId] = useState('');
   const [startingList, setStartingList] = useState([]);
   const [startOrderDrafts, setStartOrderDrafts] = useState({});
@@ -548,7 +548,7 @@ export default function MasterEventDetail() {
             onClick={() => setActiveTab('tc')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'tc' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Jadwal TC
+            Starting List
           </button>
         </div>
 
@@ -700,7 +700,7 @@ export default function MasterEventDetail() {
           <div className="p-6">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Jadwal Time Control per SS</h3>
+                <h3 className="text-lg font-bold text-gray-800">Starting List per SS</h3>
                 <p className="text-xs text-gray-500">Atur starting list per SS lalu generate target TC otomatis berdasarkan interval.</p>
               </div>
               <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto xl:grid-cols-[220px_260px_110px]">
@@ -790,7 +790,7 @@ export default function MasterEventDetail() {
                 </thead>
                 <tbody>
                   {!selectedTCStageId ? (
-                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur jadwal TC.</td></tr>
+                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur starting list.</td></tr>
                   ) : currentTCRows.length === 0 ? (
                     <tr><td colSpan="7" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
                   ) : currentTCRows.map((row) => (
