@@ -219,6 +219,7 @@ export default function KamarHitung() {
     try {
       // Kita manfaatkan endpoint POST pencatatan waktu yang otomatis melakukan UPDATE jika data sudah ada
       await api.post('/timekeeping/ss-records', {
+        id: selectedRecord.id,
         ss_id: selectedRecord.ss_id,
         participant_id: selectedRecord.participant_id,
         start_time: editForm.start_time,
@@ -361,7 +362,9 @@ export default function KamarHitung() {
                             
                             <button onClick={() => handleSetStatus(r.id, 'DNF')} className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-2 py-1 rounded transition">DNF</button>
                             <button onClick={() => handleSetStatus(r.id, 'DNS')} className="text-xs font-bold text-white bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded transition">DNS</button>
-                            <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
+                            {!r.is_shakedown && (
+                              <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
+                            )}
                           </>
                         )}
                         {r.is_active && r.status !== 'OK' && (

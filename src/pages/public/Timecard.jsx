@@ -111,7 +111,7 @@ export default function Timecard() {
 
               <div className="space-y-3 lg:hidden">
                 {timecard.stages.map((stage) => (
-                  <StageCard key={stage.ss_id} stage={stage} />
+                  <StageCard key={stage.record_id || stage.ss_id} stage={stage} />
                 ))}
               </div>
 
@@ -134,7 +134,7 @@ export default function Timecard() {
                     </thead>
                     <tbody>
                       {timecard.stages.map((stage) => (
-                        <tr key={stage.ss_id} className="border-t border-gray-200">
+                        <tr key={stage.record_id || stage.ss_id} className="border-t border-gray-200">
                           <td className="p-3">
                             <div className="font-black">{stageLabel(stage)}</div>
                             <div className="text-xs font-semibold text-gray-500">{stage.ss_name}</div>
@@ -252,7 +252,8 @@ function MiniMetric({ label, value, strong = false }) {
 }
 
 function stageLabel(stage) {
-  return stage?.is_shakedown ? 'Shakedown' : `SS ${stage.ss_order}`;
+  if (stage?.is_shakedown) return stage.attempt_no ? `Shakedown ${stage.attempt_no}` : 'Shakedown';
+  return `SS ${stage.ss_order}`;
 }
 
 function TCBadge({ status }) {

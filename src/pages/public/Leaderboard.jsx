@@ -119,7 +119,8 @@ export default function Leaderboard() {
     setError('');
     try {
       const res = await api.get(`/public/stages/${stageId}/records`);
-      setEntries(normalizeStageEntries(res.data.data || []));
+      const stage = stages.find((item) => item.id === stageId);
+      setEntries(normalizeStageEntries(res.data.data || [], Boolean(stage?.is_shakedown)));
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memuat leaderboard.');
     } finally {
@@ -264,7 +265,7 @@ export default function Leaderboard() {
                   </tr>
                 ) : (
                   entries.map((entry) => (
-                    <tr key={entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
+                    <tr key={entry.id || entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
                       <td className="p-4 text-center text-2xl font-black">{entry.rank}</td>
                       <td className="p-4 text-center">
                         <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
@@ -295,7 +296,7 @@ export default function Leaderboard() {
                 {selectedStageId ? 'Belum ada peserta dengan catatan finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
               </div>
             ) : (
-              entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} />)
+              entries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} />)
             )}
           </div>
         </main>
@@ -308,7 +309,7 @@ function stageLabel(stage) {
   return stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order}`;
 }
 
-function normalizeStageEntries(records) {
+function normalizeStageEntries(records, isShakedown = false) {
   const numericMs = (value) => {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : 0;
@@ -350,6 +351,7 @@ function normalizeStageEntries(records) {
     const entry = {
       ...record,
       rank: ranked ? rank : '-',
+      driver_name: isShakedown && record.attempt_no ? `${record.driver_name} (Run ${record.attempt_no})` : record.driver_name,
       penalty_desc: formatPenaltyDetails(record.penalty_details),
     };
     if (ranked) rank += 1;

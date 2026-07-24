@@ -115,8 +115,18 @@ export default function TimekeepingTerminal() {
     return participants.find(p => p.start_number.toString() === number.toString()) || null;
   };
 
+  const getRecordsByStartNumber = (number, sourceRecords = records) => {
+    return sourceRecords
+      .filter(r => r.start_number.toString() === number.toString() && r.is_active !== false)
+      .sort((a, b) => (Number(b.attempt_no) || 0) - (Number(a.attempt_no) || 0));
+  };
+
   const getActiveRecordByStartNumber = (number, sourceRecords = records) => {
-    return sourceRecords.find(r => r.start_number.toString() === number.toString() && r.is_active !== false) || null;
+    return getRecordsByStartNumber(number, sourceRecords)[0] || null;
+  };
+
+  const getOpenShakedownRecordByStartNumber = (number, sourceRecords = records) => {
+    return getRecordsByStartNumber(number, sourceRecords).find(r => r.start_time && !r.finish_time) || null;
   };
 
   const selectedStage = stages.find(stage => stage.id === selectedSS) || null;
@@ -124,12 +134,14 @@ export default function TimekeepingTerminal() {
   const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
   const selectedParticipant = startNumber ? getParticipantByStartNumber(startNumber) : null;
   const activeRecord = startNumber ? getActiveRecordByStartNumber(startNumber) : null;
+  const openShakedownRecord = startNumber ? getOpenShakedownRecordByStartNumber(startNumber) : null;
+  const displayRecord = isShakedownStage ? (openShakedownRecord || activeRecord) : activeRecord;
   const hasKnownStartNumber = !startNumber || Boolean(selectedParticipant);
-  const startAlreadyRecorded = Boolean(activeRecord?.start_time);
-  const finishAlreadyRecorded = Boolean(activeRecord?.finish_time);
+  const startAlreadyRecorded = Boolean(displayRecord?.start_time);
+  const finishAlreadyRecorded = Boolean(displayRecord?.finish_time);
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
-  const canSubmitStart = isStarter && hasKnownStartNumber && (!activeRecord || !startAlreadyRecorded);
-  const canSubmitFinish = isFinisher && hasKnownStartNumber && !finishAlreadyRecorded;
+  const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded);
+  const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber && !tcAlreadyRecorded;
   const canSubmit = Boolean(startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
@@ -146,11 +158,13 @@ export default function TimekeepingTerminal() {
   const getInputStatus = () => {
     if (!startNumber) return { tone: 'neutral', text: 'Masukkan No Start untuk melihat status attempt aktif.' };
     if (!selectedParticipant) return { tone: 'danger', text: `Mobil #${startNumber} tidak terdaftar di event ini.` };
+    if (isStarter && isShakedownStage) return { tone: 'ready', text: `Siap input shakedown run #${(activeRecord?.attempt_no || 0) + 1}.` };
     if (isStarter && startAlreadyRecorded) return { tone: 'danger', text: `Start mobil #${startNumber} sudah tercatat. Minta Kamar Hitung memberi restart jika perlu input ulang.` };
     if (isStarter) return { tone: 'ready', text: `Siap input start untuk attempt #${activeRecord?.attempt_no || 1}.` };
-    if (isFinisher && !activeRecord?.start_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya waktu start aktif.` };
+    if (isFinisher && isShakedownStage && !openShakedownRecord) return { tone: 'warning', text: `Mobil #${startNumber} belum punya start shakedown yang menunggu finish.` };
+    if (isFinisher && !displayRecord?.start_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya waktu start aktif.` };
     if (isFinisher && finishAlreadyRecorded) return { tone: 'danger', text: `Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.` };
-    if (isFinisher) return { tone: 'ready', text: `Siap input finish untuk attempt #${activeRecord?.attempt_no || 1}.` };
+    if (isFinisher) return { tone: 'ready', text: `Siap input finish untuk attempt #${displayRecord?.attempt_no || 1}.` };
     if (isTCOfficer && isShakedownStage) return { tone: 'warning', text: 'Shakedown tidak memakai input TC. Gunakan petugas start dan finish untuk mencatat waktu latihan.' };
     if (isTCOfficer && tcAlreadyRecorded) return { tone: 'danger', text: `TC mobil #${startNumber} sudah tercatat. Koreksi ulang sebaiknya lewat admin/kamar hitung.` };
     if (isTCOfficer && !activeRecord?.target_tc_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya target TC pada SS ini. Input masih bisa dicatat sebagai aktual tanpa target.` };
@@ -191,14 +205,18 @@ export default function TimekeepingTerminal() {
     try {
       const latestRecords = await fetchRecords(selectedSS);
       const latestActiveRecord = getActiveRecordByStartNumber(startNumber, latestRecords);
+      const latestOpenShakedownRecord = getOpenShakedownRecordByStartNumber(startNumber, latestRecords);
 
-      if (isStarter && latestActiveRecord?.start_time) {
+      if (isStarter && !isShakedownStage && latestActiveRecord?.start_time) {
         return alert(`Start mobil #${startNumber} sudah tercatat. Minta Kamar Hitung memberi restart jika perlu input ulang.`);
       }
-      if (isFinisher && !latestActiveRecord?.start_time) {
+      if (isFinisher && isShakedownStage && !latestOpenShakedownRecord) {
+        return alert(`Mobil #${startNumber} belum punya start shakedown yang menunggu finish.`);
+      }
+      if (isFinisher && !isShakedownStage && !latestActiveRecord?.start_time) {
         return alert(`Mobil #${startNumber} belum punya waktu start aktif. Coba refresh status atau pastikan memilih SS yang sama dengan petugas start.`);
       }
-      if (isFinisher && latestActiveRecord?.finish_time) {
+      if (isFinisher && !isShakedownStage && latestActiveRecord?.finish_time) {
         return alert(`Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.`);
       }
       if (isTCOfficer && latestActiveRecord?.tc_time) {
@@ -362,17 +380,17 @@ export default function TimekeepingTerminal() {
             {lastSyncedAt && <p className="mt-1 text-[11px] opacity-70">Sinkron terakhir: {lastSyncedAt}</p>}
             {selectedParticipant && (
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-300">
-                <div>Attempt: <span className="font-bold text-white">#{activeRecord?.attempt_no || 1}</span></div>
-                <div>Target TC: <span className="font-mono text-white">{activeRecord?.target_tc_time || '-'}</span></div>
-                <div>TC: <span className="font-mono text-white">{activeRecord?.tc_time || '-'}</span></div>
-                <div>Start: <span className="font-mono text-white">{activeRecord?.start_time || '-'}</span></div>
-                <div>Finish: <span className="font-mono text-white">{activeRecord?.finish_time || '-'}</span></div>
-                <div>Status: <span className="font-bold text-white">{activeRecord?.status || 'Belum ada record'}</span></div>
+                <div>Attempt: <span className="font-bold text-white">#{displayRecord?.attempt_no || (isShakedownStage ? 0 : 1)}</span></div>
+                <div>Target TC: <span className="font-mono text-white">{displayRecord?.target_tc_time || '-'}</span></div>
+                <div>TC: <span className="font-mono text-white">{displayRecord?.tc_time || '-'}</span></div>
+                <div>Start: <span className="font-mono text-white">{displayRecord?.start_time || '-'}</span></div>
+                <div>Finish: <span className="font-mono text-white">{displayRecord?.finish_time || '-'}</span></div>
+                <div>Status: <span className="font-bold text-white">{displayRecord?.status || 'Belum ada record'}</span></div>
               </div>
             )}
           </div>
 
-          {isStarter && startAlreadyRecorded && activeRecord?.id && (
+          {isStarter && !isShakedownStage && startAlreadyRecorded && activeRecord?.id && (
             <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-4">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-orange-200">Permintaan Restart</div>
               <p className="mb-3 text-xs font-semibold text-orange-100">

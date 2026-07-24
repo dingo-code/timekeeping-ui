@@ -238,6 +238,15 @@ export default function AdminLayout() {
             <Icon name="print" />
             <span>Cetak Hasil</span>
           </Link>
+          <Link
+            to="/admin/results/shakedown"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/results/shakedown' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="print" />
+            <span>Report Shakedown</span>
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-gray-800">

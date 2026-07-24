@@ -16,6 +16,7 @@ import MasterEvent from './pages/admin/MasterEvent';
 import MasterEventDetail from './pages/admin/MasterEventDetail';
 import TimekeepingTerminal from './pages/marshal/TimekeepingTerminal';
 import PrintResults from './pages/admin/PrintResults';
+import ShakedownReport from './pages/admin/ShakedownReport';
 import Timecard from './pages/public/Timecard';
 import Leaderboard from './pages/public/Leaderboard';
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="event" element={<MasterEvent />} />
           <Route path="event/:id" element={<MasterEventDetail />} />
           <Route path="results/print" element={<PrintResults />} />
+          <Route path="results/shakedown" element={<ShakedownReport />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
           <Route path="penalty" element={<DummyPage title="Halaman Setup Master Penalti" />} />
