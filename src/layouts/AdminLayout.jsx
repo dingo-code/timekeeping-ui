@@ -97,6 +97,14 @@ function Icon({ name, className = 'h-5 w-5', ...props }) {
         <path d="M6 14h12v8H6z" />
       </>
     ),
+    monitor: (
+      <>
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M8 20h8" />
+        <path d="M12 16v4" />
+        <path d="M7 11h3l2-3 2 6 2-3h1" />
+      </>
+    ),
     logout: (
       <>
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -246,6 +254,15 @@ export default function AdminLayout() {
           >
             <Icon name="print" />
             <span>Report Shakedown</span>
+          </Link>
+          <Link
+            to="/admin/monitoring-input"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/monitoring-input' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Monitoring Input</span>
           </Link>
         </nav>
 

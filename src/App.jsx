@@ -17,6 +17,7 @@ import MasterEventDetail from './pages/admin/MasterEventDetail';
 import TimekeepingTerminal from './pages/marshal/TimekeepingTerminal';
 import PrintResults from './pages/admin/PrintResults';
 import ShakedownReport from './pages/admin/ShakedownReport';
+import InputMonitoring from './pages/admin/InputMonitoring';
 import Timecard from './pages/public/Timecard';
 import Leaderboard from './pages/public/Leaderboard';
 
@@ -46,6 +47,11 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/timecard/:eventId" element={<Timecard />} />
         <Route path="/timecard/:eventId/:participantId" element={<Timecard />} />
+        <Route path="/monitoring-input" element={
+          <ProtectedRoute allowedRoles={['kamar_hitung', 'admin']}>
+            <InputMonitoring />
+          </ProtectedRoute>
+        } />
 
         {/* Panel Admin dengan Sub-Rute Baru */}
         <Route path="/admin" element={
@@ -68,6 +74,7 @@ export default function App() {
           <Route path="event/:id" element={<MasterEventDetail />} />
           <Route path="results/print" element={<PrintResults />} />
           <Route path="results/shakedown" element={<ShakedownReport />} />
+          <Route path="monitoring-input" element={<InputMonitoring />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
           <Route path="penalty" element={<DummyPage title="Halaman Setup Master Penalti" />} />
