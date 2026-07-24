@@ -109,7 +109,7 @@ export default function InputMonitoring() {
     try {
       const targets = stageId === 'all' ? stageList : stageList.filter((stage) => stage.id === stageId);
       const responses = await Promise.all(
-        targets.map((stage) => api.get(`/timekeeping/stages/${stage.id}/records`).then((res) => ({
+        targets.map((stage) => api.get(`/public/stages/${stage.id}/records`).then((res) => ({
           stage,
           records: res.data.data || [],
         })))

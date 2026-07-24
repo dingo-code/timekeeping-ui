@@ -47,11 +47,7 @@ export default function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/timecard/:eventId" element={<Timecard />} />
         <Route path="/timecard/:eventId/:participantId" element={<Timecard />} />
-        <Route path="/monitoring-input" element={
-          <ProtectedRoute allowedRoles={['kamar_hitung', 'admin']}>
-            <InputMonitoring />
-          </ProtectedRoute>
-        } />
+        <Route path="/monitoring-input" element={<InputMonitoring />} />
 
         {/* Panel Admin dengan Sub-Rute Baru */}
         <Route path="/admin" element={
