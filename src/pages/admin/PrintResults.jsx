@@ -136,22 +136,37 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
-    const remarks = (entry.stage_times || [])
-      .map((stageTime) => stageTime.remark_penalty)
-      .filter(Boolean);
-    const status = entry.status && entry.status !== 'OK' ? printableStatusLabel(entry.status) : '';
-    return [status, ...new Set(remarks)].filter(Boolean).join(' / ');
+    const remarks = [];
+    if (entry.status && entry.status !== 'OK') {
+      remarks.push(printableStatusLabel(entry.status));
+    }
+    (entry.stage_times || []).forEach((stageTime) => {
+      if (stageTime.status && stageTime.status !== 'OK') {
+        remarks.push(printableStatusLabel(stageTime.status));
+      }
+      if (stageTime.remark_penalty && !(stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM')) {
+        remarks.push(stageTime.remark_penalty);
+      }
+    });
+    return [...new Set(remarks)].filter(Boolean).join(' / ');
   };
 
   const stageRemark = (stageTime) => {
     if (!stageTime) return '';
     const status = stageTime.status && stageTime.status !== 'OK' ? printableStatusLabel(stageTime.status) : '';
-    return [status, stageTime.remark_penalty].filter(Boolean).join(' / ');
+    const remark = stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM' ? '' : stageTime.remark_penalty;
+    return [status, remark].filter(Boolean).join(' / ');
   };
 
   const stageResultTime = (stageTime) => {
     if (!stageTime) return '-';
-    if (stageTime.finish_time || stageTime.is_bwtm || stageTime.status === 'BWTM') return formatMs(stageTime.total_time_ms);
+    if (
+      (stageTime.status === 'OK' && stageTime.finish_time) ||
+      stageTime.status === 'BWTM' ||
+      (stageTime.status === 'DNF' && Number(stageTime.total_time_ms) > 0)
+    ) {
+      return formatMs(stageTime.total_time_ms);
+    }
     return '-';
   };
 
@@ -181,7 +196,7 @@ export default function PrintResults() {
       (
         (stageTime?.status === 'OK' && Boolean(stageTime.finish_time)) ||
         stageTime?.status === 'BWTM' ||
-        stageTime?.is_bwtm
+        (stageTime?.status === 'DNF' && numericMs(stageTime.total_time_ms) > 0)
       ) &&
       numericMs(stageTime.total_time_ms) > 0
     );

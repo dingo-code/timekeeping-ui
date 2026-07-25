@@ -336,7 +336,7 @@ export default function KamarHitung() {
                         </td>
                       <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">
                         <div>{formatMs(r.total_time_ms)}</div>
-                        {(r.status === 'DNF' || r.status === 'BWTM') && Number(r.total_time_ms) > 0 && (
+                        {r.status === 'BWTM' && Number(r.total_time_ms) > 0 && (
                           <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-gray-500">BWTM</div>
                         )}
                       </td>
