@@ -424,9 +424,9 @@ export default function TimekeepingTerminal() {
               {isStarter ? 'Waktu Start' : isFinisher ? 'Waktu Finish' : 'Waktu Masuk TC'}
             </label>
             <input 
-              type="text"
+              type={usesMinuteOnlyInput ? 'time' : 'text'}
               required
-              inputMode="numeric"
+              step={usesMinuteOnlyInput ? 60 : undefined}
               value={manualTime} 
               onChange={e => setManualTime(e.target.value)}
               className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white transition-colors"
