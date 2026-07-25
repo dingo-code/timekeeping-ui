@@ -15,6 +15,7 @@ export default function Leaderboard() {
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
+  const [nowMs, setNowMs] = useState(Date.now());
   const reconnectTimerRef = useRef(null);
   const shouldReconnectRef = useRef(false);
   const selectedStageIdRef = useRef('');
@@ -33,8 +34,10 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchEvents();
+    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
 
     return () => {
+      window.clearInterval(clockTimer);
       shouldReconnectRef.current = false;
       clearReconnect();
       if (wsRef.current) {
@@ -253,7 +256,7 @@ export default function Leaderboard() {
                   <th className="p-4 text-center">Start</th>
                   <th className="p-4 text-center">Finish</th>
                   <th className="p-4 text-right">Penalti</th>
-                  <th className="p-4 text-right">Total</th>
+                  <th className="p-4 text-right">Live Time</th>
                   <th className="p-4">Status</th>
                 </tr>
               </thead>
@@ -261,12 +264,12 @@ export default function Leaderboard() {
                 {entries.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="p-10 text-center text-sm font-bold text-gray-500">
-                      {selectedStageId ? 'Belum ada peserta dengan catatan finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                      {selectedStageId ? 'Belum ada peserta start, finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
                     </td>
                   </tr>
                 ) : (
                   entries.map((entry) => (
-                    <tr key={entry.id || entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
+                    <tr key={entry.id || entry.participant_id} className={`border-t border-white/10 ${rowClass(displayStatus(entry))}`}>
                       <td className="p-4 text-center text-2xl font-black">{entry.rank}</td>
                       <td className="p-4 text-center">
                         <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
@@ -279,9 +282,10 @@ export default function Leaderboard() {
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time)}</td>
                       <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                      <td className={`p-4 text-right font-mono text-lg font-black ${entry.is_live_running ? 'text-cyan-300' : 'text-yellow-300'}`}>{formatMs(displayTotalMs(entry, nowMs))}</td>
                       <td className="p-4">
-                        <StatusPill status={entry.status} />
+                        <StatusPill status={displayStatus(entry)} />
+                        {entry.is_live_running && <div className="mt-1 text-xs font-black uppercase tracking-widest text-cyan-200">Live</div>}
                         {entry.penalty_desc && <div className="mt-1 text-xs font-bold text-yellow-200">{entry.penalty_desc}</div>}
                       </td>
                     </tr>
@@ -294,10 +298,10 @@ export default function Leaderboard() {
           <div className="space-y-3 p-3 lg:hidden">
             {entries.length === 0 ? (
               <div className="rounded-lg bg-black p-6 text-center text-sm font-bold text-gray-500">
-                {selectedStageId ? 'Belum ada peserta dengan catatan finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                {selectedStageId ? 'Belum ada peserta start, finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
               </div>
             ) : (
-              entries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} />)
+              entries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} nowMs={nowMs} />)
             )}
           </div>
         </main>
@@ -315,11 +319,13 @@ function normalizeStageEntries(records, isShakedown = false) {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : 0;
   };
+  const isOkStatus = (record) => !record.status || record.status === 'OK';
   const hasCompleteTime = (record) => Boolean(record.start_time) && Boolean(record.finish_time);
-  const hasDisplayStatus = (record) => record.status === 'DNF' || record.status === 'DNS';
+  const hasLiveStart = (record) => isOkStatus(record) && Boolean(record.start_time) && !record.finish_time;
+  const hasDisplayStatus = (record) => record.status === 'DNF' || record.status === 'DNS' || record.status === 'DSQ';
   const activeRecords = records.filter((record) => (
     record.is_active !== false &&
-    (hasCompleteTime(record) || hasDisplayStatus(record))
+    (hasCompleteTime(record) || hasLiveStart(record) || hasDisplayStatus(record))
   ));
   const hasStageResult = (record) => (
     record.status === 'OK' &&
@@ -328,8 +334,9 @@ function normalizeStageEntries(records, isShakedown = false) {
   );
   const statusWeight = (record) => {
     if (hasStageResult(record)) return 0;
-    if (record.status === 'OK' || record.status === 'INCOMPLETE' || !record.status) return 1;
-    if (record.status === 'DSQ') return 2;
+    if (hasLiveStart(record)) return 1;
+    if (record.status === 'OK' || record.status === 'INCOMPLETE' || !record.status) return 2;
+    if (record.status === 'DSQ') return 3;
     if (record.status === 'DNF') return 3;
     if (record.status === 'DNS') return 4;
     return 2;
@@ -343,6 +350,7 @@ function normalizeStageEntries(records, isShakedown = false) {
     const aTotal = numericMs(a.total_time_ms);
     const bTotal = numericMs(b.total_time_ms);
     if (hasStageResult(a) && aTotal !== bTotal) return aTotal - bTotal;
+    if (hasLiveStart(a) || hasLiveStart(b)) return numericMs(a.start_number) - numericMs(b.start_number);
     return numericMs(a.start_number) - numericMs(b.start_number);
   });
 
@@ -352,6 +360,7 @@ function normalizeStageEntries(records, isShakedown = false) {
     const entry = {
       ...record,
       rank: ranked ? rank : '-',
+      is_live_running: hasLiveStart(record),
       driver_name: isShakedown && record.attempt_no ? `${record.driver_name} (Run ${record.attempt_no})` : record.driver_name,
       penalty_desc: formatPenaltyDetails(record.penalty_details),
     };
@@ -374,9 +383,9 @@ function parsePenaltyDetails(value) {
   }
 }
 
-function LeaderboardCard({ entry }) {
+function LeaderboardCard({ entry, nowMs }) {
   return (
-    <article className={`rounded-lg border border-white/10 p-4 ${rowClass(entry.status) || 'bg-neutral-800'}`}>
+    <article className={`rounded-lg border border-white/10 p-4 ${rowClass(displayStatus(entry)) || 'bg-neutral-800'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-black uppercase tracking-widest text-gray-400">Rank #{entry.rank}</div>
@@ -393,10 +402,10 @@ function LeaderboardCard({ entry }) {
         <MiniMetric label="Start" value={entry.start_time || '-'} />
         <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time)} />
         <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
-        <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
+        <MiniMetric label={entry.is_live_running ? 'Live Time' : 'Total'} value={formatMs(displayTotalMs(entry, nowMs))} highlight />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        <StatusPill status={entry.status} />
+        <StatusPill status={displayStatus(entry)} />
         {entry.penalty_desc && <span className="text-right text-xs font-bold text-yellow-200">{entry.penalty_desc}</span>}
       </div>
     </article>
@@ -452,6 +461,7 @@ function StatusPill({ status }) {
 }
 
 function rowClass(status) {
+  if (status === 'LIVE') return 'bg-cyan-950/50';
   if (status === 'DNF') return 'bg-orange-950/60';
   if (status === 'DNS') return 'bg-yellow-950/60';
   if (status === 'DSQ') return 'bg-red-950/60';
@@ -459,10 +469,49 @@ function rowClass(status) {
 }
 
 function statusClass(status) {
+  if (status === 'LIVE') return 'bg-cyan-200 text-cyan-950';
   if (status === 'DNF') return 'bg-orange-200 text-orange-950';
   if (status === 'DNS') return 'bg-yellow-200 text-yellow-950';
   if (status === 'DSQ') return 'bg-red-200 text-red-950';
   return 'bg-green-200 text-green-950';
+}
+
+function displayStatus(entry) {
+  if (entry?.is_live_running) return 'LIVE';
+  return entry?.status || 'OK';
+}
+
+function displayTotalMs(entry, nowMs) {
+  if (!entry?.is_live_running) return entry?.total_time_ms;
+  return liveElapsedMs(entry.start_time, nowMs) + Number(entry.penalty_time_ms || 0);
+}
+
+function liveElapsedMs(startTime, nowMs) {
+  const startClockMs = parseClockMilliseconds(startTime);
+  if (startClockMs <= 0) return 0;
+  const now = new Date(nowMs);
+  const nowClockMs = (
+    now.getHours() * 60 * 60 * 1000 +
+    now.getMinutes() * 60 * 1000 +
+    now.getSeconds() * 1000 +
+    now.getMilliseconds()
+  );
+  let elapsed = nowClockMs - startClockMs;
+  if (elapsed < 0) elapsed += 24 * 60 * 60 * 1000;
+  return elapsed;
+}
+
+function parseClockMilliseconds(value) {
+  if (!value || typeof value !== 'string') return 0;
+  const match = value.match(/^(\d{2}):(\d{2}):(\d{2})(?:[.,](\d{1,3}))?/);
+  if (!match) return 0;
+  const [, hh, mm, ss, fraction = '0'] = match;
+  return (
+    Number(hh) * 60 * 60 * 1000 +
+    Number(mm) * 60 * 1000 +
+    Number(ss) * 1000 +
+    Number(fraction.padEnd(3, '0'))
+  );
 }
 
 function formatMs(ms) {
