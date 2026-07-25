@@ -20,6 +20,7 @@ export default function PrintResults() {
   const [selectedRegionalId, setSelectedRegionalId] = useState('all');
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [resultStatus, setResultStatus] = useState(localStorage.getItem('print_result_status') || 'unofficial');
+  const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('print_result_orientation') || 'landscape');
   const [report, setReport] = useState({ stages: [], groups: [] });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -78,6 +79,11 @@ export default function PrintResults() {
   const handleResultStatusChange = (value) => {
     setResultStatus(value);
     localStorage.setItem('print_result_status', value);
+  };
+
+  const handlePaperOrientationChange = (value) => {
+    setPaperOrientation(value);
+    localStorage.setItem('print_result_orientation', value);
   };
 
   const formatMs = (ms) => {
@@ -207,7 +213,7 @@ export default function PrintResults() {
     <div className="min-h-full space-y-6">
       <style>{`
         @media print {
-          @page { size: landscape; margin: 5mm; }
+          @page { size: ${paperOrientation}; margin: 5mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body { background: #fff !important; margin: 0 !important; }
           aside, header, .no-print { display: none !important; }
@@ -248,7 +254,7 @@ export default function PrintResults() {
             <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
             <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_160px_160px_120px_160px_110px]">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_160px_160px_120px_160px_140px_110px]">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -288,6 +294,13 @@ export default function PrintResults() {
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultStatus} onChange={(e) => handleResultStatusChange(e.target.value)}>
                 <option value="unofficial">Unofficial Result</option>
                 <option value="official">Official Result</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Orientasi Kertas</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={paperOrientation} onChange={(e) => handlePaperOrientationChange(e.target.value)}>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
               </select>
             </div>
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="h-[42px] w-full self-end rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50">

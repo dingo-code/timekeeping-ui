@@ -7,6 +7,7 @@ export default function ShakedownReport() {
   const [stages, setStages] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedStageId, setSelectedStageId] = useState('');
+  const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('shakedown_result_orientation') || 'portrait');
   const [report, setReport] = useState({ max_attempts: 0, entries: [] });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -78,6 +79,11 @@ export default function ShakedownReport() {
   const printDateText = formatPrintDate(new Date());
   const tableColumnWidths = shakedownColumnWidths(attemptColumns.length);
 
+  const handlePaperOrientationChange = (value) => {
+    setPaperOrientation(value);
+    localStorage.setItem('shakedown_result_orientation', value);
+  };
+
   const handlePrint = () => {
     const originalTitle = document.title;
     let restored = false;
@@ -98,7 +104,7 @@ export default function ShakedownReport() {
     <div className="min-h-full space-y-6">
       <style>{`
         @media print {
-          @page { size: portrait; margin: 7mm; }
+          @page { size: ${paperOrientation}; margin: 7mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body { background: #fff !important; margin: 0 !important; }
           aside, header, .no-print { display: none !important; }
@@ -118,7 +124,7 @@ export default function ShakedownReport() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Shakedown Result</h2>
             <p className="mt-1 text-sm text-gray-500">Rekap multi-run shakedown per peserta.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto] xl:w-auto">
+          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_150px_auto] xl:w-auto">
             <label>
               <span className="mb-1 block text-xs font-bold text-gray-500">Event</span>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -131,6 +137,13 @@ export default function ShakedownReport() {
               <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)}>
                 <option value="">-- Pilih Shakedown --</option>
                 {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.ss_name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-bold text-gray-500">Orientasi Kertas</span>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={paperOrientation} onChange={(e) => handlePaperOrientationChange(e.target.value)}>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
               </select>
             </label>
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="self-end rounded-lg bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50">
