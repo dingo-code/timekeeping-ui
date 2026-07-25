@@ -17,7 +17,13 @@ export default function PrintResults() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [reportScope, setReportScope] = useState('final');
   const [reportType, setReportType] = useState('overall');
-  const [selectedGroupKey, setSelectedGroupKey] = useState('all');
+  const [resultFilters, setResultFilters] = useState({
+    group: 'all',
+    class: 'all',
+    category: 'all',
+    gender: 'all',
+    age: 'all',
+  });
   const [selectedRegionalId, setSelectedRegionalId] = useState('all');
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [resultStatus, setResultStatus] = useState(localStorage.getItem('print_result_status') || 'unofficial');
@@ -35,8 +41,8 @@ export default function PrintResults() {
   }, [selectedEventId, reportScope, reportType, selectedRegionalId]);
 
   useEffect(() => {
-    setSelectedGroupKey('all');
-  }, [reportType, selectedEventId]);
+    setResultFilters({ group: 'all', class: 'all', category: 'all', gender: 'all', age: 'all' });
+  }, [selectedEventId]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId),
@@ -48,15 +54,22 @@ export default function PrintResults() {
     return report.stages.filter((stage) => stage.id === selectedStageId);
   }, [report.stages, selectedStageId]);
 
-  const groupFilterOptions = useMemo(() => report.groups.map((group) => ({
-    value: group.key,
-    label: group.label,
-  })), [report.groups]);
+  const allEntries = useMemo(() => report.groups.flatMap((group) => group.entries || []), [report.groups]);
 
-  const printableGroups = useMemo(() => {
-    if (selectedGroupKey === 'all') return report.groups;
-    return report.groups.filter((group) => group.key === selectedGroupKey);
-  }, [report.groups, selectedGroupKey]);
+  const filterOptions = useMemo(() => ({
+    group: uniqueEntryOptions(allEntries, 'group_name'),
+    class: uniqueEntryOptions(allEntries, 'class_name'),
+    category: uniqueEntryOptions(allEntries, 'category_name'),
+    gender: uniqueGenderOptions(allEntries),
+    age: uniqueAgeOptions(allEntries),
+  }), [allEntries]);
+
+  const printableGroups = useMemo(() => report.groups
+    .map((group) => ({
+      ...group,
+      entries: (group.entries || []).filter((entry) => matchesResultFilters(entry, resultFilters)),
+    }))
+    .filter((group) => group.entries.length > 0), [report.groups, resultFilters]);
 
   const fetchEvents = async () => {
     try {
@@ -99,6 +112,10 @@ export default function PrintResults() {
   const handlePaperOrientationChange = (value) => {
     setPaperOrientation(value);
     localStorage.setItem('print_result_orientation', value);
+  };
+
+  const handleResultFilterChange = (key, value) => {
+    setResultFilters((current) => ({ ...current, [key]: value }));
   };
 
   const formatMs = (ms) => {
@@ -202,9 +219,7 @@ export default function PrintResults() {
   const selectedRegionalLabel = selectedRegionalId === 'all'
     ? 'Semua Regional'
     : regions.find((region) => region.id === selectedRegionalId)?.name || 'Regional';
-  const selectedGroupLabel = selectedGroupKey === 'all'
-    ? ''
-    : groupFilterOptions.find((option) => option.value === selectedGroupKey)?.label || '';
+  const activeFilterLabels = resultActiveFilterLabels(resultFilters, filterOptions);
   const resultStatusLabel = resultStatus === 'official' ? 'OFFICIAL RESULT' : 'UNOFFICIAL RESULT';
   const selectedEventDateText = formatEventDateRange(selectedEvent);
   const selectedEventLogo = assetUrl(selectedEvent?.logo_url);
@@ -279,7 +294,7 @@ export default function PrintResults() {
             <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
             <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_150px_150px_150px_120px_150px_140px_110px]">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -301,10 +316,38 @@ export default function PrintResults() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">{resultFilterLabel(reportType)}</label>
-              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50" value={selectedGroupKey} onChange={(e) => setSelectedGroupKey(e.target.value)} disabled={reportType === 'overall'}>
-                <option value="all">{resultFilterAllLabel(reportType)}</option>
-                {groupFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              <label className="block text-xs font-bold text-gray-500 mb-1">Group</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultFilters.group} onChange={(e) => handleResultFilterChange('group', e.target.value)}>
+                <option value="all">Semua Group</option>
+                {filterOptions.group.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Class</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultFilters.class} onChange={(e) => handleResultFilterChange('class', e.target.value)}>
+                <option value="all">Semua Class</option>
+                {filterOptions.class.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Kategori</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultFilters.category} onChange={(e) => handleResultFilterChange('category', e.target.value)}>
+                <option value="all">Semua Kategori</option>
+                {filterOptions.category.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Gender</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultFilters.gender} onChange={(e) => handleResultFilterChange('gender', e.target.value)}>
+                <option value="all">Semua Gender</option>
+                {filterOptions.gender.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Usia</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={resultFilters.age} onChange={(e) => handleResultFilterChange('age', e.target.value)}>
+                <option value="all">Semua Usia</option>
+                {filterOptions.age.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div>
@@ -352,7 +395,7 @@ export default function PrintResults() {
           printDateText={printDateText}
           lineFourLabel={selectedStageLabel}
           regionalLabel={selectedRegionalId === 'all' ? '' : selectedRegionalLabel}
-          filterLabel={selectedGroupLabel}
+          filterLabel={activeFilterLabels.join(' | ')}
         />
 
         {isLoading ? (
@@ -455,26 +498,88 @@ function printableStatusLabel(status) {
   return status;
 }
 
-function resultFilterLabel(type) {
-  const labels = {
-    group: 'Group',
-    class: 'Class',
-    category: 'Kategori',
-    gender: 'Gender',
-    age: 'Usia',
-  };
-  return labels[type] || 'Filter';
+function uniqueEntryOptions(entries, field) {
+  const seen = new Set();
+  return entries
+    .map((entry) => String(entry[field] || '').trim())
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.localeCompare(b, 'id-ID', { numeric: true }))
+    .map((value) => ({ value, label: value }));
 }
 
-function resultFilterAllLabel(type) {
-  const labels = {
-    group: 'Semua Group',
-    class: 'Semua Class',
-    category: 'Semua Kategori',
-    gender: 'Semua Gender',
-    age: 'Semua Usia',
-  };
-  return labels[type] || 'Semua';
+function uniqueGenderOptions(entries) {
+  const options = new Map();
+  for (const entry of entries) {
+    const label = genderLabel(entry.gender);
+    const key = label.toLowerCase();
+    if (!options.has(key)) options.set(key, { value: label, label });
+  }
+  return Array.from(options.values()).sort((a, b) => a.label.localeCompare(b.label, 'id-ID'));
+}
+
+function uniqueAgeOptions(entries) {
+  const groupMap = new Map();
+  const exactMap = new Map();
+  for (const entry of entries) {
+    const ageGroup = String(entry.age_group || '').trim();
+    const age = Number(entry.age);
+    if (ageGroup) groupMap.set(ageGroup.toLowerCase(), ageGroup);
+    if (Number.isFinite(age) && age > 0) exactMap.set(age, age);
+  }
+
+  const groupOptions = Array.from(groupMap.values())
+    .sort((a, b) => a.localeCompare(b, 'id-ID', { numeric: true }))
+    .map((value) => ({ value: `group:${value}`, label: value }));
+  const exactOptions = Array.from(exactMap.values())
+    .sort((a, b) => a - b)
+    .map((value) => ({ value: `age:${value}`, label: `${value} tahun` }));
+  return [...groupOptions, ...exactOptions];
+}
+
+function matchesResultFilters(entry, filters) {
+  if (filters.group !== 'all' && String(entry.group_name || '').trim() !== filters.group) return false;
+  if (filters.class !== 'all' && String(entry.class_name || '').trim() !== filters.class) return false;
+  if (filters.category !== 'all' && String(entry.category_name || '').trim() !== filters.category) return false;
+  if (filters.gender !== 'all' && genderLabel(entry.gender) !== filters.gender) return false;
+  if (filters.age !== 'all') {
+    if (filters.age.startsWith('group:')) {
+      const ageGroup = filters.age.slice('group:'.length);
+      if (String(entry.age_group || '').trim() !== ageGroup) return false;
+    } else if (filters.age.startsWith('age:')) {
+      const age = Number(filters.age.slice('age:'.length));
+      if (Number(entry.age) !== age) return false;
+    }
+  }
+  return true;
+}
+
+function resultActiveFilterLabels(filters, options) {
+  return [
+    activeFilterLabel('Group', filters.group, options.group),
+    activeFilterLabel('Class', filters.class, options.class),
+    activeFilterLabel('Kategori', filters.category, options.category),
+    activeFilterLabel('Gender', filters.gender, options.gender),
+    activeFilterLabel('Usia', filters.age, options.age),
+  ].filter(Boolean);
+}
+
+function activeFilterLabel(label, value, options) {
+  if (!value || value === 'all') return '';
+  const optionLabel = options.find((option) => option.value === value)?.label || value;
+  return `${label}: ${optionLabel}`;
+}
+
+function genderLabel(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (normalized === 'L' || normalized === 'LAKI-LAKI' || normalized === 'MALE') return 'Laki-laki';
+  if (normalized === 'P' || normalized === 'PEREMPUAN' || normalized === 'FEMALE') return 'Perempuan';
+  return 'Gender Tidak Diketahui';
 }
 
 function finalResultColumnWidths(stageCount) {
