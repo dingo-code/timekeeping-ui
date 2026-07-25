@@ -250,6 +250,7 @@ export default function InputMonitoring() {
                 <th className="p-3 text-center">No</th>
                 <th className="p-3">Driver / Co-driver</th>
                 <th className="p-3">Entrant</th>
+                <th className="p-3 text-center">Target TC</th>
                 <th className="p-3 text-center">TC</th>
                 <th className="p-3 text-center">Start</th>
                 <th className="p-3 text-center">Finish</th>
@@ -260,7 +261,7 @@ export default function InputMonitoring() {
             <tbody>
               {visibleRecords.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="p-10 text-center text-sm font-bold text-gray-500">
+                  <td colSpan="11" className="p-10 text-center text-sm font-bold text-gray-500">
                     Belum ada input pada pilihan ini.
                   </td>
                 </tr>
@@ -283,8 +284,9 @@ export default function InputMonitoring() {
                       <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
                     </td>
                     <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{record.tc_time || '-'}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{record.start_time || '-'}</td>
+                    <td className="p-3 text-center font-mono font-bold text-cyan-200">{formatClockSeconds(record.target_tc_time)}</td>
+                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
+                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
                     <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms)}</td>
                     <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
@@ -327,8 +329,9 @@ function RecordCard({ record }) {
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="SS" value={`${stageShortLabel(record)} ${record.ss_name || ''}`.trim()} />
         <MiniMetric label="Waktu Input" value={formatDateTime(record.updated_at || record.created_at)} />
-        <MiniMetric label="TC" value={record.tc_time || '-'} />
-        <MiniMetric label="Start" value={record.start_time || '-'} />
+        <MiniMetric label="Target TC" value={formatClockSeconds(record.target_tc_time)} />
+        <MiniMetric label="TC" value={formatClockSeconds(record.tc_time)} />
+        <MiniMetric label="Start" value={formatClockSeconds(record.start_time)} />
         <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time)} />
         <MiniMetric label="Total" value={formatMs(record.total_time_ms)} highlight />
       </div>
@@ -441,6 +444,13 @@ function parseClock(value) {
     Number(ss) * 1000 +
     Number(ms.padEnd(3, '0'))
   );
+}
+
+function formatClockSeconds(value) {
+  if (!value || typeof value !== 'string') return '-';
+  const match = value.match(/^(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return value;
+  return `${match[1]}:${match[2]}:${match[3]}`;
 }
 
 function rowClass(record) {
