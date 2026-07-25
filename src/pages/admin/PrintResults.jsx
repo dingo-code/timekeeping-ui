@@ -151,7 +151,7 @@ export default function PrintResults() {
 
   const stageResultTime = (stageTime) => {
     if (!stageTime) return '-';
-    if (stageTime.finish_time || stageTime.is_bwtm) return formatMs(stageTime.total_time_ms);
+    if (stageTime.finish_time || stageTime.is_bwtm || stageTime.status === 'BWTM') return formatMs(stageTime.total_time_ms);
     return '-';
   };
 
@@ -163,6 +163,7 @@ export default function PrintResults() {
   const excludedFinalStatuses = new Set();
   const stageStatusWeight = (status) => {
     if (status === 'OK') return 0;
+    if (status === 'BWTM') return 0;
     if (status === 'INCOMPLETE' || !status) return 1;
     if (status === 'DSQ') return 2;
     if (status === 'DNF') return 3;
@@ -177,8 +178,11 @@ export default function PrintResults() {
       return Number.isFinite(numberValue) ? numberValue : 0;
     };
     const hasStageResult = (stageTime) => (
-      stageTime?.status === 'OK' &&
-      Boolean(stageTime.finish_time) &&
+      (
+        (stageTime?.status === 'OK' && Boolean(stageTime.finish_time)) ||
+        stageTime?.status === 'BWTM' ||
+        stageTime?.is_bwtm
+      ) &&
       numericMs(stageTime.total_time_ms) > 0
     );
 

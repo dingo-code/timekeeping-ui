@@ -322,20 +322,24 @@ function normalizeStageEntries(records, isShakedown = false) {
   const isOkStatus = (record) => !record.status || record.status === 'OK';
   const hasCompleteTime = (record) => Boolean(record.start_time) && Boolean(record.finish_time);
   const hasLiveStart = (record) => isOkStatus(record) && Boolean(record.start_time) && !record.finish_time;
-  const hasDisplayStatus = (record) => record.status === 'DNF' || record.status === 'DNS' || record.status === 'DSQ';
+  const hasDisplayStatus = (record) => record.status === 'BWTM' || record.status === 'DNF' || record.status === 'DNS' || record.status === 'DSQ';
   const activeRecords = records.filter((record) => (
     record.is_active !== false &&
     (hasCompleteTime(record) || hasLiveStart(record) || hasDisplayStatus(record))
   ));
   const hasStageResult = (record) => (
-    record.status === 'OK' &&
-    hasCompleteTime(record) &&
+    (
+      (record.status === 'OK' && hasCompleteTime(record)) ||
+      record.status === 'BWTM' ||
+      record.status === 'DNF'
+    ) &&
     numericMs(record.total_time_ms) > 0
   );
   const statusWeight = (record) => {
     if (hasStageResult(record)) return 0;
     if (hasLiveStart(record)) return 1;
     if (record.status === 'OK' || record.status === 'INCOMPLETE' || !record.status) return 2;
+    if (record.status === 'BWTM') return 2;
     if (record.status === 'DSQ') return 3;
     if (record.status === 'DNF') return 3;
     if (record.status === 'DNS') return 4;
@@ -462,6 +466,7 @@ function StatusPill({ status }) {
 
 function rowClass(status) {
   if (status === 'LIVE') return 'bg-cyan-950/50';
+  if (status === 'BWTM') return 'bg-purple-950/60';
   if (status === 'DNF') return 'bg-orange-950/60';
   if (status === 'DNS') return 'bg-yellow-950/60';
   if (status === 'DSQ') return 'bg-red-950/60';
@@ -470,6 +475,7 @@ function rowClass(status) {
 
 function statusClass(status) {
   if (status === 'LIVE') return 'bg-cyan-200 text-cyan-950';
+  if (status === 'BWTM') return 'bg-purple-200 text-purple-950';
   if (status === 'DNF') return 'bg-orange-200 text-orange-950';
   if (status === 'DNS') return 'bg-yellow-200 text-yellow-950';
   if (status === 'DSQ') return 'bg-red-200 text-red-950';

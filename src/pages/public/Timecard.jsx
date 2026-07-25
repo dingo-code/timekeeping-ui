@@ -307,6 +307,7 @@ function formatTCDelta(ms) {
 function statusClass(status) {
   if (status === 'OK') return 'bg-green-100 text-green-700';
   if (status === 'INCOMPLETE') return 'bg-yellow-100 text-yellow-700';
+  if (status === 'BWTM') return 'bg-purple-100 text-purple-700';
   if (status === 'DNF') return 'bg-orange-100 text-orange-700';
   if (status === 'DSQ') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
@@ -314,6 +315,7 @@ function statusClass(status) {
 
 function stageStatusClass(status) {
   if (status === 'OK') return 'bg-green-100 text-green-700';
+  if (status === 'BWTM') return 'bg-purple-100 text-purple-700';
   if (status === 'DNF') return 'bg-orange-100 text-orange-700';
   if (status === 'DSQ') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';

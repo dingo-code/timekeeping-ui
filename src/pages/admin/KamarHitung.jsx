@@ -336,7 +336,7 @@ export default function KamarHitung() {
                         </td>
                       <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">
                         <div>{formatMs(r.total_time_ms)}</div>
-                        {r.status === 'DNF' && Number(r.total_time_ms) > 0 && (
+                        {(r.status === 'DNF' || r.status === 'BWTM') && Number(r.total_time_ms) > 0 && (
                           <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-gray-500">BWTM</div>
                         )}
                       </td>
@@ -361,6 +361,7 @@ export default function KamarHitung() {
                             )}
                             
                             <button onClick={() => handleSetStatus(r.id, 'DNF')} className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-2 py-1 rounded transition">DNF</button>
+                            <button onClick={() => handleSetStatus(r.id, 'BWTM')} className="text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 px-2 py-1 rounded transition">BWTM</button>
                             <button onClick={() => handleSetStatus(r.id, 'DNS')} className="text-xs font-bold text-white bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded transition">DNS</button>
                             {!r.is_shakedown && (
                               <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
