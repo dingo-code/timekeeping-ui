@@ -101,11 +101,14 @@ export default function PrintResults() {
     const remarks = (entry.stage_times || [])
       .map((stageTime) => stageTime.remark_penalty)
       .filter(Boolean);
-    return [...new Set(remarks)].join(', ');
+    const status = entry.status && entry.status !== 'OK' ? entry.status : '';
+    return [status, ...new Set(remarks)].filter(Boolean).join(' / ');
   };
 
   const stageRemark = (stageTime) => {
-    return stageTime?.remark_penalty || '';
+    if (!stageTime) return '';
+    const status = stageTime.status && stageTime.status !== 'OK' ? stageTime.status : '';
+    return [status, stageTime.remark_penalty].filter(Boolean).join(' / ');
   };
 
   const resultRowClass = (status) => {
@@ -113,7 +116,7 @@ export default function PrintResults() {
     return '';
   };
 
-  const excludedFinalStatuses = new Set(['DNF', 'DNS']);
+  const excludedFinalStatuses = new Set();
   const stageStatusWeight = (status) => {
     if (status === 'OK') return 0;
     if (status === 'INCOMPLETE' || !status) return 1;
