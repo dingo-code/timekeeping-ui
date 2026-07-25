@@ -143,7 +143,7 @@ export default function TimekeepingTerminal() {
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
   const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded);
   const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
-  const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber && !tcAlreadyRecorded;
+  const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
   const canSubmit = Boolean(startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
 
@@ -167,7 +167,7 @@ export default function TimekeepingTerminal() {
     if (isFinisher && finishAlreadyRecorded) return { tone: 'danger', text: `Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.` };
     if (isFinisher) return { tone: 'ready', text: `Siap input finish untuk attempt #${displayRecord?.attempt_no || 1}.` };
     if (isTCOfficer && isShakedownStage) return { tone: 'warning', text: 'Shakedown tidak memakai input TC. Gunakan petugas start dan finish untuk mencatat waktu latihan.' };
-    if (isTCOfficer && tcAlreadyRecorded) return { tone: 'danger', text: `TC mobil #${startNumber} sudah tercatat. Koreksi ulang sebaiknya lewat admin/kamar hitung.` };
+    if (isTCOfficer && tcAlreadyRecorded) return { tone: 'warning', text: `TC mobil #${startNumber} sudah tercatat. Input ulang akan mengoreksi waktu TC berdasarkan No Start ini.` };
     if (isTCOfficer && !activeRecord?.target_tc_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya target TC pada SS ini. Input masih bisa dicatat sebagai aktual tanpa target.` };
     if (isTCOfficer) return { tone: 'ready', text: `Target TC mobil #${startNumber}: ${activeRecord.target_tc_time}.` };
     return { tone: 'neutral', text: 'Role terminal tidak dikenali.' };
@@ -220,20 +220,18 @@ export default function TimekeepingTerminal() {
       if (isFinisher && !isShakedownStage && latestActiveRecord?.finish_time) {
         return alert(`Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.`);
       }
-      if (isTCOfficer && latestActiveRecord?.tc_time) {
-        return alert(`TC mobil #${startNumber} sudah tercatat. Koreksi ulang sebaiknya lewat admin/kamar hitung.`);
-      }
       if (isTCOfficer && isShakedownStage) {
         return alert('Shakedown tidak memakai input TC.');
       }
 
       if (isTCOfficer) {
+        const isCorrection = Boolean(latestActiveRecord?.tc_time);
         await api.post('/timekeeping/tc-records', {
           ss_id: selectedSS,
           participant_id: participantId,
           tc_time: submittedTime,
         });
-        setStatusMessage(`TC tersimpan untuk mobil #${startNumber}.`);
+        setStatusMessage(isCorrection ? `TC mobil #${startNumber} berhasil dikoreksi.` : `TC tersimpan untuk mobil #${startNumber}.`);
         await fetchRecords(selectedSS);
         setStartNumber('');
         setManualTime('');
