@@ -250,7 +250,6 @@ export default function InputMonitoring() {
                 <th className="p-3 text-center">No</th>
                 <th className="p-3">Driver / Co-driver</th>
                 <th className="p-3">Entrant</th>
-                <th className="p-3 text-center">Target TC</th>
                 <th className="p-3 text-center">TC</th>
                 <th className="p-3 text-center">Start</th>
                 <th className="p-3 text-center">Finish</th>
@@ -261,7 +260,7 @@ export default function InputMonitoring() {
             <tbody>
               {visibleRecords.length === 0 ? (
                 <tr>
-                  <td colSpan="11" className="p-10 text-center text-sm font-bold text-gray-500">
+                  <td colSpan="10" className="p-10 text-center text-sm font-bold text-gray-500">
                     Belum ada input pada pilihan ini.
                   </td>
                 </tr>
@@ -270,7 +269,7 @@ export default function InputMonitoring() {
                   <tr key={record.id} className={`border-t border-white/10 ${rowClass(record)}`}>
                     <td className="p-3">
                       <div className="font-black text-white">{inputKind(record)}</div>
-                      <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{formatDateTime(record.updated_at || record.created_at)}</div>
+                      <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{inputTimeLabel(record)}</div>
                     </td>
                     <td className="p-3">
                       <div className="font-black text-white">{stageShortLabel(record)}</div>
@@ -284,7 +283,6 @@ export default function InputMonitoring() {
                       <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
                     </td>
                     <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
-                    <td className="p-3 text-center font-mono font-bold text-cyan-200">{formatClockSeconds(record.target_tc_time)}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
                     <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
@@ -328,8 +326,7 @@ function RecordCard({ record }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="SS" value={`${stageShortLabel(record)} ${record.ss_name || ''}`.trim()} />
-        <MiniMetric label="Waktu Input" value={formatDateTime(record.updated_at || record.created_at)} />
-        <MiniMetric label="Target TC" value={formatClockSeconds(record.target_tc_time)} />
+        <MiniMetric label="Waktu Input" value={inputTimeLabel(record)} />
         <MiniMetric label="TC" value={formatClockSeconds(record.tc_time)} />
         <MiniMetric label="Start" value={formatClockSeconds(record.start_time)} />
         <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time)} />
@@ -415,6 +412,13 @@ function displayStatus(record) {
   return record.status || 'OK';
 }
 
+function inputTimeLabel(record) {
+  if (inputKind(record) === 'TARGET TC' && record.target_tc_time) {
+    return formatDateWithClock(record.created_at || record.updated_at, record.target_tc_time);
+  }
+  return formatDateTime(record.updated_at || record.created_at);
+}
+
 function inputTimestamp(record) {
   const candidates = [
     record.updated_at,
@@ -451,6 +455,11 @@ function formatClockSeconds(value) {
   const match = value.match(/^(\d{2}):(\d{2}):(\d{2})/);
   if (!match) return value;
   return `${match[1]}:${match[2]}:${match[3]}`;
+}
+
+function formatClockDots(value) {
+  const clock = formatClockSeconds(value);
+  return clock === '-' ? '-' : clock.replaceAll(':', '.');
 }
 
 function rowClass(record) {
@@ -500,6 +509,18 @@ function formatDateTime(value) {
     minute: '2-digit',
     second: '2-digit',
   }).format(date);
+}
+
+function formatDateWithClock(dateValue, clockValue) {
+  const clock = formatClockDots(clockValue);
+  if (!dateValue) return clock;
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return clock;
+
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}/${month}, ${clock}`;
 }
 
 function websocketOrigin() {
