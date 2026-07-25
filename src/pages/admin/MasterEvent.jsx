@@ -20,7 +20,11 @@ export default function MasterEvent() {
 
   const [formData, setFormData] = useState({
     series_id: '', point_system_id: '', name: '', 
-    start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3
+    start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3,
+    tc_late_penalty_seconds_per_minute: 10,
+    tc_early_penalty_seconds_per_minute: 60,
+    tc_max_delta_minutes: 15,
+    join_car_tc_tolerance_minutes: 22
   });
 
   useEffect(() => {
@@ -69,11 +73,28 @@ export default function MasterEvent() {
         end_date: event.end_date.split('T')[0],
         location: event.location,
         logo_url: event.logo_url || '',
-        bwtm_penalty_minutes: event.bwtm_penalty_minutes ?? 3
+        bwtm_penalty_minutes: event.bwtm_penalty_minutes ?? 3,
+        tc_late_penalty_seconds_per_minute: event.tc_late_penalty_seconds_per_minute ?? 10,
+        tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
+        tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
+        join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22
       });
     } else {
       setEditingId(null);
-      setFormData({ series_id: series[0]?.id || '', point_system_id: pointSystems[0]?.id || '', name: '', start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3 });
+      setFormData({
+        series_id: series[0]?.id || '',
+        point_system_id: pointSystems[0]?.id || '',
+        name: '',
+        start_date: '',
+        end_date: '',
+        location: '',
+        logo_url: '',
+        bwtm_penalty_minutes: 3,
+        tc_late_penalty_seconds_per_minute: 10,
+        tc_early_penalty_seconds_per_minute: 60,
+        tc_max_delta_minutes: 15,
+        join_car_tc_tolerance_minutes: 22
+      });
     }
     setLogoFile(null);
     setIsModalOpen(true);
@@ -131,6 +152,7 @@ export default function MasterEvent() {
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
             <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">TC: telat +{event.tc_late_penalty_seconds_per_minute ?? 10} dtk/m, cepat +{event.tc_early_penalty_seconds_per_minute ?? 60} dtk/m</div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => openModal(event)} className="flex-1 py-2 text-xs font-bold bg-gray-200 rounded hover:bg-gray-300">EDIT</button>
               <Link to={`/admin/event/${event.id}`} className="flex-[2] py-2 text-center text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700">KELOLA</Link>
@@ -171,6 +193,56 @@ export default function MasterEvent() {
                 placeholder="Default 3 menit"
               />
               <p className="mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai ini.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-gray-200 p-3">
+              <div className="sm:col-span-2">
+                <h3 className="text-sm font-black text-gray-800">Aturan Penalti TC</h3>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Telat: detik per menit</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full p-2 border rounded"
+                  value={formData.tc_late_penalty_seconds_per_minute}
+                  onChange={e => setFormData({...formData, tc_late_penalty_seconds_per_minute: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Cepat: detik per menit</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full p-2 border rounded"
+                  value={formData.tc_early_penalty_seconds_per_minute}
+                  onChange={e => setFormData({...formData, tc_early_penalty_seconds_per_minute: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Maks cepat/telat menit</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full p-2 border rounded"
+                  value={formData.tc_max_delta_minutes}
+                  onChange={e => setFormData({...formData, tc_max_delta_minutes: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Toleransi join car menit</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full p-2 border rounded"
+                  value={formData.join_car_tc_tolerance_minutes}
+                  onChange={e => setFormData({...formData, join_car_tc_tolerance_minutes: e.target.value})}
+                />
+              </div>
+              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal 15 menit, join car 22 menit dari start pertama grup join car.</p>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">Logo Event</label>
