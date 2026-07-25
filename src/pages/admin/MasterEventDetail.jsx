@@ -37,6 +37,8 @@ export default function MasterEventDetail() {
   // --- State Modal & Edit Peserta ---
   const [isParticipantModalOpen, setIsParticipantModalOpen] = useState(false);
   const [editingParticipantId, setEditingParticipantId] = useState(null);
+  const [vehicleEntryMode, setVehicleEntryMode] = useState('own');
+  const [joinCarParticipantId, setJoinCarParticipantId] = useState('');
   const [participantForm, setParticipantForm] = useState({
     start_number: '', entrant_name: '', driver_id: '', codriver_id: '', 
     team_id: '', vehicle_id: '', class_id: '', category_id: ''
@@ -427,7 +429,14 @@ export default function MasterEventDetail() {
   // ==========================================
   const openParticipantModal = (p = null) => {
     if (p) {
+      const joinSource = participants.find((existing) => (
+        existing.id !== p.id &&
+        existing.vehicle_id &&
+        existing.vehicle_id === p.vehicle_id
+      ));
       setEditingParticipantId(p.id);
+      setVehicleEntryMode(joinSource ? 'join' : 'own');
+      setJoinCarParticipantId(joinSource?.id || '');
       setParticipantForm({
         start_number: p.start_number, entrant_name: p.entrant_name, driver_id: p.driver_id, 
         codriver_id: p.codriver_id, team_id: p.team_id || '', vehicle_id: p.vehicle_id, 
@@ -435,12 +444,31 @@ export default function MasterEventDetail() {
       });
     } else {
       setEditingParticipantId(null);
+      setVehicleEntryMode('own');
+      setJoinCarParticipantId('');
       setParticipantForm({
         start_number: '', entrant_name: '', driver_id: '', codriver_id: '', 
         team_id: '', vehicle_id: '', class_id: '', category_id: ''
       });
     }
     setIsParticipantModalOpen(true);
+  };
+
+  const handleVehicleEntryModeChange = (mode) => {
+    setVehicleEntryMode(mode);
+    setJoinCarParticipantId('');
+    if (mode === 'join') {
+      setParticipantForm((current) => ({ ...current, vehicle_id: '' }));
+    }
+  };
+
+  const handleJoinCarParticipantChange = (participantId) => {
+    const sourceParticipant = participants.find((participant) => participant.id === participantId);
+    setJoinCarParticipantId(participantId);
+    setParticipantForm((current) => ({
+      ...current,
+      vehicle_id: sourceParticipant?.vehicle_id || '',
+    }));
   };
 
   const handleParticipantSubmit = async (e) => {
@@ -531,6 +559,23 @@ export default function MasterEventDetail() {
   function getVehicleName(vId) {
     const vehicle = vehicles.find(v => v.id === vId);
     return vehicle ? `${vehicle.brand || ''} ${vehicle.type || ''}`.trim() || '-' : '-';
+  }
+
+  function getJoinCarParticipants(participant) {
+    if (!participant?.vehicle_id) return [];
+    return participants
+      .filter((item) => item.id !== participant.id && item.vehicle_id === participant.vehicle_id)
+      .sort((a, b) => Number(a.start_number) - Number(b.start_number));
+  }
+
+  function getJoinCarOptions() {
+    return participants
+      .filter((participant) => participant.id !== editingParticipantId && participant.vehicle_id)
+      .sort((a, b) => Number(a.start_number) - Number(b.start_number))
+      .map((participant) => ({
+        value: participant.id,
+        label: `#${participant.start_number} - ${getRacerName(participant.driver_id)} (${getVehicleName(participant.vehicle_id)})`,
+      }));
   }
 
   const formatMsToText = (ms) => {
@@ -733,7 +778,14 @@ export default function MasterEventDetail() {
                           <div className="font-semibold text-gray-800">{getRacerName(p.driver_id)}</div>
                           <div className="text-gray-500">Co: {getRacerName(p.codriver_id)}</div>
                         </td>
-                        <td className="p-3 text-sm font-medium text-gray-700">{getVehicleName(p.vehicle_id)}</td>
+                        <td className="p-3 text-sm font-medium text-gray-700">
+                          <div>{getVehicleName(p.vehicle_id)}</div>
+                          {getJoinCarParticipants(p).length > 0 && (
+                            <div className="mt-1 inline-flex rounded bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                              Join car #{getJoinCarParticipants(p).map((item) => item.start_number).join(', #')}
+                            </div>
+                          )}
+                        </td>
                         <td className="p-3 text-center">
                           <TimecardQR value={getTimecardUrl(p)} />
                         </td>
@@ -1075,14 +1127,47 @@ export default function MasterEventDetail() {
               />
             </div>
             <div>
-              <SearchableSelect
-                label="Kendaraan"
-                placeholder="Cari kendaraan..."
-                value={participantForm.vehicle_id}
-                options={vehicles.map(v => ({ value: v.id, label: `${v.brand} - ${v.type}` }))}
-                onChange={(value) => setParticipantForm({ ...participantForm, vehicle_id: value })}
-                required
-              />
+              <label className="block text-sm font-bold text-gray-700 mb-1">Kendaraan <span className="text-red-600">*</span></label>
+              <div className="mb-2 grid grid-cols-2 gap-2 rounded border border-gray-200 bg-gray-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => handleVehicleEntryModeChange('own')}
+                  className={`rounded px-3 py-2 text-xs font-black uppercase ${vehicleEntryMode === 'own' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:bg-white'}`}
+                >
+                  Mobil Sendiri
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVehicleEntryModeChange('join')}
+                  className={`rounded px-3 py-2 text-xs font-black uppercase ${vehicleEntryMode === 'join' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:bg-white'}`}
+                >
+                  Join Car
+                </button>
+              </div>
+              {vehicleEntryMode === 'join' ? (
+                <div className="space-y-2">
+                  <SearchableSelect
+                    label="Pakai mobil peserta"
+                    placeholder="Pilih no start sumber mobil..."
+                    value={joinCarParticipantId}
+                    options={getJoinCarOptions()}
+                    onChange={handleJoinCarParticipantChange}
+                    required
+                  />
+                  <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">
+                    Mobil yang dipakai: <span className="font-black">{getVehicleName(participantForm.vehicle_id)}</span>
+                  </div>
+                </div>
+              ) : (
+                <SearchableSelect
+                  label="Pilih kendaraan"
+                  placeholder="Cari kendaraan..."
+                  value={participantForm.vehicle_id}
+                  options={vehicles.map(v => ({ value: v.id, label: `${v.brand} - ${v.type}` }))}
+                  onChange={(value) => setParticipantForm({ ...participantForm, vehicle_id: value })}
+                  required
+                />
+              )}
             </div>
           </div>
 
