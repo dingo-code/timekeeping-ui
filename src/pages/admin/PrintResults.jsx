@@ -17,6 +17,7 @@ export default function PrintResults() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [reportScope, setReportScope] = useState('final');
   const [reportType, setReportType] = useState('overall');
+  const [selectedGroupKey, setSelectedGroupKey] = useState('all');
   const [selectedRegionalId, setSelectedRegionalId] = useState('all');
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [resultStatus, setResultStatus] = useState(localStorage.getItem('print_result_status') || 'unofficial');
@@ -33,6 +34,10 @@ export default function PrintResults() {
     if (selectedEventId) fetchResults();
   }, [selectedEventId, reportScope, reportType, selectedRegionalId]);
 
+  useEffect(() => {
+    setSelectedGroupKey('all');
+  }, [reportType, selectedEventId]);
+
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId),
     [events, selectedEventId]
@@ -42,6 +47,16 @@ export default function PrintResults() {
     if (selectedStageId === 'all') return report.stages;
     return report.stages.filter((stage) => stage.id === selectedStageId);
   }, [report.stages, selectedStageId]);
+
+  const groupFilterOptions = useMemo(() => report.groups.map((group) => ({
+    value: group.key,
+    label: group.label,
+  })), [report.groups]);
+
+  const printableGroups = useMemo(() => {
+    if (selectedGroupKey === 'all') return report.groups;
+    return report.groups.filter((group) => group.key === selectedGroupKey);
+  }, [report.groups, selectedGroupKey]);
 
   const fetchEvents = async () => {
     try {
@@ -187,6 +202,9 @@ export default function PrintResults() {
   const selectedRegionalLabel = selectedRegionalId === 'all'
     ? 'Semua Regional'
     : regions.find((region) => region.id === selectedRegionalId)?.name || 'Regional';
+  const selectedGroupLabel = selectedGroupKey === 'all'
+    ? ''
+    : groupFilterOptions.find((option) => option.value === selectedGroupKey)?.label || '';
   const resultStatusLabel = resultStatus === 'official' ? 'OFFICIAL RESULT' : 'UNOFFICIAL RESULT';
   const selectedEventDateText = formatEventDateRange(selectedEvent);
   const selectedEventLogo = assetUrl(selectedEvent?.logo_url);
@@ -261,7 +279,7 @@ export default function PrintResults() {
             <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
             <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_160px_160px_120px_160px_140px_110px]">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-[minmax(220px,1fr)_130px_150px_150px_150px_120px_150px_140px_110px]">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -280,6 +298,13 @@ export default function PrintResults() {
               <label className="block text-xs font-bold text-gray-500 mb-1">Result Type</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={reportType} onChange={(e) => setReportType(e.target.value)}>
                 {reportTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{resultFilterLabel(reportType)}</label>
+              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50" value={selectedGroupKey} onChange={(e) => setSelectedGroupKey(e.target.value)} disabled={reportType === 'overall'}>
+                <option value="all">{resultFilterAllLabel(reportType)}</option>
+                {groupFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div>
@@ -327,13 +352,14 @@ export default function PrintResults() {
           printDateText={printDateText}
           lineFourLabel={selectedStageLabel}
           regionalLabel={selectedRegionalId === 'all' ? '' : selectedRegionalLabel}
+          filterLabel={selectedGroupLabel}
         />
 
         {isLoading ? (
           <div className="p-10 text-center text-gray-500 font-bold">Memuat hasil...</div>
         ) : reportScope === 'final' ? (
           <FinalResultReport
-            groups={report.groups}
+            groups={printableGroups}
             stages={report.stages}
             formatMs={formatMs}
             stageTimeFor={stageTimeFor}
@@ -345,7 +371,7 @@ export default function PrintResults() {
         ) : (
           <StageResultReport
             stages={printableStages}
-            groups={report.groups}
+            groups={printableGroups}
             entriesForStage={entriesForStage}
             formatMs={formatMs}
             stageRemark={stageRemark}
@@ -357,7 +383,7 @@ export default function PrintResults() {
   );
 }
 
-function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel, regionalLabel }) {
+function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel, regionalLabel, filterLabel }) {
   return (
     <div className="print-header border-b border-gray-300 pb-4 mb-5">
       <div className="print-header-grid grid grid-cols-[230px_1fr_230px] items-center gap-4 min-h-32">
@@ -373,6 +399,7 @@ function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultS
           <p className="print-subtitle text-sm font-bold text-gray-700 capitalize">{eventDateText}</p>
           <p className="print-subtitle text-sm font-semibold text-gray-600">{eventLocation}</p>
           {regionalLabel && <p className="print-subtitle mt-2 text-xs font-bold text-gray-500 uppercase tracking-wide">{regionalLabel}</p>}
+          {filterLabel && <p className="print-subtitle mt-1 text-xs font-bold text-gray-500 uppercase tracking-wide">{filterLabel}</p>}
           <p className={`print-subtitle ${regionalLabel ? '' : 'mt-2'} text-xs font-bold text-gray-500 uppercase tracking-wide`}>{lineFourLabel}</p>
         </div>
         <div className="print-meta-box h-32 flex flex-col items-center justify-center gap-2">
@@ -426,6 +453,28 @@ function categoryCode(value) {
 function printableStatusLabel(status) {
   if (status === 'NOT_FINISHER') return 'Not Finisher';
   return status;
+}
+
+function resultFilterLabel(type) {
+  const labels = {
+    group: 'Group',
+    class: 'Class',
+    category: 'Kategori',
+    gender: 'Gender',
+    age: 'Usia',
+  };
+  return labels[type] || 'Filter';
+}
+
+function resultFilterAllLabel(type) {
+  const labels = {
+    group: 'Semua Group',
+    class: 'Semua Class',
+    category: 'Semua Kategori',
+    gender: 'Semua Gender',
+    age: 'Semua Usia',
+  };
+  return labels[type] || 'Semua';
 }
 
 function finalResultColumnWidths(stageCount) {
