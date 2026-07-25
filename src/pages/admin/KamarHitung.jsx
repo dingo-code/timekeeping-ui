@@ -150,7 +150,7 @@ export default function KamarHitung() {
       await api.put(`/timekeeping/ss-records/${recordId}/status`, { status: newStatus });
       fetchRecords(selectedSS);
     } catch (e) {
-      alert('Gagal merubah status');
+      alert(e.response?.data?.error || 'Gagal merubah status');
     }
   };
 
@@ -332,7 +332,12 @@ export default function KamarHitung() {
                             </div>
                           ) : '-'}
                         </td>
-                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">{formatMs(r.total_time_ms)}</td>
+                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">
+                        <div>{formatMs(r.total_time_ms)}</div>
+                        {r.status === 'DNF' && Number(r.total_time_ms) > 0 && (
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-gray-500">BWTM</div>
+                        )}
+                      </td>
                       <td className="p-3 text-center">
                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${r.status === 'OK' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {r.status}
