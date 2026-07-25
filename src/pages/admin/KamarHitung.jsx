@@ -320,8 +320,8 @@ export default function KamarHitung() {
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-center font-mono text-gray-600">{r.tc_time || '-'}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{r.start_time || '-'}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.tc_time)}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.start_time)}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time)}</td>
                       <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
@@ -479,6 +479,13 @@ export default function KamarHitung() {
 
     </div>
   );
+}
+
+function formatClockHourMinute(value) {
+  if (!value) return '-';
+  const match = String(value).match(/^(\d{2}):(\d{2})/);
+  if (!match) return value;
+  return `${match[1]}:${match[2]}`;
 }
 
 function RestartRequestPanel({ requests, onApprove, onReject }) {
