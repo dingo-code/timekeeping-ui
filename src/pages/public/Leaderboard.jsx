@@ -256,7 +256,7 @@ export default function Leaderboard() {
                   <th className="p-4 text-center">Start</th>
                   <th className="p-4 text-center">Finish</th>
                   <th className="p-4 text-right">Penalti</th>
-                  <th className="p-4 text-right">Live Time</th>
+                  <th className="p-4 text-right">Total</th>
                   <th className="p-4">Status</th>
                 </tr>
               </thead>
@@ -402,7 +402,7 @@ function LeaderboardCard({ entry, nowMs }) {
         <MiniMetric label="Start" value={entry.start_time || '-'} />
         <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time)} />
         <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
-        <MiniMetric label={entry.is_live_running ? 'Live Time' : 'Total'} value={formatMs(displayTotalMs(entry, nowMs))} highlight />
+        <MiniMetric label="Total" value={formatMs(displayTotalMs(entry, nowMs))} highlight />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <StatusPill status={displayStatus(entry)} />
