@@ -107,13 +107,13 @@ export default function PrintResults() {
     const remarks = (entry.stage_times || [])
       .map((stageTime) => stageTime.remark_penalty)
       .filter(Boolean);
-    const status = entry.status && entry.status !== 'OK' ? resultStatusLabel(entry.status) : '';
+    const status = entry.status && entry.status !== 'OK' ? printableStatusLabel(entry.status) : '';
     return [status, ...new Set(remarks)].filter(Boolean).join(' / ');
   };
 
   const stageRemark = (stageTime) => {
     if (!stageTime) return '';
-    const status = stageTime.status && stageTime.status !== 'OK' ? resultStatusLabel(stageTime.status) : '';
+    const status = stageTime.status && stageTime.status !== 'OK' ? printableStatusLabel(stageTime.status) : '';
     return [status, stageTime.remark_penalty].filter(Boolean).join(' / ');
   };
 
@@ -423,7 +423,7 @@ function categoryCode(value) {
   return String(value).split(' - ')[0] || '-';
 }
 
-function resultStatusLabel(status) {
+function printableStatusLabel(status) {
   if (status === 'NOT_FINISHER') return 'Not Finisher';
   return status;
 }
