@@ -41,7 +41,7 @@ export default function MasterEventDetail() {
   const [joinCarParticipantId, setJoinCarParticipantId] = useState('');
   const [participantForm, setParticipantForm] = useState({
     start_number: '', entrant_name: '', driver_id: '', codriver_id: '', 
-    team_id: '', vehicle_id: '', class_id: '', category_id: ''
+    team_id: '', vehicle_id: '', join_car_with_participant_id: '', class_id: '', category_id: ''
   });
 
   // --- State Modal & Edit Penalti ---
@@ -429,18 +429,13 @@ export default function MasterEventDetail() {
   // ==========================================
   const openParticipantModal = (p = null) => {
     if (p) {
-      const joinSource = participants.find((existing) => (
-        existing.id !== p.id &&
-        existing.vehicle_id &&
-        existing.vehicle_id === p.vehicle_id
-      ));
       setEditingParticipantId(p.id);
-      setVehicleEntryMode(joinSource ? 'join' : 'own');
-      setJoinCarParticipantId(joinSource?.id || '');
+      setVehicleEntryMode(p.join_car_with_participant_id ? 'join' : 'own');
+      setJoinCarParticipantId(p.join_car_with_participant_id || '');
       setParticipantForm({
         start_number: p.start_number, entrant_name: p.entrant_name, driver_id: p.driver_id, 
         codriver_id: p.codriver_id, team_id: p.team_id || '', vehicle_id: p.vehicle_id, 
-        class_id: p.class_id, category_id: p.category_id
+        join_car_with_participant_id: p.join_car_with_participant_id || '', class_id: p.class_id, category_id: p.category_id
       });
     } else {
       setEditingParticipantId(null);
@@ -448,7 +443,7 @@ export default function MasterEventDetail() {
       setJoinCarParticipantId('');
       setParticipantForm({
         start_number: '', entrant_name: '', driver_id: '', codriver_id: '', 
-        team_id: '', vehicle_id: '', class_id: '', category_id: ''
+        team_id: '', vehicle_id: '', join_car_with_participant_id: '', class_id: '', category_id: ''
       });
     }
     setIsParticipantModalOpen(true);
@@ -458,7 +453,9 @@ export default function MasterEventDetail() {
     setVehicleEntryMode(mode);
     setJoinCarParticipantId('');
     if (mode === 'join') {
-      setParticipantForm((current) => ({ ...current, vehicle_id: '' }));
+      setParticipantForm((current) => ({ ...current, vehicle_id: '', join_car_with_participant_id: '' }));
+    } else {
+      setParticipantForm((current) => ({ ...current, join_car_with_participant_id: '' }));
     }
   };
 
@@ -468,6 +465,7 @@ export default function MasterEventDetail() {
     setParticipantForm((current) => ({
       ...current,
       vehicle_id: sourceParticipant?.vehicle_id || '',
+      join_car_with_participant_id: participantId,
     }));
   };
 
@@ -482,9 +480,16 @@ export default function MasterEventDetail() {
     ];
     const missingField = requiredFields.find(([key]) => !participantForm[key]);
     if (missingField) return alert(`${missingField[1]} wajib dipilih.`);
+    if (vehicleEntryMode === 'join' && !participantForm.join_car_with_participant_id) {
+      return alert('Peserta sumber join car wajib dipilih.');
+    }
 
     try {
-      const payload = { ...participantForm, start_number: parseInt(participantForm.start_number) };
+      const payload = {
+        ...participantForm,
+        start_number: parseInt(participantForm.start_number),
+        join_car_with_participant_id: vehicleEntryMode === 'join' ? participantForm.join_car_with_participant_id : '',
+      };
       
       if (editingParticipantId) {
         await api.put(`/admin/events/${id}/participants/${editingParticipantId}`, payload);
@@ -562,10 +567,15 @@ export default function MasterEventDetail() {
   }
 
   function getJoinCarParticipants(participant) {
-    if (!participant?.vehicle_id) return [];
+    if (!participant?.id) return [];
     return participants
-      .filter((item) => item.id !== participant.id && item.vehicle_id === participant.vehicle_id)
+      .filter((item) => item.join_car_with_participant_id === participant.id || participant.join_car_with_participant_id === item.id)
       .sort((a, b) => Number(a.start_number) - Number(b.start_number));
+  }
+
+  function getJoinCarSource(participant) {
+    if (!participant?.join_car_with_participant_id) return null;
+    return participants.find((item) => item.id === participant.join_car_with_participant_id) || null;
   }
 
   function getJoinCarOptions() {
@@ -768,7 +778,10 @@ export default function MasterEventDetail() {
                 </thead>
                 <tbody>
                   {currentParticipants.length === 0 ? <tr><td colSpan="6" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr> :
-                    currentParticipants.map(p => (
+                    currentParticipants.map(p => {
+                      const joinSource = getJoinCarSource(p);
+                      const joinedBy = getJoinCarParticipants(p).filter((item) => item.join_car_with_participant_id === p.id);
+                      return (
                       <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
                         <td className="p-3 text-center">
                           <span className="bg-black text-white font-black text-xl px-3 py-1 rounded">{p.start_number}</span>
@@ -780,9 +793,14 @@ export default function MasterEventDetail() {
                         </td>
                         <td className="p-3 text-sm font-medium text-gray-700">
                           <div>{getVehicleName(p.vehicle_id)}</div>
-                          {getJoinCarParticipants(p).length > 0 && (
+                          {joinSource && (
                             <div className="mt-1 inline-flex rounded bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
-                              Join car #{getJoinCarParticipants(p).map((item) => item.start_number).join(', #')}
+                              Join dengan #{joinSource.start_number}
+                            </div>
+                          )}
+                          {joinedBy.length > 0 && (
+                            <div className="mt-1 inline-flex rounded bg-blue-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-blue-800">
+                              Dipakai #{joinedBy.map((item) => item.start_number).join(', #')}
                             </div>
                           )}
                         </td>
@@ -795,7 +813,8 @@ export default function MasterEventDetail() {
                           <button onClick={() => handleDeleteParticipant(p.id)} className="text-red-600 hover:underline text-sm font-bold">Hapus</button>
                         </td>
                       </tr>
-                    ))
+                    );
+                    })
                   }
                 </tbody>
               </table>
@@ -1156,6 +1175,9 @@ export default function MasterEventDetail() {
                   />
                   <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs font-semibold text-amber-800">
                     Mobil yang dipakai: <span className="font-black">{getVehicleName(participantForm.vehicle_id)}</span>
+                    {joinCarParticipantId && (
+                      <div className="mt-1">Relasi join car disimpan ke peserta #{participants.find((participant) => participant.id === joinCarParticipantId)?.start_number || '-'}</div>
+                    )}
                   </div>
                 </div>
               ) : (
