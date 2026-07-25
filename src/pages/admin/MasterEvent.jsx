@@ -20,7 +20,7 @@ export default function MasterEvent() {
 
   const [formData, setFormData] = useState({
     series_id: '', point_system_id: '', name: '', 
-    start_date: '', end_date: '', location: '', logo_url: ''
+    start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3
   });
 
   useEffect(() => {
@@ -68,11 +68,12 @@ export default function MasterEvent() {
         start_date: event.start_date.split('T')[0],
         end_date: event.end_date.split('T')[0],
         location: event.location,
-        logo_url: event.logo_url || ''
+        logo_url: event.logo_url || '',
+        bwtm_penalty_minutes: event.bwtm_penalty_minutes ?? 3
       });
     } else {
       setEditingId(null);
-      setFormData({ series_id: series[0]?.id || '', point_system_id: pointSystems[0]?.id || '', name: '', start_date: '', end_date: '', location: '', logo_url: '' });
+      setFormData({ series_id: series[0]?.id || '', point_system_id: pointSystems[0]?.id || '', name: '', start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3 });
     }
     setLogoFile(null);
     setIsModalOpen(true);
@@ -129,6 +130,7 @@ export default function MasterEvent() {
             <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => openModal(event)} className="flex-1 py-2 text-xs font-bold bg-gray-200 rounded hover:bg-gray-300">EDIT</button>
               <Link to={`/admin/event/${event.id}`} className="flex-[2] py-2 text-center text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700">KELOLA</Link>
@@ -157,6 +159,19 @@ export default function MasterEvent() {
             <input type="date" className="w-full p-2 border rounded" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}/>
             <input type="date" className="w-full p-2 border rounded" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})}/>
             <input type="text" className="w-full p-2 border rounded" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Lokasi"/>
+            <div>
+              <label className="mb-1 block text-sm font-bold text-gray-700">BWTM tambahan menit</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                className="w-full p-2 border rounded"
+                value={formData.bwtm_penalty_minutes}
+                onChange={e => setFormData({...formData, bwtm_penalty_minutes: e.target.value})}
+                placeholder="Default 3 menit"
+              />
+              <p className="mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai ini.</p>
+            </div>
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">Logo Event</label>
               {(formData.logo_url || logoFile) && (

@@ -107,14 +107,20 @@ export default function PrintResults() {
     const remarks = (entry.stage_times || [])
       .map((stageTime) => stageTime.remark_penalty)
       .filter(Boolean);
-    const status = entry.status && entry.status !== 'OK' ? entry.status : '';
+    const status = entry.status && entry.status !== 'OK' ? resultStatusLabel(entry.status) : '';
     return [status, ...new Set(remarks)].filter(Boolean).join(' / ');
   };
 
   const stageRemark = (stageTime) => {
     if (!stageTime) return '';
-    const status = stageTime.status && stageTime.status !== 'OK' ? stageTime.status : '';
+    const status = stageTime.status && stageTime.status !== 'OK' ? resultStatusLabel(stageTime.status) : '';
     return [status, stageTime.remark_penalty].filter(Boolean).join(' / ');
+  };
+
+  const stageResultTime = (stageTime) => {
+    if (!stageTime) return '-';
+    if (stageTime.finish_time || stageTime.is_bwtm) return formatMs(stageTime.total_time_ms);
+    return '-';
   };
 
   const resultRowClass = (status) => {
@@ -129,6 +135,7 @@ export default function PrintResults() {
     if (status === 'DSQ') return 2;
     if (status === 'DNF') return 3;
     if (status === 'DNS') return 4;
+    if (status === 'NOT_FINISHER') return 5;
     return 2;
   };
 
@@ -331,6 +338,7 @@ export default function PrintResults() {
             formatMs={formatMs}
             stageTimeFor={stageTimeFor}
             finalRemark={finalRemark}
+            stageResultTime={stageResultTime}
             resultRowClass={resultRowClass}
             excludedStatuses={excludedFinalStatuses}
           />
@@ -415,6 +423,11 @@ function categoryCode(value) {
   return String(value).split(' - ')[0] || '-';
 }
 
+function resultStatusLabel(status) {
+  if (status === 'NOT_FINISHER') return 'Not Finisher';
+  return status;
+}
+
 function finalResultColumnWidths(stageCount) {
   const safeStageCount = Math.max(stageCount, 1);
   const fixed = {
@@ -466,7 +479,7 @@ function stageResultColumnWidths() {
   };
 }
 
-function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, resultRowClass, excludedStatuses }) {
+function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses }) {
   const columnWidths = finalResultColumnWidths(stages.length);
   const printableGroups = groups
     .map((group) => ({
@@ -530,14 +543,14 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                 <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                 <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
-                {stages.map((stage) => {
-                  const stageTime = stageTimeFor(entry, stage.id);
-                  return (
-                    <td key={stage.id} className="border border-gray-300 p-2 text-right font-mono">
-                      {stageTime?.finish_time ? formatMs(stageTime.total_time_ms) : '-'}
-                    </td>
-                  );
-                })}
+                  {stages.map((stage) => {
+                    const stageTime = stageTimeFor(entry, stage.id);
+                    return (
+                      <td key={stage.id} className="border border-gray-300 p-2 text-right font-mono">
+                        {stageResultTime(stageTime)}
+                      </td>
+                    );
+                  })}
                 <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(entry.total_time_ms)}</td>
                 <td className="border border-gray-300 p-2">{finalRemark(entry)}</td>
               </tr>
