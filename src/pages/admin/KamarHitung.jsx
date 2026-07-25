@@ -284,6 +284,7 @@ export default function KamarHitung() {
                     <th className="p-3 text-center border-b">No Start</th>
                     <th className="p-3 border-b text-center">Attempt</th>
                     <th className="p-3 border-b">Peserta</th>
+                    <th className="p-3 border-b text-center">TC</th>
                     <th className="p-3 border-b text-center">Waktu Start</th>
                     <th className="p-3 border-b text-center">Waktu Finish</th>
                     <th className="p-3 border-b text-center text-blue-600">Elapsed</th>
@@ -294,8 +295,8 @@ export default function KamarHitung() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {isLoading ? <tr><td colSpan="10" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
-                   records.length === 0 ? <tr><td colSpan="10" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
+                  {isLoading ? <tr><td colSpan="11" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
+                   records.length === 0 ? <tr><td colSpan="11" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
                    records.map((r) => (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
@@ -319,6 +320,7 @@ export default function KamarHitung() {
                           </div>
                         )}
                       </td>
+                      <td className="p-3 text-center font-mono text-gray-600">{r.tc_time || '-'}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{r.start_time || '-'}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time)}</td>
                       <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms)}</td>
@@ -375,7 +377,7 @@ export default function KamarHitung() {
                     </tr>
                     {expandedRow === r.id && r.penalty_details && r.penalty_details.length > 0 && (
                         <tr className="bg-red-50/50 border-b border-gray-200">
-                          <td colSpan="10" className="px-6 py-3">
+                          <td colSpan="11" className="px-6 py-3">
                             <div className="bg-white border border-red-200 rounded p-3 shadow-inner">
                               <p className="text-xs font-bold text-red-800 mb-2 border-b border-red-100 pb-1">📜 Rincian Penalti Mobil #{r.start_number}:</p>
                               <ul className="space-y-1">
