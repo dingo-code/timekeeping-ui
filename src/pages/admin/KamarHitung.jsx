@@ -18,6 +18,7 @@ export default function KamarHitung() {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [recordSearch, setRecordSearch] = useState('');
 
   // State Modal Penalti
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
@@ -66,6 +67,7 @@ export default function KamarHitung() {
     const eventId = e.target.value;
     setSelectedEvent(eventId);
     setSelectedSS('');
+    setRecordSearch('');
     setRecords([]);
     setRestartRequests([]);
     
@@ -83,6 +85,7 @@ export default function KamarHitung() {
 
   const handleSSChange = (e) => {
     const ssId = e.target.value;
+    setRecordSearch('');
     setSelectedSS(ssId);
   };
 
@@ -235,6 +238,19 @@ export default function KamarHitung() {
     }
   };
 
+  const normalizedRecordSearch = recordSearch.trim().toLowerCase();
+  const filteredRecords = normalizedRecordSearch
+    ? records.filter((record) => [
+        record.start_number,
+        record.driver_name,
+        record.codriver_name,
+        record.team_name,
+        record.status,
+        record.attempt_no ? `attempt ${record.attempt_no}` : '',
+        record.attempt_no ? `#${record.attempt_no}` : '',
+      ].join(' ').toLowerCase().includes(normalizedRecordSearch))
+    : records;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 p-4 shadow-sm flex justify-between items-center">
@@ -266,9 +282,21 @@ export default function KamarHitung() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live) {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</h2>
-              <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded font-black uppercase tracking-wide">Live auto-refresh</span>
+            <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live) {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">{filteredRecords.length} dari {records.length} record tampil.</p>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                <input
+                  type="search"
+                  value={recordSearch}
+                  onChange={(event) => setRecordSearch(event.target.value)}
+                  placeholder="Cari no start, driver, team, status..."
+                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 outline-none transition focus:border-red-500 focus:ring-1 focus:ring-red-500 sm:w-80"
+                />
+                <span className="whitespace-nowrap rounded bg-green-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-green-700">Live auto-refresh</span>
+              </div>
             </div>
             
             <RestartRequestPanel
@@ -296,11 +324,11 @@ export default function KamarHitung() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {isLoading ? <tr><td colSpan="11" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
-                   records.length === 0 ? <tr><td colSpan="11" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
-                   records.map((r) => (
+                   filteredRecords.length === 0 ? <tr><td colSpan="11" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
+                   filteredRecords.map((r, rowIndex) => (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
-                    <tr key={r.id} className={`hover:bg-gray-50 transition ${!r.is_active ? 'bg-gray-50 text-gray-500' : ''}`}>
+                    <tr key={r.id} className={`transition ${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/80 hover:bg-gray-100'} ${!r.is_active ? 'text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
                         <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
                       </td>
