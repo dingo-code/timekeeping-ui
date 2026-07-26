@@ -645,10 +645,20 @@ function stageResultColumnWidths() {
 
 function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses }) {
   const columnWidths = finalResultColumnWidths(stages.length);
+  const lastStage = stages.reduce((latest, stage) => {
+    if (!latest) return stage;
+    return Number(stage.ss_order) > Number(latest.ss_order) ? stage : latest;
+  }, null);
   const printableGroups = groups
     .map((group) => ({
       ...group,
-      entries: group.entries.filter((entry) => !excludedStatuses.has(entry.status)),
+      entries: sortFinalResultEntries(group.entries
+        .filter((entry) => !excludedStatuses.has(entry.status))
+        .filter((entry) => !isLastStageNonFinisher(entry, lastStage)))
+        .map((entry, index) => ({
+          ...entry,
+          print_rank: isRankableFinalEntry(entry) ? index + 1 : 0,
+        })),
     }))
     .filter((group) => group.entries.length > 0);
 
@@ -697,7 +707,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
           <tbody>
             {group.entries.map((entry) => (
               <tr key={entry.participant_id} className={resultRowClass(entry.status)}>
-                <td className="border border-gray-300 p-2 text-center font-black">{entry.rank || '-'}</td>
+                <td className="border border-gray-300 p-2 text-center font-black">{entry.print_rank || entry.rank || '-'}</td>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                 <td className="border border-gray-300 p-2">
                   <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
@@ -724,6 +734,29 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
       </div>
     </section>
   ));
+}
+
+function isLastStageNonFinisher(entry, lastStage) {
+  if (!lastStage) return false;
+  const lastStageTime = entry.stage_times?.find((stageTime) => stageTime.ss_id === lastStage.id);
+  return lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF';
+}
+
+function isRankableFinalEntry(entry) {
+  if (Number(entry.total_time_ms) <= 0) return false;
+  return ['OK', 'BWTM', 'DNF', 'DNS'].includes(entry.status);
+}
+
+function sortFinalResultEntries(entries) {
+  return [...entries].sort((a, b) => {
+    const aRankable = isRankableFinalEntry(a);
+    const bRankable = isRankableFinalEntry(b);
+    if (aRankable !== bRankable) return aRankable ? -1 : 1;
+    if (aRankable && Number(a.total_time_ms) !== Number(b.total_time_ms)) {
+      return Number(a.total_time_ms) - Number(b.total_time_ms);
+    }
+    return Number(a.start_number) - Number(b.start_number);
+  });
 }
 
 function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass }) {
