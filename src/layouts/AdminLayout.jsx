@@ -256,13 +256,31 @@ export default function AdminLayout() {
             <span>Shakedown Result</span>
           </Link>
           <Link
-            to="/admin/monitoring-input"
+            to="/monitoring-input"
             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
-              location.pathname === '/admin/monitoring-input' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+              location.pathname === '/monitoring-input' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
             }`}
           >
             <Icon name="monitor" />
             <span>Monitoring Input</span>
+          </Link>
+          <Link
+            to="/kamar-hitung"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/kamar-hitung' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Kamar Hitung</span>
+          </Link>
+          <Link
+            to="/leaderboard"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/leaderboard' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="trophy" />
+            <span>Leaderboard</span>
           </Link>
         </nav>
 
