@@ -165,7 +165,7 @@ export default function PrintResults() {
     return '';
   };
 
-  const excludedFinalStatuses = new Set();
+  const excludedFinalStatuses = new Set(['NOT_FINISHER']);
   const stageStatusWeight = (status) => {
     if (status === 'OK') return 0;
     if (status === 'BWTM') return 0;
