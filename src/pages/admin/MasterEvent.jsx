@@ -24,7 +24,7 @@ export default function MasterEvent() {
     tc_late_penalty_seconds_per_minute: 10,
     tc_early_penalty_seconds_per_minute: 60,
     tc_max_delta_minutes: 15,
-    join_car_tc_tolerance_minutes: 22
+    join_car_tc_tolerance_minutes: 15
   });
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function MasterEvent() {
         tc_late_penalty_seconds_per_minute: event.tc_late_penalty_seconds_per_minute ?? 10,
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
         tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
-        join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22
+        join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 15
       });
     } else {
       setEditingId(null);
@@ -93,7 +93,7 @@ export default function MasterEvent() {
         tc_late_penalty_seconds_per_minute: 10,
         tc_early_penalty_seconds_per_minute: 60,
         tc_max_delta_minutes: 15,
-        join_car_tc_tolerance_minutes: 22
+        join_car_tc_tolerance_minutes: 15
       });
     }
     setLogoFile(null);
@@ -242,7 +242,7 @@ export default function MasterEvent() {
                   onChange={e => setFormData({...formData, join_car_tc_tolerance_minutes: e.target.value})}
                 />
               </div>
-              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal 15 menit, join car 22 menit dari start pertama grup join car.</p>
+              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal 15 menit. Join car: peserta pertama tetap pakai target TC normal; peserta kedua diberi toleransi 15 menit dari start peserta pertama.</p>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">Logo Event</label>
