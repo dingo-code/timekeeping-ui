@@ -170,141 +170,146 @@ export default function InputMonitoring() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] rounded-lg bg-neutral-950 p-4 text-white shadow-xl">
-      <header className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">Live Field Input</p>
-            <h1 className="mt-1 text-2xl font-black uppercase tracking-wide">Monitoring Input Lapangan</h1>
-            <p className="mt-1 text-sm font-semibold text-gray-400">{selectedEvent?.name || '-'}</p>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-[minmax(220px,320px)_minmax(190px,260px)_auto_auto] md:items-end">
-            <label>
-              <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Event</span>
-              <select
-                value={selectedEventId}
-                onChange={(event) => setSelectedEventId(event.target.value)}
-                className="h-11 w-full rounded border border-white/10 bg-black px-3 text-sm font-bold text-white outline-none focus:border-red-500"
-              >
-                {events.length === 0 ? (
-                  <option value="">Belum ada event</option>
-                ) : (
-                  events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)
-                )}
-              </select>
-            </label>
-
-            <label>
-              <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">SS</span>
-              <select
-                value={selectedStageId}
-                onChange={(event) => setSelectedStageId(event.target.value)}
-                className="h-11 w-full rounded border border-white/10 bg-black px-3 text-sm font-bold text-white outline-none focus:border-red-500"
-              >
-                <option value="all">Semua SS</option>
-                {stages.map((stage) => (
-                  <option key={stage.id} value={stage.id}>{stageLabel(stage)}</option>
-                ))}
-              </select>
-            </label>
-
-            <button
-              type="button"
-              onClick={() => fetchRecords(stagesRef.current, selectedStageIdRef.current)}
-              className="h-11 rounded bg-red-600 px-4 text-sm font-black uppercase tracking-widest text-white hover:bg-red-700"
-            >
-              Refresh
-            </button>
-
-            <ConnectionBadge state={connectionState} />
-          </div>
-        </div>
-      </header>
-
-      {error && (
-        <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/60 p-4 text-sm font-bold text-red-100">
-          {error}
-        </div>
-      )}
-
-      <section className="mb-4 grid gap-3 md:grid-cols-4">
-        <Summary label="Total Input" value={visibleRecords.length} />
-        <Summary label="Start Only" value={startedOnlyCount} />
-        <Summary label="Finish" value={finishedCount} />
-        <Summary label="Input Terbaru" value={latestRecord ? `${latestRecord.start_number} - ${inputKind(latestRecord)}` : '-'} />
-      </section>
-
-      <main className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <h2 className="text-sm font-black uppercase tracking-widest text-white">Feed Input</h2>
-          {isLoading && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
-        </div>
-
-        <div className="hidden overflow-x-auto xl:block">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
-                <th className="p-3">Input</th>
-                <th className="p-3">SS</th>
-                <th className="p-3 text-center">No</th>
-                <th className="p-3">Driver / Co-driver</th>
-                <th className="p-3">Entrant</th>
-                <th className="p-3 text-center">TC</th>
-                <th className="p-3 text-center">Start</th>
-                <th className="p-3 text-center">Finish</th>
-                <th className="p-3 text-right">Total</th>
-                <th className="p-3">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRecords.length === 0 ? (
-                <tr>
-                  <td colSpan="10" className="p-10 text-center text-sm font-bold text-gray-500">
-                    Belum ada input pada pilihan ini.
-                  </td>
-                </tr>
-              ) : (
-                visibleRecords.map((record) => (
-                  <tr key={record.id} className={`border-t border-white/10 ${rowClass(record)}`}>
-                    <td className="p-3">
-                      <div className="font-black text-white">{inputKind(record)}</div>
-                      <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{inputTimeLabel(record)}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-black text-white">{stageShortLabel(record)}</div>
-                      <div className="mt-0.5 text-xs font-bold text-gray-500">{record.ss_name || '-'}</div>
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{record.start_number}</span>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-black text-white">{runDriverName(record)}</div>
-                      <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
-                    </td>
-                    <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
-                    <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
-                    <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms)}</td>
-                    <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="space-y-3 p-3 xl:hidden">
-          {visibleRecords.length === 0 ? (
-            <div className="rounded-lg bg-black p-6 text-center text-sm font-bold text-gray-500">
-              Belum ada input pada pilihan ini.
+    <div className="min-h-screen bg-[#070707] text-white">
+      <div className="mx-auto flex min-h-screen max-w-[1920px] flex-col gap-4 p-4 lg:p-5">
+        <header className="rounded-lg border border-white/10 bg-[#151515] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+          <div className="grid gap-4 p-4 lg:grid-cols-[minmax(300px,1fr)_minmax(680px,auto)] lg:items-end lg:p-5">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.32em] text-red-400">Live Field Input</p>
+              <h1 className="mt-2 text-2xl font-black uppercase leading-none tracking-wide sm:text-3xl">Monitoring Input Lapangan</h1>
+              <p className="mt-2 text-sm font-semibold text-gray-400">{selectedEvent?.name || '-'}</p>
             </div>
-          ) : (
-            visibleRecords.map((record) => <RecordCard key={record.id} record={record} />)
-          )}
-        </div>
-      </main>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_minmax(220px,0.82fr)_auto_auto] xl:items-end">
+              <label>
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Event</span>
+                <select
+                  value={selectedEventId}
+                  onChange={(event) => setSelectedEventId(event.target.value)}
+                  className="h-11 w-full rounded border border-red-500/60 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20"
+                >
+                  {events.length === 0 ? (
+                    <option value="">Belum ada event</option>
+                  ) : (
+                    events.map((event) => <option key={event.id} value={event.id}>{event.name}</option>)
+                  )}
+                </select>
+              </label>
+
+              <label>
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">SS</span>
+                <select
+                  value={selectedStageId}
+                  onChange={(event) => setSelectedStageId(event.target.value)}
+                  className="h-11 w-full rounded border border-white/10 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20"
+                >
+                  <option value="all">Semua SS</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>{stageLabel(stage)}</option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => fetchRecords(stagesRef.current, selectedStageIdRef.current)}
+                className="h-11 rounded bg-red-600 px-5 text-sm font-black uppercase tracking-widest text-white transition hover:bg-red-700 sm:col-span-1"
+              >
+                Refresh
+              </button>
+
+              <ConnectionBadge state={connectionState} />
+            </div>
+          </div>
+        </header>
+
+        {error && (
+          <div className="rounded-lg border border-red-500/40 bg-red-950/60 p-4 text-sm font-bold text-red-100">
+            {error}
+          </div>
+        )}
+
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Summary label="Total Input" value={visibleRecords.length} accent="red" />
+          <Summary label="Start Only" value={startedOnlyCount} accent="blue" />
+          <Summary label="Finish" value={finishedCount} accent="green" />
+          <Summary label="Input Terbaru" value={latestRecord ? `${latestRecord.start_number} - ${inputKind(latestRecord)}` : '-'} accent="yellow" />
+        </section>
+
+        <main className="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-[#151515] shadow-[0_30px_100px_rgba(0,0,0,0.38)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-widest text-white">Feed Input</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">{selectedStageId === 'all' ? 'Semua SS' : stageLabel(stages.find((stage) => stage.id === selectedStageId))}</p>
+            </div>
+            {isLoading && <span className="rounded bg-red-500/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-red-300">Memuat...</span>}
+          </div>
+
+          <div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+                  <th className="p-3">Input</th>
+                  <th className="p-3">SS</th>
+                  <th className="p-3 text-center">No</th>
+                  <th className="p-3">Driver / Co-driver</th>
+                  <th className="p-3">Entrant</th>
+                  <th className="p-3 text-center">TC</th>
+                  <th className="p-3 text-center">Start</th>
+                  <th className="p-3 text-center">Finish</th>
+                  <th className="p-3 text-right">Total</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="h-[360px] p-10 text-center">
+                      <EmptyState />
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRecords.map((record) => (
+                    <tr key={record.id} className={`border-t border-white/10 ${rowClass(record)}`}>
+                      <td className="p-3">
+                        <div className="font-black text-white">{inputKind(record)}</div>
+                        <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{inputTimeLabel(record)}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-black text-white">{stageShortLabel(record)}</div>
+                        <div className="mt-0.5 text-xs font-bold text-gray-500">{record.ss_name || '-'}</div>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{record.start_number}</span>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-black text-white">{runDriverName(record)}</div>
+                        <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
+                      </td>
+                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
+                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
+                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
+                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
+                      <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms)}</td>
+                      <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex-1 space-y-3 p-3 xl:hidden">
+            {visibleRecords.length === 0 ? (
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black">
+                <EmptyState />
+              </div>
+            ) : (
+              visibleRecords.map((record) => <RecordCard key={record.id} record={record} />)
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -339,11 +344,31 @@ function RecordCard({ record }) {
   );
 }
 
-function Summary({ label, value }) {
+function Summary({ label, value, accent = 'red' }) {
+  const accentClass = {
+    red: 'bg-red-500',
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    yellow: 'bg-yellow-400',
+  }[accent] || 'bg-red-500';
+
   return (
-    <div className="rounded-lg border border-white/10 bg-neutral-900 p-4">
-      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-1 truncate text-2xl font-black text-white">{value}</p>
+    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#151515] p-4">
+      <span className={`absolute left-0 top-0 h-full w-1 ${accentClass}`} />
+      <p className="pl-2 text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
+      <p className="mt-2 truncate pl-2 text-3xl font-black leading-none text-white">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="mx-auto flex max-w-sm flex-col items-center justify-center text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
+        <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_28px_rgba(239,68,68,0.75)]" />
+      </span>
+      <p className="mt-4 text-lg font-black uppercase tracking-wide text-white">Menunggu Input</p>
+      <p className="mt-1 text-sm font-bold text-gray-500">Belum ada input pada pilihan ini.</p>
     </div>
   );
 }
