@@ -35,6 +35,8 @@ export default function KamarHitung() {
   };
 
   const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
+  const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
+  const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
   const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
 
   // State Modal Edit Waktu
@@ -303,6 +305,7 @@ export default function KamarHitung() {
               requests={restartRequests}
               onApprove={approveRestartRequest}
               onReject={rejectRestartRequest}
+              timeDecimalPlaces={timeDecimalPlaces}
             />
 
             <div className="overflow-x-auto">
@@ -350,12 +353,12 @@ export default function KamarHitung() {
                       </td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.tc_time)}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.start_time)}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time)}</td>
-                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms)}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time, timeDecimalPlaces)}</td>
+                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms, timeDecimalPlaces)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
                           {r.penalty_time_ms > 0 ? (
                             <div className="flex items-center justify-center gap-2 cursor-pointer" onClick={() => toggleRow(r.id)}>
-                              <span>+{formatMs(r.penalty_time_ms)}</span>
+                              <span>+{formatMs(r.penalty_time_ms, timeDecimalPlaces)}</span>
                               <span className="text-[10px] bg-red-200 text-red-800 px-1 rounded hover:bg-red-300">
                                 {expandedRow === r.id ? '▲' : '▼'}
                               </span>
@@ -363,7 +366,7 @@ export default function KamarHitung() {
                           ) : '-'}
                         </td>
                       <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">
-                        <div>{formatMs(r.total_time_ms)}</div>
+                        <div>{formatMs(r.total_time_ms, timeDecimalPlaces)}</div>
                         {(r.status === 'BWTM' || r.status === 'DNS') && Number(r.total_time_ms) > 0 && (
                           <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-gray-500">{r.status === 'DNS' ? 'BWTM + 1 POS' : 'BWTM'}</div>
                         )}
@@ -413,7 +416,7 @@ export default function KamarHitung() {
                                 {r.penalty_details.map((pd, idx) => (
                                   <li key={idx} className="text-xs flex justify-between text-gray-700">
                                     <span>• {pd.name}</span>
-                                    <span className="font-mono text-red-600 font-bold">+{formatMs(pd.time_ms)}</span>
+                                    <span className="font-mono text-red-600 font-bold">+{formatMs(pd.time_ms, timeDecimalPlaces)}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -517,7 +520,7 @@ function formatClockHourMinute(value) {
   return `${match[1]}:${match[2]}`;
 }
 
-function RestartRequestPanel({ requests, onApprove, onReject }) {
+function RestartRequestPanel({ requests, onApprove, onReject, timeDecimalPlaces = 2 }) {
   const pendingRequests = (requests || []).filter((request) => request.status === 'PENDING');
   if (pendingRequests.length === 0) return null;
 
@@ -547,7 +550,7 @@ function RestartRequestPanel({ requests, onApprove, onReject }) {
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-gray-500">
                   <span>Attempt #{request.attempt_no || 1}</span>
                   <span>Start {request.start_time || '-'}</span>
-                  <span>Finish {formatClockCentiseconds(request.finish_time)}</span>
+                  <span>Finish {formatClockCentiseconds(request.finish_time, timeDecimalPlaces)}</span>
                   <span>Pengaju: {request.requested_by || '-'}</span>
                 </div>
               </div>

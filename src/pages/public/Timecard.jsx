@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { assetUrl } from '../../services/api';
-import { formatClockCentiseconds } from '../../utils/timeFormat';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
 
 export default function Timecard() {
   const { eventId, participantId } = useParams();
@@ -38,6 +38,7 @@ export default function Timecard() {
     if (!timecard?.total_ss_count) return 0;
     return Math.round((timecard.completed_ss_count / timecard.total_ss_count) * 100);
   }, [timecard]);
+  const timeDecimalPlaces = timecard?.event?.time_decimal_places ?? 2;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -90,8 +91,8 @@ export default function Timecard() {
 
             <section className="mb-4 grid gap-3 sm:grid-cols-3">
               <Summary label="SS Selesai" value={`${timecard.completed_ss_count}/${timecard.total_ss_count}`} />
-              <Summary label="Total Penalti" value={formatMs(totalPenalty)} />
-              <Summary label="Total Waktu" value={formatMs(timecard.total_time_ms)} highlight />
+              <Summary label="Total Penalti" value={formatMs(totalPenalty, timeDecimalPlaces)} />
+              <Summary label="Total Waktu" value={formatMs(timecard.total_time_ms, timeDecimalPlaces)} highlight />
             </section>
 
             <section className="mb-5 rounded-lg border border-white/10 bg-neutral-900 p-4">
@@ -112,7 +113,7 @@ export default function Timecard() {
 
               <div className="space-y-3 lg:hidden">
                 {timecard.stages.map((stage) => (
-                  <StageCard key={stage.record_id || stage.ss_id} stage={stage} />
+                  <StageCard key={stage.record_id || stage.ss_id} stage={stage} timeDecimalPlaces={timeDecimalPlaces} />
                 ))}
               </div>
 
@@ -149,10 +150,10 @@ export default function Timecard() {
                             )}
                           </td>
                           <td className="p-3 text-center font-mono">{stage.start_time || '-'}</td>
-                          <td className="p-3 text-center font-mono">{formatClockCentiseconds(stage.finish_time)}</td>
-                          <td className="p-3 text-right font-mono">{formatMs(stage.elapsed_time_ms)}</td>
-                          <td className="p-3 text-right font-mono">{formatMs(stage.penalty_time_ms)}</td>
-                          <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms)}</td>
+                          <td className="p-3 text-center font-mono">{formatClockCentiseconds(stage.finish_time, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono">{formatMs(stage.elapsed_time_ms, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono">{formatMs(stage.penalty_time_ms, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms, timeDecimalPlaces)}</td>
                           <td className="p-3">
                             <div className="font-black">{stage.status || '-'}</div>
                             {stage.remark_penalty && <div className="text-xs text-red-600">{stage.remark_penalty}</div>}
@@ -199,7 +200,7 @@ function Summary({ label, value, highlight = false }) {
   );
 }
 
-function StageCard({ stage }) {
+function StageCard({ stage, timeDecimalPlaces = 2 }) {
   return (
     <article className="rounded-lg bg-white p-4 text-gray-950 shadow-xl">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -217,7 +218,7 @@ function StageCard({ stage }) {
         <MiniMetric label="Target TC" value={shortClock(stage.target_tc_time)} />
         <MiniMetric label="TC" value={shortClock(stage.tc_time)} />
         <MiniMetric label="Start" value={stage.start_time || '-'} />
-        <MiniMetric label="Finish" value={formatClockCentiseconds(stage.finish_time)} />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(stage.finish_time, timeDecimalPlaces)} />
       </div>
 
       <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -231,9 +232,9 @@ function StageCard({ stage }) {
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniMetric label="Time" value={formatMs(stage.elapsed_time_ms)} />
-        <MiniMetric label="Penalty" value={formatMs(stage.penalty_time_ms)} />
-        <MiniMetric label="Total" value={formatMs(stage.total_time_ms)} strong />
+        <MiniMetric label="Time" value={formatMs(stage.elapsed_time_ms, timeDecimalPlaces)} />
+        <MiniMetric label="Penalty" value={formatMs(stage.penalty_time_ms, timeDecimalPlaces)} />
+        <MiniMetric label="Total" value={formatMs(stage.total_time_ms, timeDecimalPlaces)} strong />
       </div>
 
       {stage.remark_penalty && (
@@ -274,19 +275,6 @@ function formatEventDate(event) {
   const end = formatDate(event.end_date);
   if (!end || end === start) return start;
   return `${start} - ${end}`;
-}
-
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
 }
 
 function shortClock(value) {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
-import { formatClockCentiseconds } from '../../utils/timeFormat';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 
@@ -25,6 +25,7 @@ export default function Leaderboard() {
     () => events.find((event) => event.id === selectedEventId),
     [events, selectedEventId]
   );
+  const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
 
   const selectedStage = useMemo(
     () => stages.find((stage) => stage.id === selectedStageId),
@@ -280,9 +281,9 @@ export default function Leaderboard() {
                         <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
                       </td>
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time)}</td>
-                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className={`p-4 text-right font-mono text-lg font-black ${entry.is_live_running ? 'text-cyan-300' : 'text-yellow-300'}`}>{formatMs(displayTotalMs(entry, nowMs))}</td>
+                      <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)}</td>
+                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'}</td>
+                      <td className={`p-4 text-right font-mono text-lg font-black ${entry.is_live_running ? 'text-cyan-300' : 'text-yellow-300'}`}>{formatMs(displayTotalMs(entry, nowMs), timeDecimalPlaces)}</td>
                       <td className="p-4">
                         <StatusPill status={displayStatus(entry)} />
                         {entry.is_live_running && <div className="mt-1 text-xs font-black uppercase tracking-widest text-cyan-200">Live</div>}
@@ -301,7 +302,7 @@ export default function Leaderboard() {
                 {selectedStageId ? 'Belum ada peserta start, finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
               </div>
             ) : (
-              entries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} nowMs={nowMs} />)
+              entries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} nowMs={nowMs} timeDecimalPlaces={timeDecimalPlaces} />)
             )}
           </div>
         </main>
@@ -388,7 +389,7 @@ function parsePenaltyDetails(value) {
   }
 }
 
-function LeaderboardCard({ entry, nowMs }) {
+function LeaderboardCard({ entry, nowMs, timeDecimalPlaces = 2 }) {
   return (
     <article className={`rounded-lg border border-white/10 p-4 ${rowClass(displayStatus(entry)) || 'bg-neutral-800'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -405,9 +406,9 @@ function LeaderboardCard({ entry, nowMs }) {
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="Start" value={entry.start_time || '-'} />
-        <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time)} />
-        <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
-        <MiniMetric label="Total" value={formatMs(displayTotalMs(entry, nowMs))} highlight />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)} />
+        <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'} />
+        <MiniMetric label="Total" value={formatMs(displayTotalMs(entry, nowMs), timeDecimalPlaces)} highlight />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <StatusPill status={displayStatus(entry)} />
@@ -519,21 +520,6 @@ function parseClockMilliseconds(value) {
     Number(ss) * 1000 +
     Number(fraction.padEnd(3, '0'))
   );
-}
-
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
-
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
-
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
 }
 
 function formatEventDate(event) {

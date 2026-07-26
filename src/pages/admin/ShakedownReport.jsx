@@ -44,6 +44,7 @@ export default function ShakedownReport() {
     () => events.find((event) => event.id === selectedEventId),
     [events, selectedEventId]
   );
+  const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
 
   const selectedStage = useMemo(
     () => stages.find((stage) => stage.id === selectedStageId),
@@ -259,7 +260,7 @@ export default function ShakedownReport() {
                         const run = entry.runs.find((item) => item.attempt_no === attemptNo);
                         return (
                           <td key={attemptNo} className="border border-gray-300 p-2 text-right font-mono font-bold">
-                            {run ? formatMs(run.total_time_ms) : '-'}
+                            {run ? formatMs(run.total_time_ms, timeDecimalPlaces) : '-'}
                           </td>
                         );
                       })}

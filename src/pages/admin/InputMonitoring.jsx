@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN } from '../../services/api';
-import { formatClockCentiseconds } from '../../utils/timeFormat';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 
@@ -23,6 +23,7 @@ export default function InputMonitoring() {
     () => events.find((event) => event.id === selectedEventId),
     [events, selectedEventId]
   );
+  const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
 
   const visibleRecords = useMemo(() => {
     const activeRecords = records.filter((record) => record.is_active !== false);
@@ -289,8 +290,8 @@ export default function InputMonitoring() {
                       <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
                       <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
                       <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
-                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time)}</td>
-                      <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms)}</td>
+                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time, timeDecimalPlaces)}</td>
+                      <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms, timeDecimalPlaces)}</td>
                       <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
                     </tr>
                   ))
@@ -305,7 +306,7 @@ export default function InputMonitoring() {
                 <EmptyState />
               </div>
             ) : (
-              visibleRecords.map((record) => <RecordCard key={record.id} record={record} />)
+              visibleRecords.map((record) => <RecordCard key={record.id} record={record} timeDecimalPlaces={timeDecimalPlaces} />)
             )}
           </div>
         </main>
@@ -314,7 +315,7 @@ export default function InputMonitoring() {
   );
 }
 
-function RecordCard({ record }) {
+function RecordCard({ record, timeDecimalPlaces = 2 }) {
   return (
     <article className={`rounded-lg border border-white/10 p-4 ${rowClass(record) || 'bg-neutral-800'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -334,8 +335,8 @@ function RecordCard({ record }) {
         <MiniMetric label="Waktu Input" value={inputTimeLabel(record)} />
         <MiniMetric label="TC" value={formatClockSeconds(record.tc_time)} />
         <MiniMetric label="Start" value={formatClockSeconds(record.start_time)} />
-        <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time)} />
-        <MiniMetric label="Total" value={formatMs(record.total_time_ms)} highlight />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time, timeDecimalPlaces)} />
+        <MiniMetric label="Total" value={formatMs(record.total_time_ms, timeDecimalPlaces)} highlight />
       </div>
       <div className="mt-3">
         <StatusPill status={displayStatus(record)} />
@@ -506,21 +507,6 @@ function statusClass(status) {
   if (status === 'DNS') return 'bg-yellow-200 text-yellow-950';
   if (status === 'DSQ') return 'bg-red-200 text-red-950';
   return 'bg-gray-200 text-gray-950';
-}
-
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
-
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
-
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
 }
 
 function formatDateTime(value) {

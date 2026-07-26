@@ -25,7 +25,8 @@ export default function MasterEvent() {
     tc_late_penalty_seconds_per_minute: 10,
     tc_early_penalty_seconds_per_minute: 60,
     tc_max_delta_minutes: 15,
-    join_car_tc_tolerance_minutes: 22
+    join_car_tc_tolerance_minutes: 22,
+    time_decimal_places: 2
   });
 
   useEffect(() => {
@@ -79,7 +80,8 @@ export default function MasterEvent() {
         tc_late_penalty_seconds_per_minute: event.tc_late_penalty_seconds_per_minute ?? 10,
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
         tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
-        join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22
+        join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22,
+        time_decimal_places: event.time_decimal_places ?? 2
       });
     } else {
       setEditingId(null);
@@ -96,7 +98,8 @@ export default function MasterEvent() {
         tc_late_penalty_seconds_per_minute: 10,
         tc_early_penalty_seconds_per_minute: 60,
         tc_max_delta_minutes: 15,
-        join_car_tc_tolerance_minutes: 22
+        join_car_tc_tolerance_minutes: 22,
+        time_decimal_places: 2
       });
     }
     setLogoFile(null);
@@ -156,6 +159,7 @@ export default function MasterEvent() {
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
             <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">DNS 1 pos: +{event.dns_penalty_minutes ?? 5} menit</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">Decimal time: {event.time_decimal_places ?? 2} digit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">TC: telat +{event.tc_late_penalty_seconds_per_minute ?? 10} dtk/m, cepat +{event.tc_early_penalty_seconds_per_minute ?? 60} dtk/m</div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => openModal(event)} className="flex-1 py-2 text-xs font-bold bg-gray-200 rounded hover:bg-gray-300">EDIT</button>
@@ -260,6 +264,19 @@ export default function MasterEvent() {
                 />
               </div>
               <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal cepat/telat 15 menit. Join car: peserta pertama tetap pakai target TC normal; peserta kedua diberi toleransi 22 menit dari start peserta pertama.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-bold text-gray-700">Decimal Time</label>
+              <select
+                className="w-full p-2 border rounded"
+                value={formData.time_decimal_places}
+                onChange={e => setFormData({...formData, time_decimal_places: Number(e.target.value)})}
+              >
+                <option value={1}>1 digit - contoh 05:12,3</option>
+                <option value={2}>2 digit - contoh 05:12,34</option>
+                <option value={3}>3 digit - contoh 05:12,345</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">Mengatur tampilan result, leaderboard, monitoring, timecard, dan shakedown result untuk event ini.</p>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">Logo Event</label>

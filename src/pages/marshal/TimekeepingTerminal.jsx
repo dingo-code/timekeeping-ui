@@ -21,6 +21,8 @@ export default function TimekeepingTerminal() {
   
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
+  const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
+  const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
   
   // State Input Lapangan (Manual Input)
   const [startNumber, setStartNumber] = useState('');
@@ -383,7 +385,7 @@ export default function TimekeepingTerminal() {
                 <div>Target TC: <span className="font-mono text-white">{displayRecord?.target_tc_time || '-'}</span></div>
                 <div>TC: <span className="font-mono text-white">{displayRecord?.tc_time || '-'}</span></div>
                 <div>Start: <span className="font-mono text-white">{displayRecord?.start_time || '-'}</span></div>
-                <div>Finish: <span className="font-mono text-white">{formatClockCentiseconds(displayRecord?.finish_time)}</span></div>
+                <div>Finish: <span className="font-mono text-white">{formatClockCentiseconds(displayRecord?.finish_time, timeDecimalPlaces)}</span></div>
                 <div>Status: <span className="font-bold text-white">{displayRecord?.status || 'Belum ada record'}</span></div>
               </div>
             )}

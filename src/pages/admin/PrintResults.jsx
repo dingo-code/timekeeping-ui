@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
-import { formatClockCentiseconds } from '../../utils/timeFormat';
+import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -48,6 +48,7 @@ export default function PrintResults() {
     () => events.find((event) => event.id === selectedEventId),
     [events, selectedEventId]
   );
+  const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
 
   const printableStages = useMemo(() => {
     if (selectedStageId === 'all') return report.stages;
@@ -119,18 +120,7 @@ export default function PrintResults() {
   };
 
   const formatMs = (ms) => {
-    const value = Number(ms);
-    if (!Number.isFinite(value) || value <= 0) return '-';
-
-    const totalCentiseconds = Math.round(value / 10);
-    const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-    const totalSeconds = Math.floor(totalCentiseconds / 100);
-    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-    const totalMinutes = Math.floor(totalSeconds / 60);
-    const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-    const hours = Math.floor(totalMinutes / 60);
-
-    return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
+    return formatDurationMs(ms, timeDecimalPlaces);
   };
 
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
@@ -430,6 +420,7 @@ export default function PrintResults() {
             formatMs={formatMs}
             stageRemark={stageRemark}
             resultRowClass={resultRowClass}
+            timeDecimalPlaces={timeDecimalPlaces}
           />
         )}
       </div>
@@ -760,7 +751,7 @@ function sortFinalResultEntries(entries) {
   });
 }
 
-function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass }) {
+function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass, timeDecimalPlaces = 2 }) {
   const columnWidths = stageResultColumnWidths();
   if (stages.length === 0) {
     return <div className="p-10 text-center text-gray-500">Belum ada SS untuk dicetak.</div>;
@@ -830,7 +821,7 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                         <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
                         <td className="border border-gray-300 p-2 text-center font-mono">{stageTime.start_time || '-'}</td>
-                        <td className="border border-gray-300 p-2 text-center font-mono">{formatClockCentiseconds(stageTime.finish_time)}</td>
+                        <td className="border border-gray-300 p-2 text-center font-mono">{formatClockCentiseconds(stageTime.finish_time, timeDecimalPlaces)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.elapsed_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.penalty_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(stageTime.total_time_ms)}</td>
