@@ -74,9 +74,12 @@ export default function Timecard() {
                   <h2 className="mt-1 break-words text-2xl font-black leading-tight">{timecard.participant.driver_name}</h2>
                   <p className="mt-1 text-sm font-bold text-gray-500">{timecard.participant.codriver_name || '-'}</p>
                 </div>
-                <span className={`shrink-0 rounded px-2.5 py-1 text-[10px] font-black uppercase ${statusClass(timecard.status)}`}>
-                  {timecard.status}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className={`rounded px-2.5 py-1 text-[10px] font-black uppercase ${statusClass(timecard.status)}`}>
+                    {timecard.status}
+                  </span>
+                  {timecard.final_stamp && <LegalStamp value={timecard.final_stamp} />}
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -94,6 +97,13 @@ export default function Timecard() {
               <Summary label="Total Penalti" value={formatMs(totalPenalty, timeDecimalPlaces)} />
               <Summary label="Total Waktu" value={formatMs(timecard.total_time_ms, timeDecimalPlaces)} highlight />
             </section>
+
+            {timecard.final_stamp === 'FINISHER' && (
+              <section className="mb-4 grid gap-3 sm:grid-cols-2">
+                <Summary label="Rank Overall" value={timecard.overall_rank ? `#${timecard.overall_rank}` : '-'} highlight />
+                <Summary label="Rank Class" value={timecard.class_rank ? `#${timecard.class_rank}` : '-'} highlight />
+              </section>
+            )}
 
             <section className="mb-5 rounded-lg border border-white/10 bg-neutral-900 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -253,6 +263,29 @@ function MiniMetric({ label, value, strong = false }) {
   );
 }
 
+function LegalStamp({ value }) {
+  const label = stampLabel(value);
+  const tone = value === 'FINISHER'
+    ? 'border-green-600 text-green-700'
+    : value === 'WITHDRAW'
+      ? 'border-purple-700 text-purple-800'
+      : 'border-red-700 text-red-700';
+
+  return (
+    <div className={`rotate-[-6deg] rounded border-2 bg-white/80 px-3 py-1 text-center text-[11px] font-black uppercase tracking-[0.18em] ${tone}`}>
+      <div className="text-[8px] leading-none tracking-[0.22em]">LEGAL</div>
+      <div className="leading-tight">{label}</div>
+    </div>
+  );
+}
+
+function stampLabel(value) {
+  if (value === 'NON_FINISHER') return 'NON FINISHER';
+  if (value === 'WITHDRAW') return 'WITHDRAW';
+  if (value === 'FINISHER') return 'FINISHER';
+  return value || '';
+}
+
 function stageLabel(stage) {
   if (stage?.is_shakedown) return stage.attempt_no ? `Shakedown ${stage.attempt_no}` : 'Shakedown';
   return `SS ${stage.ss_order}`;
@@ -298,6 +331,8 @@ function statusClass(status) {
   if (status === 'BWTM') return 'bg-purple-100 text-purple-700';
   if (status === 'DNF') return 'bg-orange-100 text-orange-700';
   if (status === 'DSQ') return 'bg-red-100 text-red-700';
+  if (status === 'WITHDRAW') return 'bg-purple-100 text-purple-700';
+  if (status === 'NOT_FINISHER') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
 }
 
