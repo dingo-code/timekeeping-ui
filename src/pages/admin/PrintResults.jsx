@@ -136,19 +136,8 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
-    const remarks = [];
-    if (entry.status && entry.status !== 'OK') {
-      remarks.push(printableStatusLabel(entry.status));
-    }
-    (entry.stage_times || []).forEach((stageTime) => {
-      if (stageTime.status && stageTime.status !== 'OK') {
-        remarks.push(printableStatusLabel(stageTime.status));
-      }
-      if (stageTime.remark_penalty && !(stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM')) {
-        remarks.push(stageTime.remark_penalty);
-      }
-    });
-    return [...new Set(remarks)].filter(Boolean).join(' / ');
+    if (!entry.status || entry.status === 'OK') return '';
+    return printableStatusLabel(entry.status);
   };
 
   const stageRemark = (stageTime) => {
