@@ -136,7 +136,7 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
-    if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER') return '';
+    if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER' || entry.status === 'WITHDRAW') return '';
     if (!entry.status || entry.status === 'OK') return '';
     return printableStatusLabel(entry.status);
   };
@@ -166,7 +166,7 @@ export default function PrintResults() {
     return '';
   };
 
-  const excludedFinalStatuses = new Set(['NOT_FINISHER']);
+  const excludedFinalStatuses = new Set(['NOT_FINISHER', 'WITHDRAW']);
   const stageStatusWeight = (status) => {
     if (status === 'OK') return 0;
     if (status === 'BWTM') return 0;

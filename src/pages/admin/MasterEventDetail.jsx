@@ -62,6 +62,7 @@ export default function MasterEventDetail() {
   const [tcCurrentPage, setTcCurrentPage] = useState(1);
   const [tcItemsPerPage, setTcItemsPerPage] = useState(10);
   const [savingTCParticipantId, setSavingTCParticipantId] = useState('');
+  const [savingWithdrawParticipantId, setSavingWithdrawParticipantId] = useState('');
   const [isSavingStartingList, setIsSavingStartingList] = useState(false);
   const [isGeneratingTC, setIsGeneratingTC] = useState(false);
   const [startingListImportSummary, setStartingListImportSummary] = useState('');
@@ -73,6 +74,7 @@ export default function MasterEventDetail() {
 
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
   const officialStages = stages.filter((stage) => !stage.is_shakedown);
+  const selectedTCStage = officialStages.find((stage) => stage.id === selectedTCStageId);
   const shakedownCount = stages.length - officialStages.length;
 
   useEffect(() => {
@@ -373,6 +375,8 @@ export default function MasterEventDetail() {
       row.target_tc_time,
       row.tc_time,
       row.tc_status,
+      row.withdraw_from_stage_id ? 'withdraw wd mengundurkan diri' : '',
+      row.withdraw_reason,
     ].join(' ').toLowerCase().includes(normalizedTCSearch)
   ));
   const tcTotalPages = Math.max(1, Math.ceil(filteredTCRows.length / tcItemsPerPage));
@@ -510,6 +514,41 @@ export default function MasterEventDetail() {
     } catch (err) { alert('Gagal menghapus peserta'); }
   };
 
+  const handleSetWithdraw = async (participant) => {
+    if (!selectedTCStageId) return alert('Pilih SS terlebih dahulu.');
+    const stageLabel = selectedTCStage ? `SS ${selectedTCStage.ss_order} - ${selectedTCStage.ss_name}` : 'SS ini';
+    const reason = window.prompt(`Alasan withdraw untuk #${participant.start_number} mulai ${stageLabel}:`, participant.withdraw_reason || '');
+    if (reason === null) return;
+    if (!window.confirm(`Tandai #${participant.start_number} withdraw mulai ${stageLabel}?`)) return;
+
+    setSavingWithdrawParticipantId(participant.id);
+    try {
+      await api.put(`/admin/events/${id}/participants/${participant.id}/withdraw`, {
+        withdraw_from_stage_id: selectedTCStageId,
+        withdraw_reason: reason.trim(),
+      });
+      await fetchEventData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menandai peserta withdraw.');
+    } finally {
+      setSavingWithdrawParticipantId('');
+    }
+  };
+
+  const handleClearWithdraw = async (participant) => {
+    if (!window.confirm(`Batalkan status withdraw untuk #${participant.start_number}?`)) return;
+
+    setSavingWithdrawParticipantId(participant.id);
+    try {
+      await api.delete(`/admin/events/${id}/participants/${participant.id}/withdraw`);
+      await fetchEventData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal membatalkan status withdraw.');
+    } finally {
+      setSavingWithdrawParticipantId('');
+    }
+  };
+
   // ==========================================
   // HANDLER REGULASI PENALTI
   // ==========================================
@@ -586,6 +625,19 @@ export default function MasterEventDetail() {
         value: participant.id,
         label: `#${participant.start_number} - ${getRacerName(participant.driver_id)} (${getVehicleName(participant.vehicle_id)})`,
       }));
+  }
+
+  function getStageLabel(stageId) {
+    const stage = stages.find((item) => item.id === stageId);
+    if (!stage) return 'SS';
+    return `SS ${stage.ss_order}${stage.ss_name ? ` - ${stage.ss_name}` : ''}`;
+  }
+
+  function isWithdrawActiveOnSelectedStage(participant) {
+    if (!participant?.withdraw_from_stage_id || !selectedTCStage) return false;
+    const withdrawStage = stages.find((stage) => stage.id === participant.withdraw_from_stage_id);
+    if (!withdrawStage) return true;
+    return Number(selectedTCStage.ss_order) >= Number(withdrawStage.ss_order);
   }
 
   const formatMsToText = (ms) => {
@@ -925,16 +977,19 @@ export default function MasterEventDetail() {
                     <th className="p-3 text-center">Target TC</th>
                     <th className="p-3 text-center">Aktual TC</th>
                     <th className="p-3 text-center">Status</th>
+                    <th className="p-3 text-center">Withdraw</th>
                     <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!selectedTCStageId ? (
-                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur starting list.</td></tr>
+                    <tr><td colSpan="8" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur starting list.</td></tr>
                   ) : currentTCRows.length === 0 ? (
-                    <tr><td colSpan="7" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
-                  ) : currentTCRows.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <tr><td colSpan="8" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
+                  ) : currentTCRows.map((row) => {
+                    const isWithdrawActive = isWithdrawActiveOnSelectedStage(row);
+                    return (
+                    <tr key={row.id} className={`border-b border-gray-100 transition ${isWithdrawActive ? 'bg-gray-100 text-gray-500' : 'hover:bg-gray-50'}`}>
                       <td className="p-3 text-center">
                         <input
                           type="number"
@@ -950,6 +1005,12 @@ export default function MasterEventDetail() {
                       <td className="p-3">
                         <div className="font-bold text-gray-800">{getRacerName(row.driver_id)}</div>
                         <div className="text-xs text-gray-500">{row.entrant_name || '-'}</div>
+                        {row.withdraw_from_stage_id && (
+                          <div className="mt-1 text-[11px] font-bold text-red-600">
+                            Withdraw mulai {getStageLabel(row.withdraw_from_stage_id)}
+                            {row.withdraw_reason ? ` - ${row.withdraw_reason}` : ''}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-center">
                         <input
@@ -958,6 +1019,7 @@ export default function MasterEventDetail() {
                           className="w-36 p-2 border border-gray-300 rounded font-mono text-sm outline-none focus:ring-1 focus:ring-red-500"
                           value={(row.target_tc_time || '').slice(0, 8)}
                           onChange={(e) => setTcTargetDrafts({ ...tcTargetDrafts, [row.id]: e.target.value })}
+                          disabled={isWithdrawActive}
                         />
                       </td>
                       <td className="p-3 text-center font-mono text-gray-700">{row.tc_time || '-'}</td>
@@ -969,17 +1031,45 @@ export default function MasterEventDetail() {
                           <div className="mt-1 text-[11px] font-bold text-gray-500">{formatTCDelta(row.tc_delta_ms)}</div>
                         )}
                       </td>
+                      <td className="p-3 text-center">
+                        {row.withdraw_from_stage_id ? (
+                          <span className={`rounded px-2 py-1 text-[10px] font-black uppercase ${isWithdrawActive ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            {isWithdrawActive ? 'WITHDRAW' : 'AKAN WD'}
+                          </span>
+                        ) : (
+                          <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-black uppercase text-green-700">Aktif</span>
+                        )}
+                      </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => handleSaveTCTarget(row.id)}
-                          disabled={savingTCParticipantId === row.id}
-                          className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition disabled:opacity-50"
-                        >
-                          {savingTCParticipantId === row.id ? 'MENYIMPAN...' : 'SIMPAN TARGET'}
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleSaveTCTarget(row.id)}
+                            disabled={savingTCParticipantId === row.id || isWithdrawActive}
+                            className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition disabled:opacity-50"
+                          >
+                            {savingTCParticipantId === row.id ? 'MENYIMPAN...' : 'TARGET'}
+                          </button>
+                          {row.withdraw_from_stage_id ? (
+                            <button
+                              onClick={() => handleClearWithdraw(row)}
+                              disabled={savingWithdrawParticipantId === row.id}
+                              className="text-xs font-bold text-gray-700 bg-white ring-1 ring-gray-300 hover:bg-gray-100 px-3 py-2 rounded transition disabled:opacity-50"
+                            >
+                              {savingWithdrawParticipantId === row.id ? '...' : 'BATAL WD'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleSetWithdraw(row)}
+                              disabled={savingWithdrawParticipantId === row.id}
+                              className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-3 py-2 rounded transition disabled:opacity-50"
+                            >
+                              {savingWithdrawParticipantId === row.id ? '...' : 'WD'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
