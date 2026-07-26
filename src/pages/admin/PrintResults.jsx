@@ -740,9 +740,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
 function isLastStageNonFinisher(entry, lastStage) {
   if (!lastStage) return false;
   const lastStageTime = entry.stage_times?.find((stageTime) => stageTime.ss_id === lastStage.id);
-  if (lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF') return true;
-  if ((entry.status === 'DNS' || entry.status === 'DNF') && (!lastStageTime || Number(lastStageTime.total_time_ms) <= 0)) return true;
-  return false;
+  return lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF';
 }
 
 function isRankableFinalEntry(entry) {
