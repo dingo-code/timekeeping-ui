@@ -136,6 +136,7 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
+    if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER') return '';
     if (!entry.status || entry.status === 'OK') return '';
     return printableStatusLabel(entry.status);
   };
@@ -707,7 +708,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
           <tbody>
             {group.entries.map((entry) => (
               <tr key={entry.participant_id} className={resultRowClass(entry.status)}>
-                <td className="border border-gray-300 p-2 text-center font-black">{entry.print_rank || entry.rank || '-'}</td>
+                <td className="border border-gray-300 p-2 text-center font-black">{entry.print_rank || '-'}</td>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                 <td className="border border-gray-300 p-2">
                   <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
@@ -739,7 +740,9 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
 function isLastStageNonFinisher(entry, lastStage) {
   if (!lastStage) return false;
   const lastStageTime = entry.stage_times?.find((stageTime) => stageTime.ss_id === lastStage.id);
-  return lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF';
+  if (lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF') return true;
+  if ((entry.status === 'DNS' || entry.status === 'DNF') && (!lastStageTime || Number(lastStageTime.total_time_ms) <= 0)) return true;
+  return false;
 }
 
 function isRankableFinalEntry(entry) {
