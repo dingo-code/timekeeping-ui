@@ -278,7 +278,7 @@ export default function KamarHitung() {
             />
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
+              <table className="w-full min-w-[1120px] text-left border-collapse text-sm">
                 <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="p-3 text-center border-b">No Start</th>
@@ -291,7 +291,7 @@ export default function KamarHitung() {
                     <th className="p-3 border-b text-center text-red-600">Penalty</th>
                     <th className="p-3 border-b text-center text-green-700 font-black">Total Waktu</th>
                     <th className="p-3 border-b text-center">Status</th>
-                    <th className="p-3 border-b text-right">Aksi Kamar Hitung</th>
+                    <th className="w-44 p-3 border-b text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -347,9 +347,9 @@ export default function KamarHitung() {
                       </td>
                       
                       {/* KOLOM AKSI DIPERBARUI */}
-                      <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                      <td className="w-44 p-2 align-top">
                         {r.is_active && r.status === 'OK' && (
-                          <>
+                          <div className="ml-auto grid w-40 grid-cols-2 gap-1 [&_button]:min-h-8 [&_button]:whitespace-normal [&_button]:px-1.5 [&_button]:py-1 [&_button]:text-[10px] [&_button]:font-black [&_button]:leading-tight">
                             <button onClick={() => openEditModal(r)} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded transition">EDIT ✏️</button>
                             
                             {/* 1. TOMBOL + PENALTI SELALU MUNCUL AGAR BISA DITUMPUK */}
@@ -366,13 +366,13 @@ export default function KamarHitung() {
                             {!r.is_shakedown && (
                               <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
                             )}
-                          </>
+                          </div>
                         )}
                         {r.is_active && r.status !== 'OK' && (
-                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="text-xs font-bold text-gray-500 hover:text-green-600 border border-gray-300 px-2 py-1 rounded transition">BATAL STATUS</button>
+                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="ml-auto block w-40 rounded border border-gray-300 px-2 py-1.5 text-[10px] font-black uppercase text-gray-500 transition hover:text-green-600">Batal Status</button>
                         )}
                         {!r.is_active && (
-                          <span className="text-xs font-bold text-gray-400">Histori attempt</span>
+                          <span className="block text-center text-xs font-bold text-gray-400">Histori attempt</span>
                         )}
                       </td>
                     </tr>
