@@ -152,7 +152,8 @@ export default function PrintResults() {
     if (
       (stageTime.status === 'OK' && stageTime.finish_time) ||
       stageTime.status === 'BWTM' ||
-      (stageTime.status === 'DNF' && Number(stageTime.total_time_ms) > 0)
+      (stageTime.status === 'DNF' && Number(stageTime.total_time_ms) > 0) ||
+      (stageTime.status === 'DNS' && Number(stageTime.total_time_ms) > 0)
     ) {
       return formatMs(stageTime.total_time_ms);
     }
@@ -185,7 +186,8 @@ export default function PrintResults() {
       (
         (stageTime?.status === 'OK' && Boolean(stageTime.finish_time)) ||
         stageTime?.status === 'BWTM' ||
-        (stageTime?.status === 'DNF' && numericMs(stageTime.total_time_ms) > 0)
+        (stageTime?.status === 'DNF' && numericMs(stageTime.total_time_ms) > 0) ||
+        (stageTime?.status === 'DNS' && numericMs(stageTime.total_time_ms) > 0)
       ) &&
       numericMs(stageTime.total_time_ms) > 0
     );
@@ -198,14 +200,14 @@ export default function PrintResults() {
       const aOk = hasStageResult(a.stageTime);
       const bOk = hasStageResult(b.stageTime);
       if (aOk !== bOk) return aOk ? -1 : 1;
+      const aTotal = numericMs(a.stageTime.total_time_ms);
+      const bTotal = numericMs(b.stageTime.total_time_ms);
+      if (aOk && bOk && aTotal !== bTotal) {
+        return aTotal - bTotal;
+      }
       const aStatusWeight = stageStatusWeight(a.stageTime.status);
       const bStatusWeight = stageStatusWeight(b.stageTime.status);
       if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight;
-      const aTotal = numericMs(a.stageTime.total_time_ms);
-      const bTotal = numericMs(b.stageTime.total_time_ms);
-      if (aOk && aTotal !== bTotal) {
-        return aTotal - bTotal;
-      }
       return numericMs(a.entry.start_number) - numericMs(b.entry.start_number);
     });
 

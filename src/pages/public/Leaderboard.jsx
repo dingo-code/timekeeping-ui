@@ -331,7 +331,8 @@ function normalizeStageEntries(records, isShakedown = false) {
     (
       (record.status === 'OK' && hasCompleteTime(record)) ||
       record.status === 'BWTM' ||
-      record.status === 'DNF'
+      record.status === 'DNF' ||
+      record.status === 'DNS'
     ) &&
     numericMs(record.total_time_ms) > 0
   );
@@ -342,7 +343,7 @@ function normalizeStageEntries(records, isShakedown = false) {
     if (record.status === 'BWTM') return 2;
     if (record.status === 'DSQ') return 3;
     if (record.status === 'DNF') return 3;
-    if (record.status === 'DNS') return 4;
+    if (record.status === 'DNS') return 3;
     return 2;
   };
 

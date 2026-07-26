@@ -21,6 +21,7 @@ export default function MasterEvent() {
   const [formData, setFormData] = useState({
     series_id: '', point_system_id: '', name: '', 
     start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3,
+    dns_penalty_minutes: 5,
     tc_late_penalty_seconds_per_minute: 10,
     tc_early_penalty_seconds_per_minute: 60,
     tc_max_delta_minutes: 15,
@@ -74,6 +75,7 @@ export default function MasterEvent() {
         location: event.location,
         logo_url: event.logo_url || '',
         bwtm_penalty_minutes: event.bwtm_penalty_minutes ?? 3,
+        dns_penalty_minutes: event.dns_penalty_minutes ?? 5,
         tc_late_penalty_seconds_per_minute: event.tc_late_penalty_seconds_per_minute ?? 10,
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
         tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
@@ -90,6 +92,7 @@ export default function MasterEvent() {
         location: '',
         logo_url: '',
         bwtm_penalty_minutes: 3,
+        dns_penalty_minutes: 5,
         tc_late_penalty_seconds_per_minute: 10,
         tc_early_penalty_seconds_per_minute: 60,
         tc_max_delta_minutes: 15,
@@ -152,6 +155,7 @@ export default function MasterEvent() {
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
             <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">DNS 1 pos: +{event.dns_penalty_minutes ?? 5} menit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">TC: telat +{event.tc_late_penalty_seconds_per_minute ?? 10} dtk/m, cepat +{event.tc_early_penalty_seconds_per_minute ?? 60} dtk/m</div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => openModal(event)} className="flex-1 py-2 text-xs font-bold bg-gray-200 rounded hover:bg-gray-300">EDIT</button>
@@ -193,6 +197,19 @@ export default function MasterEvent() {
                 placeholder="Default 3 menit"
               />
               <p className="mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai ini.</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-bold text-gray-700">DNS 1 pos menit</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                className="w-full p-2 border rounded"
+                value={formData.dns_penalty_minutes}
+                onChange={e => setFormData({...formData, dns_penalty_minutes: e.target.value})}
+                placeholder="Default 5 menit"
+              />
+              <p className="mt-1 text-xs text-gray-500">DNS: BWTM + nilai 1 pos ini. Default 1 pos = 5 menit.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-gray-200 p-3">
               <div className="sm:col-span-2">
