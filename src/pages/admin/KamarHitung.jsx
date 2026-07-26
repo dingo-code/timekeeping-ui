@@ -328,7 +328,7 @@ export default function KamarHitung() {
                    filteredRecords.map((r, rowIndex) => (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
-                    <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${!r.is_active ? 'text-gray-500' : ''}`}>
+                    <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${!r.is_active ? 'text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
                         <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
                       </td>
