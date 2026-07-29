@@ -6,11 +6,12 @@ import { useAuthStore } from '../../store/useAuthStore';
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login); // Ambil fungsi login dari Zustand
+  const login = useAuthStore((state) => state.login);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -18,15 +19,11 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      // Tembak endpoint Golang
       const response = await api.post('/auth/login', { username, password });
-      
       const { token, role } = response.data.data;
 
-      // 1. Simpan token & role ke Zustand (dan LocalStorage)
       login(token, role);
 
-      // 2. Arahkan pengguna ke halamannya masing-masing (Routing Cerdas)
       switch (role) {
         case 'admin':
           navigate('/admin', { replace: true });
@@ -44,7 +41,6 @@ export default function Login() {
           useAuthStore.getState().logout();
       }
     } catch (err) {
-      // Tangkap error dari backend (misal: "username atau password salah")
       setErrorMsg(err.response?.data?.error || 'Gagal terhubung ke server');
     } finally {
       setIsLoading(false);
@@ -52,17 +48,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-2xl">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+    <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4">
+      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-2xl">
+        <div className="mb-8 text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">
             Cyverra <span className="text-red-600">Studio</span>
           </h2>
-          <p className="text-sm text-gray-500 mt-2">Masuk ke sistem operasional balap</p>
+          <p className="mt-2 text-sm text-gray-500">Masuk ke sistem operasional balap</p>
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 text-sm rounded">
+          <div className="mb-4 rounded border border-red-400 bg-red-100 p-3 text-sm text-red-700">
             {errorMsg}
           </div>
         )}
@@ -73,7 +69,7 @@ export default function Login() {
             <input
               type="text"
               required
-              className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 outline-none transition"
+              className="mt-1 w-full rounded-lg border border-gray-300 p-3 outline-none transition focus:border-red-500 focus:ring-red-500"
               placeholder="Masukkan username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -82,29 +78,55 @@ export default function Login() {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700">Password</label>
-            <input
-              type="password"
-              required
-              className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 outline-none transition"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                className="w-full rounded-lg border border-gray-300 p-3 pr-12 outline-none transition focus:border-red-500 focus:ring-red-500"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-lg text-gray-500 hover:text-red-600"
+                aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                title={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+              >
+                <PasswordEyeIcon isOpen={showPassword} />
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-md transition disabled:opacity-50 flex justify-center"
+            className="flex w-full justify-center rounded-lg bg-red-600 px-4 py-3 font-bold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
           >
-            {isLoading ? (
-              <span className="animate-pulse">Memverifikasi...</span>
-            ) : (
-              'MASUK SISTEM'
-            )}
+            {isLoading ? <span className="animate-pulse">Memverifikasi...</span> : 'MASUK SISTEM'}
           </button>
         </form>
       </div>
     </div>
+  );
+}
+
+function PasswordEyeIcon({ isOpen }) {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+      {!isOpen && <path d="M4 4l16 16" />}
+    </svg>
   );
 }
