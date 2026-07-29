@@ -149,13 +149,70 @@ export default function KamarHitung() {
     }
   };
 
-  const handleSetStatus = async (recordId, newStatus) => {
-    if (!window.confirm(`Ubah status peserta ini menjadi ${newStatus}?`)) return;
+  const parseManualPenaltyTimeMs = (value) => {
+    const normalized = String(value || '').trim().replace(',', '.');
+    if (!normalized) return 0;
+
+    const parts = normalized.split(':');
+    const parsePart = (part) => Number(part);
+    let totalSeconds = 0;
+
+    if (parts.length === 1) {
+      const seconds = parsePart(parts[0]);
+      if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+      totalSeconds = seconds;
+    } else if (parts.length === 2) {
+      const minutes = parsePart(parts[0]);
+      const seconds = parsePart(parts[1]);
+      if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0 || seconds >= 60) return 0;
+      totalSeconds = minutes * 60 + seconds;
+    } else if (parts.length === 3) {
+      const hours = parsePart(parts[0]);
+      const minutes = parsePart(parts[1]);
+      const seconds = parsePart(parts[2]);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds) || hours < 0 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) return 0;
+      totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    } else {
+      return 0;
+    }
+
+    return Math.round(totalSeconds * 1000);
+  };
+
+  const requestManualBWTMTime = (status) => {
+    const dnsNote = status === 'DNS' ? '\nUntuk DNS, sistem tetap menambahkan penalti DNS 1 pos otomatis setelah waktu ini.' : '';
+    const value = window.prompt(
+      `BWTM otomatis tidak bisa dihitung karena tidak ada pembanding waktu tercepat.\n\nMasukkan waktu BWTM manual.\nContoh: 05:30.00 atau 1:05:30.00.${dnsNote}`
+    );
+    if (value === null) return 0;
+
+    const manualMs = parseManualPenaltyTimeMs(value);
+    if (manualMs <= 0) {
+      alert('Format waktu manual tidak valid. Gunakan contoh 05:30.00 atau 1:05:30.00');
+      return 0;
+    }
+    return manualMs;
+  };
+
+  const handleSetStatus = async (recordId, newStatus, manualElapsedTimeMs = 0) => {
+    if (!manualElapsedTimeMs && !window.confirm(`Ubah status peserta ini menjadi ${newStatus}?`)) return;
     try {
-      await api.put(`/timekeeping/ss-records/${recordId}/status`, { status: newStatus });
+      await api.put(`/timekeeping/ss-records/${recordId}/status`, {
+        status: newStatus,
+        manual_elapsed_time_ms: manualElapsedTimeMs,
+      });
       fetchRecords(selectedSS);
     } catch (e) {
-      alert(e.response?.data?.error || 'Gagal merubah status');
+      const errorMessage = e.response?.data?.error || 'Gagal merubah status';
+      const needsManualBWTM = ['DNF', 'BWTM', 'DNS'].includes(newStatus) && errorMessage.toLowerCase().includes('belum ada waktu tercepat');
+      if (!manualElapsedTimeMs && needsManualBWTM) {
+        const manualMs = requestManualBWTMTime(newStatus);
+        if (manualMs > 0) {
+          await handleSetStatus(recordId, newStatus, manualMs);
+        }
+        return;
+      }
+      alert(errorMessage);
     }
   };
 
