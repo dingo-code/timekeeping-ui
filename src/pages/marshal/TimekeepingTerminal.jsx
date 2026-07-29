@@ -28,6 +28,7 @@ export default function TimekeepingTerminal() {
   const [startNumber, setStartNumber] = useState('');
   const [manualTime, setManualTime] = useState(''); // Menyimpan waktu yang diketik manual
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancellingStart, setIsCancellingStart] = useState(false);
   const [isRequestingRestart, setIsRequestingRestart] = useState(false);
   const [restartReason, setRestartReason] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -143,7 +144,8 @@ export default function TimekeepingTerminal() {
   const startAlreadyRecorded = Boolean(displayRecord?.start_time);
   const finishAlreadyRecorded = Boolean(displayRecord?.finish_time);
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
-  const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded);
+  const canCorrectStart = isStarter && !isShakedownStage && startAlreadyRecorded && !finishAlreadyRecorded && activeRecord?.id && activeRecord.status === 'OK';
+  const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
   const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
   const canSubmit = Boolean(startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
@@ -162,7 +164,8 @@ export default function TimekeepingTerminal() {
     if (!startNumber) return { tone: 'neutral', text: 'Masukkan No Start untuk melihat status attempt aktif.' };
     if (!selectedParticipant) return { tone: 'danger', text: `Mobil #${startNumber} tidak terdaftar di event ini.` };
     if (isStarter && isShakedownStage) return { tone: 'ready', text: `Siap input shakedown run #${(activeRecord?.attempt_no || 0) + 1}.` };
-    if (isStarter && startAlreadyRecorded) return { tone: 'danger', text: `Start mobil #${startNumber} sudah tercatat. Minta Kamar Hitung memberi restart jika perlu input ulang.` };
+    if (isStarter && canCorrectStart) return { tone: 'warning', text: `Start mobil #${startNumber} sudah tercatat. Petugas start bisa ubah waktu atau cancel selama finish belum tercatat.` };
+    if (isStarter && startAlreadyRecorded) return { tone: 'danger', text: `Start mobil #${startNumber} sudah terkunci karena finish/status sudah tercatat. Koreksi lewat Kamar Hitung.` };
     if (isStarter) return { tone: 'ready', text: `Siap input start untuk attempt #${activeRecord?.attempt_no || 1}.` };
     if (isFinisher && isShakedownStage && !openShakedownRecord) return { tone: 'warning', text: `Mobil #${startNumber} belum punya start shakedown yang menunggu finish.` };
     if (isFinisher && !displayRecord?.start_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya waktu start aktif.` };
@@ -196,8 +199,9 @@ export default function TimekeepingTerminal() {
       return alert('Format waktu tidak valid. Gunakan format HH:mm:ss.SS (contoh: 08:15:30.00)');
     }
 
+    const isStartCorrection = isStarter && !isShakedownStage && startAlreadyRecorded;
     const confirmMsg = isStarter 
-      ? `Konfirmasi START Mobil #${startNumber} pada ${manualTime}?`
+      ? `${isStartCorrection ? 'Konfirmasi UBAH START' : 'Konfirmasi START'} Mobil #${startNumber} pada ${manualTime}?`
       : isFinisher
         ? `Konfirmasi FINISH Mobil #${startNumber} pada ${submittedTime}?`
         : `Konfirmasi TC Mobil #${startNumber} pada ${manualTime}?`;
@@ -209,9 +213,17 @@ export default function TimekeepingTerminal() {
       const latestRecords = await fetchRecords(selectedSS);
       const latestActiveRecord = getActiveRecordByStartNumber(startNumber, latestRecords);
       const latestOpenShakedownRecord = getOpenShakedownRecordByStartNumber(startNumber, latestRecords);
+      const latestCanCorrectStart = isStarter
+        && !isShakedownStage
+        && Boolean(latestActiveRecord?.start_time)
+        && !latestActiveRecord?.finish_time
+        && latestActiveRecord?.status === 'OK';
 
-      if (isStarter && !isShakedownStage && latestActiveRecord?.start_time) {
-        return alert(`Start mobil #${startNumber} sudah tercatat. Minta Kamar Hitung memberi restart jika perlu input ulang.`);
+      if (isStarter && !isShakedownStage && latestActiveRecord?.start_time && !latestCanCorrectStart) {
+        return alert(`Start mobil #${startNumber} sudah terkunci karena finish/status sudah tercatat. Koreksi lewat Kamar Hitung.`);
+      }
+      if (isStarter && latestCanCorrectStart && !isStartCorrection) {
+        return alert(`Start mobil #${startNumber} baru saja tercatat di server. Refresh status, lalu ubah/cancel jika memang perlu dikoreksi.`);
       }
       if (isFinisher && isShakedownStage && !latestOpenShakedownRecord) {
         return alert(`Mobil #${startNumber} belum punya start shakedown yang menunggu finish.`);
@@ -240,6 +252,17 @@ export default function TimekeepingTerminal() {
         return;
       }
 
+      if (latestCanCorrectStart && isStartCorrection) {
+        await api.put(`/timekeeping/ss-records/${latestActiveRecord.id}/start-time`, {
+          start_time: submittedTime,
+        });
+        setStatusMessage(`Start mobil #${startNumber} berhasil diubah ke ${submittedTime}.`);
+        await fetchRecords(selectedSS);
+        setStartNumber('');
+        setManualTime('');
+        return;
+      }
+
       const payload = {
         ss_id: selectedSS,
         participant_id: participantId,
@@ -262,6 +285,25 @@ export default function TimekeepingTerminal() {
       alert(errorMessage);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelStart = async () => {
+    if (!canCorrectStart || !activeRecord?.id) return alert('Start belum bisa dibatalkan.');
+    if (!window.confirm(`Batalkan waktu START Mobil #${startNumber}? Peserta bisa diinput ulang saat benar-benar siap start.`)) return;
+
+    setIsCancellingStart(true);
+    try {
+      await api.put(`/timekeeping/ss-records/${activeRecord.id}/start-time`, {
+        start_time: '',
+      });
+      setStatusMessage(`Start mobil #${startNumber} berhasil dibatalkan. Peserta bisa diinput ulang saat siap.`);
+      setManualTime('');
+      await fetchRecords(selectedSS);
+    } catch (e) {
+      alert(e.response?.data?.error || 'Gagal membatalkan start.');
+    } finally {
+      setIsCancellingStart(false);
     }
   };
 
@@ -391,11 +433,28 @@ export default function TimekeepingTerminal() {
             )}
           </div>
 
-          {isStarter && !isShakedownStage && startAlreadyRecorded && activeRecord?.id && (
+          {canCorrectStart && (
+            <div className="rounded-xl border border-green-700 bg-green-950/40 p-4">
+              <div className="mb-2 text-xs font-black uppercase tracking-widest text-green-200">Koreksi Start</div>
+              <p className="mb-3 text-xs font-semibold text-green-100">
+                Jika mobil tertunda sebelum benar-benar start, isi waktu baru lalu kirim. Untuk mengosongkan start dan menunggu jadwal baru, gunakan cancel start.
+              </p>
+              <button
+                type="button"
+                onClick={handleCancelStart}
+                disabled={isCancellingStart}
+                className="w-full rounded-lg border border-green-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-green-100 hover:bg-green-900 disabled:opacity-50"
+              >
+                {isCancellingStart ? 'MEMBATALKAN...' : 'CANCEL START'}
+              </button>
+            </div>
+          )}
+
+          {isStarter && !isShakedownStage && startAlreadyRecorded && !canCorrectStart && activeRecord?.id && (
             <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-4">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-orange-200">Permintaan Restart</div>
               <p className="mb-3 text-xs font-semibold text-orange-100">
-                Start mobil ini sudah tercatat. Isi alasan lalu kirim ke Kamar Hitung untuk persetujuan restart.
+                Start mobil ini sudah terkunci. Isi alasan lalu kirim ke Kamar Hitung untuk persetujuan restart.
               </p>
               <textarea
                 rows="3"
@@ -444,7 +503,7 @@ export default function TimekeepingTerminal() {
             disabled={isSubmitting || !canSubmit}
             className={`w-full py-5 ${buttonColor} text-white font-black text-2xl rounded-xl uppercase tracking-widest shadow-lg disabled:opacity-50 transition-all transform active:scale-95`}
           >
-            {isSubmitting ? 'MENGIRIM...' : 'KIRIM DATA'}
+            {isSubmitting ? 'MENGIRIM...' : canCorrectStart ? 'UBAH START' : 'KIRIM DATA'}
           </button>
           
         </form>
