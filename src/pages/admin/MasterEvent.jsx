@@ -21,6 +21,7 @@ export default function MasterEvent() {
   const [formData, setFormData] = useState({
     series_id: '', point_system_id: '', name: '', 
     start_date: '', end_date: '', location: '', logo_url: '', bwtm_penalty_minutes: 3,
+    bwtm_wet_penalty_minutes: 3,
     dns_penalty_minutes: 5,
     tc_late_penalty_seconds_per_minute: 10,
     tc_early_penalty_seconds_per_minute: 60,
@@ -77,6 +78,7 @@ export default function MasterEvent() {
         location: event.location,
         logo_url: event.logo_url || '',
         bwtm_penalty_minutes: event.bwtm_penalty_minutes ?? 3,
+        bwtm_wet_penalty_minutes: event.bwtm_wet_penalty_minutes ?? event.bwtm_penalty_minutes ?? 3,
         dns_penalty_minutes: event.dns_penalty_minutes ?? 5,
         tc_late_penalty_seconds_per_minute: event.tc_late_penalty_seconds_per_minute ?? 10,
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
@@ -96,6 +98,7 @@ export default function MasterEvent() {
         location: '',
         logo_url: '',
         bwtm_penalty_minutes: 3,
+        bwtm_wet_penalty_minutes: 3,
         dns_penalty_minutes: 5,
         tc_late_penalty_seconds_per_minute: 10,
         tc_early_penalty_seconds_per_minute: 60,
@@ -165,7 +168,8 @@ export default function MasterEvent() {
             </div>
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
-            <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">BWTM Dry: +{event.bwtm_penalty_minutes ?? 3} menit</div>
+            <div className="mt-1 text-xs font-bold text-gray-500">BWTM Wet: +{event.bwtm_wet_penalty_minutes ?? event.bwtm_penalty_minutes ?? 3} menit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">DNS 1 pos: +{event.dns_penalty_minutes ?? 5} menit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">Decimal time: {event.time_decimal_places ?? 2} digit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">TC: telat +{event.tc_late_penalty_seconds_per_minute ?? 10} dtk/m, cepat +{event.tc_early_penalty_seconds_per_minute ?? 60} dtk/m</div>
@@ -212,19 +216,34 @@ export default function MasterEvent() {
                 Aktif
               </span>
             </label>
-            <div>
-              <label className="mb-1 block text-sm font-bold text-gray-700">BWTM tambahan menit</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                className="w-full p-2 border rounded"
-                value={formData.bwtm_penalty_minutes}
-                onChange={e => setFormData({...formData, bwtm_penalty_minutes: e.target.value})}
-                placeholder="Default 3 menit, contoh 2.5"
-              />
-              <p className="mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai ini.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">BWTM Dry tambahan menit</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full p-2 border rounded"
+                  value={formData.bwtm_penalty_minutes}
+                  onChange={e => setFormData({...formData, bwtm_penalty_minutes: e.target.value})}
+                  placeholder="Default 3 menit, contoh 2.5"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">BWTM Wet tambahan menit</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full p-2 border rounded"
+                  value={formData.bwtm_wet_penalty_minutes}
+                  onChange={e => setFormData({...formData, bwtm_wet_penalty_minutes: e.target.value})}
+                  placeholder="Default ikut Dry, contoh 4.5"
+                />
+              </div>
+              <p className="sm:col-span-2 mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai Dry/Wet sesuai kondisi lintasan SS.</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-bold text-gray-700">DNS 1 pos menit</label>

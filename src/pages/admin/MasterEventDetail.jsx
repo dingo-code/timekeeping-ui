@@ -29,7 +29,7 @@ export default function MasterEventDetail() {
   // --- State Modal & Edit SS ---
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [editingStageId, setEditingStageId] = useState(null);
-  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true });
+  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true, track_condition: 'DRY' });
   const [stageSearchTerm, setStageSearchTerm] = useState('');
   const [stageCurrentPage, setStageCurrentPage] = useState(1);
   const [stageItemsPerPage, setStageItemsPerPage] = useState(5);
@@ -107,6 +107,7 @@ export default function MasterEventDetail() {
       ss.ss_name,
       ss.distance_km,
       ss.is_shakedown ? 'shakedown' : 'ss',
+      String(ss.track_condition || 'DRY').toUpperCase() === 'WET' ? 'wet hujan basah' : 'dry kering',
     ].join(' ').toLowerCase().includes(normalizedStageSearch)
   ));
   const stageTotalPages = Math.max(1, Math.ceil(filteredStages.length / stageItemsPerPage));
@@ -391,10 +392,10 @@ export default function MasterEventDetail() {
   const openStageModal = (ss = null) => {
     if (ss) {
       setEditingStageId(ss.id);
-      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km, is_shakedown: Boolean(ss.is_shakedown), is_open: ss.is_open ?? true });
+      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km, is_shakedown: Boolean(ss.is_shakedown), is_open: ss.is_open ?? true, track_condition: (ss.track_condition || 'DRY').toUpperCase() });
     } else {
       setEditingStageId(null);
-      setStageForm({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true });
+      setStageForm({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true, track_condition: 'DRY' });
     }
     setIsStageModalOpen(true);
   };
@@ -408,6 +409,7 @@ export default function MasterEventDetail() {
         distance_km: parseFloat(stageForm.distance_km),
         is_shakedown: Boolean(stageForm.is_shakedown),
         is_open: stageForm.is_open ?? true,
+        track_condition: stageForm.track_condition === 'WET' ? 'WET' : 'DRY',
       };
       
       if (editingStageId) {
@@ -441,6 +443,7 @@ export default function MasterEventDetail() {
         distance_km: Number(stage.distance_km),
         is_shakedown: Boolean(stage.is_shakedown),
         is_open: nextIsOpen,
+        track_condition: (stage.track_condition || 'DRY').toUpperCase() === 'WET' ? 'WET' : 'DRY',
       });
       fetchEventData();
     } catch (err) {
@@ -775,13 +778,14 @@ export default function MasterEventDetail() {
                   <th className="p-3">Jenis</th>
                   <th className="p-3">Nama Stage</th>
                   <th className="p-3">Jarak (KM)</th>
+                  <th className="p-3">Kondisi</th>
                   <th className="p-3">Status</th>
                   <th className="p-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td colSpan="6" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
-                  currentStages.length === 0 ? <tr><td colSpan="6" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
+                {isLoading ? <tr><td colSpan="7" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
+                  currentStages.length === 0 ? <tr><td colSpan="7" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
                   currentStages.map(ss => (
                     <tr key={ss.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="p-3 font-bold text-red-600">{ss.is_shakedown ? '-' : `SS ${ss.ss_order}`}</td>
@@ -792,6 +796,11 @@ export default function MasterEventDetail() {
                       </td>
                       <td className="p-3 font-medium">{ss.ss_name}</td>
                       <td className="p-3 text-gray-600">{ss.distance_km} km</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${String(ss.track_condition || 'DRY').toUpperCase() === 'WET' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {String(ss.track_condition || 'DRY').toUpperCase() === 'WET' ? 'Wet' : 'Dry'}
+                        </span>
+                      </td>
                       <td className="p-3">
                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${ss.is_open ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
                           {ss.is_open ?? true ? 'Open' : 'Close'}
@@ -1207,6 +1216,18 @@ export default function MasterEventDetail() {
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Nama / Lokasi Stage</label>
             <input type="text" required placeholder={stageForm.is_shakedown ? 'Contoh: Shakedown Area' : 'Contoh: SS1 - Cikampek'} className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_name} onChange={e => setStageForm({...stageForm, ss_name: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Kondisi Lintasan</label>
+            <select
+              className="w-full p-2 border border-gray-300 rounded bg-white focus:ring-red-500 outline-none"
+              value={stageForm.track_condition}
+              onChange={(e) => setStageForm({ ...stageForm, track_condition: e.target.value })}
+            >
+              <option value="DRY">Dry</option>
+              <option value="WET">Wet</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">Kondisi ini menentukan BWTM Dry/Wet yang dipakai saat DNF, DNS, atau BWTM.</p>
           </div>
           <div className="pt-4 flex justify-end">
             <button type="submit" className="admin-btn-primary">
