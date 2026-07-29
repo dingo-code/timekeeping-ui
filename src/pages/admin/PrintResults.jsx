@@ -130,7 +130,15 @@ export default function PrintResults() {
     const statusRemarks = (entry.stage_times || [])
       .filter((stageTime) => stageTime?.status && stageTime.status !== 'OK')
       .map((stageTime) => `${printableStatusLabel(stageTime.status).toUpperCase()}${stageTime.ss_order || ''}`);
-    if (statusRemarks.length > 0) return `(${statusRemarks.join(', ')})`;
+    const penaltyRemarks = (entry.stage_times || [])
+      .map((stageTime) => {
+        if (!stageTime?.remark_penalty) return '';
+        if (stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM') return '';
+        return compactTCPenaltyRemark(stageTime.remark_penalty, stageTime.ss_order);
+      })
+      .filter(Boolean);
+    const remarks = uniqueRemarks([...statusRemarks, ...penaltyRemarks]);
+    if (remarks.length > 0) return `(${remarks.join(', ')})`;
     if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER' || entry.status === 'WITHDRAW') return '';
     if (!entry.status || entry.status === 'OK') return '';
     return printableStatusLabel(entry.status);
@@ -792,6 +800,16 @@ function sortFinalResultEntries(entries) {
       return Number(a.total_time_ms) - Number(b.total_time_ms);
     }
     return Number(a.start_number) - Number(b.start_number);
+  });
+}
+
+function uniqueRemarks(values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
   });
 }
 
