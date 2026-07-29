@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -138,7 +139,7 @@ export default function PrintResults() {
   const stageRemark = (stageTime) => {
     if (!stageTime) return '';
     const status = stageTime.status && stageTime.status !== 'OK' ? printableStatusLabel(stageTime.status) : '';
-    const remark = stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM' ? '' : stageTime.remark_penalty;
+    const remark = stageTime.status === 'BWTM' && stageTime.remark_penalty === 'BWTM' ? '' : compactTCPenaltyRemark(stageTime.remark_penalty, stageTime.ss_order);
     return [status, remark].filter(Boolean).join(' / ');
   };
 

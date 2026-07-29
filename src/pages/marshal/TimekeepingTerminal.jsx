@@ -159,6 +159,10 @@ export default function TimekeepingTerminal() {
   const timeDigits = manualTime.replace(/\D/g, '');
   const maxTimeDigits = usesMinuteOnlyInput ? 4 : 8;
   const expectedTimeDigits = usesMinuteOnlyInput ? '4 digit, contoh 0815' : '6 atau 8 digit, contoh 081530 atau 08153045';
+  const timeInputLabel = isStarter ? 'Waktu Start' : isFinisher ? 'Waktu Finish' : 'Waktu TC';
+  const quickExamples = usesMinuteOnlyInput
+    ? ['0815 = 08:15', '1340 = 13:40', 'Kirim sebagai HH:mm']
+    : ['081530 = 08:15:30', '08153045 = 08:15:30.45', 'Kirim sebagai HH:mm:ss.SS'];
 
   const formatQuickTimeInput = (value) => {
     const digits = value.replace(/\D/g, '').slice(0, maxTimeDigits);
@@ -387,11 +391,23 @@ export default function TimekeepingTerminal() {
 
   const displayRole = role ? role.replace('_', ' ').toUpperCase() : 'UNKNOWN';
   const themeColor = isStarter ? 'text-green-500' : isFinisher ? 'text-red-500' : 'text-yellow-400';
+  const roleBadgeClass = isStarter
+    ? 'bg-green-100 text-green-700'
+    : isFinisher
+      ? 'bg-red-100 text-red-700'
+      : 'bg-yellow-100 text-yellow-800';
   const buttonColor = isStarter
     ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
     : isFinisher
       ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
       : 'bg-yellow-500 hover:bg-yellow-600 text-black focus:ring-yellow-400';
+  const submitLabel = isSubmitting
+    ? 'MENGIRIM...'
+    : canCorrectStart
+      ? 'UBAH START'
+      : isTCOfficer
+        ? (tcAlreadyRecorded ? 'UBAH TC' : 'KIRIM TC')
+        : 'KIRIM DATA';
 
   // ==========================================
   // TAMPILAN SETUP
@@ -403,7 +419,7 @@ export default function TimekeepingTerminal() {
           <h1 className="text-2xl font-black text-center mb-2 text-gray-800 uppercase tracking-widest">SETUP TERMINAL</h1>
           
           <div className="text-center mb-6">
-            <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${isStarter ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${roleBadgeClass}`}>
               Role: {displayRole}
             </span>
           </div>
@@ -557,7 +573,7 @@ export default function TimekeepingTerminal() {
 
           <div className="text-center">
             <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">
-              {isStarter ? 'Waktu Start' : isFinisher ? 'Waktu Finish' : 'Waktu Masuk TC'}
+              {timeInputLabel}
             </label>
             <div className="mb-3 grid grid-cols-2 gap-2">
               <button
@@ -593,18 +609,18 @@ export default function TimekeepingTerminal() {
               {manualTime ? manualTimeValidation.message : `Ketik angka saja: ${expectedTimeDigits}.`}
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-black uppercase tracking-wide text-gray-500">
-              <span className="rounded bg-black px-2 py-2">0815 = 08:15</span>
-              <span className="rounded bg-black px-2 py-2">Finish: 081530</span>
-              <span className="rounded bg-black px-2 py-2">08153045</span>
+              {quickExamples.map((example) => (
+                <span key={example} className="rounded bg-black px-2 py-2">{example}</span>
+              ))}
             </div>
           </div>
 
           <button 
             type="submit"
             disabled={isSubmitting || !canSubmit}
-            className={`w-full py-5 ${buttonColor} text-white font-black text-2xl rounded-xl uppercase tracking-widest shadow-lg disabled:opacity-50 transition-all transform active:scale-95`}
+            className={`w-full py-5 ${buttonColor} ${isTCOfficer ? 'text-black' : 'text-white'} font-black text-2xl rounded-xl uppercase tracking-widest shadow-lg disabled:opacity-50 transition-all transform active:scale-95`}
           >
-            {isSubmitting ? 'MENGIRIM...' : canCorrectStart ? 'UBAH START' : 'KIRIM DATA'}
+            {submitLabel}
           </button>
           
         </form>

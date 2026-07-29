@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import api from '../../services/api';
 import Modal from '../../components/Modal';
 import DataTableFooter from '../../components/DataTableFooter';
+import { tcStatusLabel } from '../../utils/tcDisplay';
 
 export default function MasterEventDetail() {
   const { id } = useParams(); // Mengambil ID Event dari URL
@@ -678,16 +679,7 @@ export default function MasterEventDetail() {
   };
 
   const getTCStatusLabel = (status) => {
-    const labels = {
-      NOT_SCHEDULED: 'Belum dijadwalkan',
-      WAITING: 'Menunggu TC',
-      UNSCHEDULED: 'Aktual tanpa target',
-      ON_TIME: 'Sesuai waktu',
-      EARLY: 'Terlalu cepat',
-      LATE: 'Terlambat',
-      INVALID: 'Format invalid',
-    };
-    return labels[status] || status || '-';
+    return tcStatusLabel(status);
   };
 
   const getTCStatusClass = (status) => {

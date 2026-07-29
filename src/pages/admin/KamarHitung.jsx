@@ -4,6 +4,7 @@ import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import Modal from '../../components/Modal';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
 export default function KamarHitung() {
   const navigate = useNavigate();
@@ -481,7 +482,7 @@ export default function KamarHitung() {
                               <ul className="space-y-1">
                                 {r.penalty_details.map((pd, idx) => (
                                   <li key={idx} className="text-xs flex justify-between text-gray-700">
-                                    <span>• {pd.name}</span>
+                                    <span>• {compactTCPenaltyRemark(pd.name, selectedStage?.ss_order)}</span>
                                     <span className="font-mono text-red-600 font-bold">+{formatMs(pd.time_ms, timeDecimalPlaces)}</span>
                                   </li>
                                 ))}

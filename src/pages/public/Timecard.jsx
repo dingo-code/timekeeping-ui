@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark, tcStatusLabel as displayTCStatusLabel } from '../../utils/tcDisplay';
 
 export default function Timecard() {
   const { eventId, participantId } = useParams();
@@ -166,7 +167,7 @@ export default function Timecard() {
                           <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms, timeDecimalPlaces)}</td>
                           <td className="p-3">
                             <div className="font-black">{stage.status || '-'}</div>
-                            {stage.remark_penalty && <div className="text-xs text-red-600">{stage.remark_penalty}</div>}
+                            {stage.remark_penalty && <div className="text-xs text-red-600">{compactTCPenaltyRemark(stage.remark_penalty, stage.ss_order)}</div>}
                           </td>
                         </tr>
                       ))}
@@ -248,7 +249,7 @@ function StageCard({ stage, timeDecimalPlaces = 2 }) {
       </div>
 
       {stage.remark_penalty && (
-        <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-bold text-red-700">{stage.remark_penalty}</div>
+        <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-bold text-red-700">{compactTCPenaltyRemark(stage.remark_penalty, stage.ss_order)}</div>
       )}
     </article>
   );
@@ -321,8 +322,8 @@ function formatTCDelta(ms) {
   const absMs = Math.abs(value);
   const minutes = Math.floor(absMs / 60000);
   const seconds = Math.floor((absMs % 60000) / 1000);
-  const direction = value < 0 ? 'lebih awal' : 'terlambat';
-  return `${minutes}m ${seconds}s ${direction}`;
+  const direction = value < 0 ? 'Early' : 'Late';
+  return `${direction} ${minutes}m ${seconds}s`;
 }
 
 function statusClass(status) {
@@ -345,16 +346,7 @@ function stageStatusClass(status) {
 }
 
 function tcStatusLabel(status) {
-  const labels = {
-    ON_TIME: 'Sesuai',
-    EARLY: 'Terlalu Awal',
-    LATE: 'Terlambat',
-    WAITING: 'Menunggu',
-    UNSCHEDULED: 'Tanpa Target',
-    NOT_SCHEDULED: 'Belum Ada',
-    INVALID: 'Invalid',
-  };
-  return labels[status] || '-';
+  return displayTCStatusLabel(status);
 }
 
 function tcStatusClass(status) {

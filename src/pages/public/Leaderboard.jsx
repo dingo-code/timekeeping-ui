@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
 const reconnectDelayMs = 3000;
 
@@ -125,7 +126,7 @@ export default function Leaderboard() {
     try {
       const res = await api.get(`/public/stages/${stageId}/records`);
       const stage = stages.find((item) => item.id === stageId);
-      setEntries(normalizeStageEntries(res.data.data || [], Boolean(stage?.is_shakedown)));
+      setEntries(normalizeStageEntries(res.data.data || [], Boolean(stage?.is_shakedown), stage?.ss_order));
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memuat leaderboard.');
     } finally {
@@ -322,7 +323,7 @@ function stageLabel(stage) {
   return stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order}`;
 }
 
-function normalizeStageEntries(records, isShakedown = false) {
+function normalizeStageEntries(records, isShakedown = false, ssOrder = 0) {
   const numericMs = (value) => {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : 0;
@@ -380,7 +381,7 @@ function normalizeStageEntries(records, isShakedown = false) {
       diff_first_ms: ranked && firstTotal ? total - firstTotal : 0,
       is_live_running: hasLiveStart(record),
       driver_name: isShakedown && record.attempt_no ? `${record.driver_name} (Run ${record.attempt_no})` : record.driver_name,
-      penalty_desc: formatPenaltyDetails(record.penalty_details),
+      penalty_desc: formatPenaltyDetails(record.penalty_details, ssOrder),
     };
     if (ranked) {
       previousRankedTotal = total;
@@ -390,10 +391,10 @@ function normalizeStageEntries(records, isShakedown = false) {
   });
 }
 
-function formatPenaltyDetails(details) {
+function formatPenaltyDetails(details, ssOrder = 0) {
   const parsed = typeof details === 'string' ? parsePenaltyDetails(details) : details;
   if (!Array.isArray(parsed) || parsed.length === 0) return '';
-  return parsed.map((item) => item.name).filter(Boolean).join(', ');
+  return parsed.map((item) => compactTCPenaltyRemark(item.name, ssOrder)).filter(Boolean).join(', ');
 }
 
 function parsePenaltyDetails(value) {
