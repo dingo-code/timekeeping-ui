@@ -225,8 +225,8 @@ export default function ShakedownReport() {
               <table className="w-full border-collapse text-sm">
                 <colgroup>
                   <col style={{ width: tableColumnWidths.noStart }} />
-                  <col style={{ width: tableColumnWidths.driver }} />
                   <col style={{ width: tableColumnWidths.entrant }} />
+                  <col style={{ width: tableColumnWidths.driver }} />
                   <col style={{ width: tableColumnWidths.className }} />
                   <col style={{ width: tableColumnWidths.regional }} />
                   {attemptColumns.map((attemptNo) => (
@@ -236,8 +236,8 @@ export default function ShakedownReport() {
                 <thead>
                   <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
                     <th className="border border-gray-300 p-2 text-center">No</th>
-                    <th className="border border-gray-300 p-2">Driver / Navigator</th>
                     <th className="border border-gray-300 p-2">Entrant</th>
+                    <th className="border border-gray-300 p-2">Driver / Navigator</th>
                     <th className="border border-gray-300 p-2">Class</th>
                     <th className="border border-gray-300 p-2">Regional</th>
                     {attemptColumns.map((attemptNo) => (
@@ -249,11 +249,11 @@ export default function ShakedownReport() {
                   {group.entries.map((entry) => (
                     <tr key={entry.participant_id}>
                       <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
+                      <td className="border border-gray-300 p-2">{entry.entrant_name || '-'}</td>
                       <td className="border border-gray-300 p-2">
                         <div className="font-bold text-gray-900">{entry.driver_name}</div>
                         <div className="text-xs text-gray-500">{entry.codriver_name || '-'}</div>
                       </td>
-                      <td className="border border-gray-300 p-2">{entry.entrant_name || '-'}</td>
                       <td className="border border-gray-300 p-2">{entry.class_name || '-'}</td>
                       <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                       {attemptColumns.map((attemptNo) => {
