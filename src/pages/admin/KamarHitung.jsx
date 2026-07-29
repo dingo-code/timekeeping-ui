@@ -41,7 +41,7 @@ export default function KamarHitung() {
 
   // State Modal Edit Waktu
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ start_time: '', finish_time: '' });
+  const [editForm, setEditForm] = useState({ tc_time: '', start_time: '', finish_time: '' });
 
   useEffect(() => {
     fetchEvents();
@@ -271,6 +271,7 @@ export default function KamarHitung() {
   const openEditModal = (record) => {
     setSelectedRecord(record);
     setEditForm({
+      tc_time: record.tc_time || '',
       start_time: record.start_time || '',
       finish_time: record.finish_time || ''
     });
@@ -285,6 +286,7 @@ export default function KamarHitung() {
         id: selectedRecord.id,
         ss_id: selectedRecord.ss_id,
         participant_id: selectedRecord.participant_id,
+        tc_time: editForm.tc_time,
         start_time: editForm.start_time,
         finish_time: editForm.finish_time,
         force_update: true
@@ -542,6 +544,17 @@ export default function KamarHitung() {
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Koreksi Waktu Manual">
         <form onSubmit={submitEditTime} className="p-6 space-y-4">
           <p className="text-sm text-gray-600 mb-2">Koreksi waktu untuk Mobil <strong>#{selectedRecord?.start_number} ({selectedRecord?.driver_name})</strong></p>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU TC (Format: 08:15:30)</label>
+            <input
+              type="text"
+              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
+              value={editForm.tc_time}
+              onChange={(e) => setEditForm({...editForm, tc_time: e.target.value})}
+              placeholder="00:00:00"
+            />
+          </div>
           
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU START (Format: 08:15:30.00)</label>
