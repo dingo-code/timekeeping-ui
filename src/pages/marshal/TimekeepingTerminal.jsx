@@ -9,6 +9,7 @@ export default function TimekeepingTerminal() {
   
   // Mengambil role dari Global State (Zustand)
   const role = useAuthStore((state) => state.role); 
+  const logout = useAuthStore((state) => state.logout);
   
   const isStarter = role === 'petugas_start';
   const isFinisher = role === 'petugas_finish';
@@ -108,6 +109,11 @@ export default function TimekeepingTerminal() {
     setStatusMessage('');
     setRestartReason('');
     await fetchRecords(ssId);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
   };
 
   const getParticipantIdByStartNumber = (number) => {
@@ -366,6 +372,14 @@ export default function TimekeepingTerminal() {
                 {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
               </select>
             </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-black uppercase tracking-widest text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 transition"
+            >
+              LOGOUT
+            </button>
           </div>
         </div>
       </div>
@@ -390,6 +404,9 @@ export default function TimekeepingTerminal() {
           </button>
           <button type="button" onClick={() => setSelectedSS('')} className="bg-gray-800 text-white px-4 py-2 rounded font-bold text-sm hover:bg-gray-700 transition">
             GANTI STAGE
+          </button>
+          <button type="button" onClick={handleLogout} className="bg-red-700 text-white px-4 py-2 rounded font-bold text-sm hover:bg-red-600 transition">
+            LOGOUT
           </button>
         </div>
       </header>
