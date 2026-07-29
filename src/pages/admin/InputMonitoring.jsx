@@ -253,8 +253,9 @@ export default function InputMonitoring() {
                   <th className="p-3">Input</th>
                   <th className="p-3">SS</th>
                   <th className="p-3 text-center">No</th>
-                  <th className="p-3">Driver / Co-driver</th>
                   <th className="p-3">Entrant</th>
+                  <th className="p-3">Driver / Navigator</th>
+                  <th className="p-3 text-center">Class</th>
                   <th className="p-3 text-center">TC</th>
                   <th className="p-3 text-center">Start</th>
                   <th className="p-3 text-center">Finish</th>
@@ -265,7 +266,7 @@ export default function InputMonitoring() {
               <tbody>
                 {visibleRecords.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="h-[360px] p-10 text-center">
+                    <td colSpan="11" className="h-[360px] p-10 text-center">
                       <EmptyState />
                     </td>
                   </tr>
@@ -283,11 +284,12 @@ export default function InputMonitoring() {
                       <td className="p-3 text-center">
                         <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{record.start_number}</span>
                       </td>
+                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
                       <td className="p-3">
                         <div className="font-black text-white">{runDriverName(record)}</div>
                         <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
                       </td>
-                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
+                      <td className="p-3 text-center text-xs font-black uppercase tracking-wider text-gray-300">{record.class_name || '-'}</td>
                       <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
                       <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
                       <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time, timeDecimalPlaces)}</td>
@@ -324,6 +326,7 @@ function RecordCard({ record, timeDecimalPlaces = 2 }) {
           <h2 className="mt-1 break-words text-xl font-black text-white">{runDriverName(record)}</h2>
           <p className="text-xs font-bold text-gray-300">{record.codriver_name || '-'}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{record.team_name || '-'}</p>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-wider text-gray-400">Class {record.class_name || '-'}</p>
         </div>
         <div className="rounded bg-black px-3 py-2 text-center">
           <div className="text-[9px] font-black uppercase text-gray-500">No</div>
@@ -332,6 +335,8 @@ function RecordCard({ record, timeDecimalPlaces = 2 }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="SS" value={`${stageShortLabel(record)} ${record.ss_name || ''}`.trim()} />
+        <MiniMetric label="Entrant" value={record.team_name || '-'} />
+        <MiniMetric label="Class" value={record.class_name || '-'} />
         <MiniMetric label="Waktu Input" value={inputTimeLabel(record)} />
         <MiniMetric label="TC" value={formatClockSeconds(record.tc_time)} />
         <MiniMetric label="Start" value={formatClockSeconds(record.start_time)} />

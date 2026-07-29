@@ -253,7 +253,9 @@ export default function Leaderboard() {
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
                   <th className="p-4 text-center">Rank</th>
                   <th className="p-4 text-center">No Start</th>
-                  <th className="p-4">Driver / Co-driver</th>
+                  <th className="p-4">Entrant</th>
+                  <th className="p-4">Driver / Navigator</th>
+                  <th className="p-4 text-center">Class</th>
                   <th className="p-4 text-center">Start</th>
                   <th className="p-4 text-center">Finish</th>
                   <th className="p-4 text-right">Penalti</th>
@@ -264,7 +266,7 @@ export default function Leaderboard() {
               <tbody>
                 {entries.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="p-10 text-center text-sm font-bold text-gray-500">
+                    <td colSpan="10" className="p-10 text-center text-sm font-bold text-gray-500">
                       {selectedStageId ? 'Belum ada peserta start, finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
                     </td>
                   </tr>
@@ -275,11 +277,12 @@ export default function Leaderboard() {
                       <td className="p-4 text-center">
                         <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
                       </td>
+                      <td className="p-4 text-xs font-bold uppercase tracking-wider text-gray-400">{entry.team_name || '-'}</td>
                       <td className="p-4">
                         <div className="font-black text-white">{entry.driver_name}</div>
                         <div className="mt-0.5 text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
-                        <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
                       </td>
+                      <td className="p-4 text-center text-xs font-black uppercase tracking-wider text-gray-300">{entry.class_name || '-'}</td>
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)}</td>
                       <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'}</td>
@@ -398,6 +401,7 @@ function LeaderboardCard({ entry, nowMs, timeDecimalPlaces = 2 }) {
           <h2 className="mt-1 break-words text-xl font-black text-white">{entry.driver_name}</h2>
           <p className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</p>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-wider text-gray-400">Class {entry.class_name || '-'}</p>
         </div>
         <div className="rounded bg-black px-3 py-2 text-center">
           <div className="text-[9px] font-black uppercase text-gray-500">No</div>
@@ -406,6 +410,8 @@ function LeaderboardCard({ entry, nowMs, timeDecimalPlaces = 2 }) {
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
         <MiniMetric label="Start" value={entry.start_time || '-'} />
+        <MiniMetric label="Entrant" value={entry.team_name || '-'} />
+        <MiniMetric label="Class" value={entry.class_name || '-'} />
         <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)} />
         <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'} />
         <MiniMetric label="Total" value={formatMs(displayTotalMs(entry, nowMs), timeDecimalPlaces)} highlight />

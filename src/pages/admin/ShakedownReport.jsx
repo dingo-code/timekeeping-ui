@@ -236,7 +236,7 @@ export default function ShakedownReport() {
                 <thead>
                   <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
                     <th className="border border-gray-300 p-2 text-center">No</th>
-                    <th className="border border-gray-300 p-2">Driver / Co Driver</th>
+                    <th className="border border-gray-300 p-2">Driver / Navigator</th>
                     <th className="border border-gray-300 p-2">Entrant</th>
                     <th className="border border-gray-300 p-2">Class</th>
                     <th className="border border-gray-300 p-2">Regional</th>

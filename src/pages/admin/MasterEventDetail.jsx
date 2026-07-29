@@ -477,7 +477,7 @@ export default function MasterEventDetail() {
     e.preventDefault();
     const requiredFields = [
       ['driver_id', 'Driver'],
-      ['codriver_id', 'Co-Driver'],
+      ['codriver_id', 'Navigator'],
       ['vehicle_id', 'Kendaraan'],
       ['class_id', 'Kelas'],
       ['category_id', 'Kategori'],
@@ -822,7 +822,7 @@ export default function MasterEventDetail() {
                   <tr>
                     <th className="p-3 text-center">No Start</th>
                     <th className="p-3">Nama Entrant / Tim</th>
-                    <th className="p-3">Driver / Co-Driver</th>
+                    <th className="p-3">Driver / Navigator</th>
                     <th className="p-3">Mobil</th>
                     <th className="p-3 text-center">QR Timecard</th>
                     <th className="p-3 text-right">Aksi</th>
@@ -841,7 +841,7 @@ export default function MasterEventDetail() {
                         <td className="p-3 font-bold">{p.entrant_name}</td>
                         <td className="p-3 text-sm">
                           <div className="font-semibold text-gray-800">{getRacerName(p.driver_id)}</div>
-                          <div className="text-gray-500">Co: {getRacerName(p.codriver_id)}</div>
+                          <div className="text-gray-500">Navigator: {getRacerName(p.codriver_id)}</div>
                         </td>
                         <td className="p-3 text-sm font-medium text-gray-700">
                           <div>{getVehicleName(p.vehicle_id)}</div>
@@ -1214,7 +1214,7 @@ export default function MasterEventDetail() {
             </div>
             <div>
               <SearchableSelect
-                label="Co-Driver"
+                label="Navigator"
                 placeholder="Cari co-driver..."
                 value={participantForm.codriver_id}
                 options={racers.filter(r => r.is_codriver).map(r => ({ value: r.id, label: r.full_name }))}

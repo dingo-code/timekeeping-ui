@@ -247,6 +247,7 @@ export default function KamarHitung() {
         record.driver_name,
         record.codriver_name,
         record.team_name,
+        record.class_name,
         record.status,
         record.attempt_no ? `attempt ${record.attempt_no}` : '',
         record.attempt_no ? `#${record.attempt_no}` : '',
@@ -294,7 +295,7 @@ export default function KamarHitung() {
                   type="search"
                   value={recordSearch}
                   onChange={(event) => setRecordSearch(event.target.value)}
-                  placeholder="Cari no start, driver, team, status..."
+                  placeholder="Cari no start, entrant, driver, class, status..."
                   className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 outline-none transition focus:border-red-500 focus:ring-1 focus:ring-red-500 sm:w-80"
                 />
                 <span className="whitespace-nowrap rounded bg-green-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-green-700">Live auto-refresh</span>
@@ -309,12 +310,14 @@ export default function KamarHitung() {
             />
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left border-collapse text-sm">
+              <table className="w-full min-w-[1280px] text-left border-collapse text-sm">
                 <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="p-3 text-center border-b">No Start</th>
                     <th className="p-3 border-b text-center">Attempt</th>
-                    <th className="p-3 border-b">Peserta</th>
+                    <th className="p-3 border-b">Entrant</th>
+                    <th className="p-3 border-b">Driver / Navigator</th>
+                    <th className="p-3 border-b text-center">Class</th>
                     <th className="p-3 border-b text-center">TC</th>
                     <th className="p-3 border-b text-center">Waktu Start</th>
                     <th className="p-3 border-b text-center">Waktu Finish</th>
@@ -326,8 +329,8 @@ export default function KamarHitung() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {isLoading ? <tr><td colSpan="11" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
-                   filteredRecords.length === 0 ? <tr><td colSpan="11" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
+                  {isLoading ? <tr><td colSpan="13" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
+                   filteredRecords.length === 0 ? <tr><td colSpan="13" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
                    filteredRecords.map((r, rowIndex) => (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
@@ -343,14 +346,18 @@ export default function KamarHitung() {
                           </span>
                         </div>
                       </td>
+                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-500">{r.team_name || '-'}</td>
                       <td className="p-3 font-bold text-gray-800">
-                        {r.driver_name} <br/> <span className="text-xs text-gray-500 font-normal">{r.team_name}</span>
+                        {r.driver_name}
+                        <br />
+                        <span className="text-xs text-gray-500 font-normal">{r.codriver_name || '-'}</span>
                         {!r.is_active && r.restart_reason && (
                           <div className="mt-1 text-[11px] font-semibold text-orange-700 bg-orange-50 inline-block px-2 py-1 rounded">
                             Restart: {r.restart_reason}
                           </div>
                         )}
                       </td>
+                      <td className="p-3 text-center text-xs font-black uppercase text-gray-700">{r.class_name || '-'}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.tc_time)}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.start_time)}</td>
                       <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time, timeDecimalPlaces)}</td>
@@ -409,7 +416,7 @@ export default function KamarHitung() {
                     </tr>
                     {expandedRow === r.id && r.penalty_details && r.penalty_details.length > 0 && (
                         <tr className="bg-red-50/50 border-b border-gray-200">
-                          <td colSpan="11" className="px-6 py-3">
+                          <td colSpan="13" className="px-6 py-3">
                             <div className="bg-white border border-red-200 rounded p-3 shadow-inner">
                               <p className="text-xs font-bold text-red-800 mb-2 border-b border-red-100 pb-1">📜 Rincian Penalti Mobil #{r.start_number}:</p>
                               <ul className="space-y-1">

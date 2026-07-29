@@ -70,7 +70,7 @@ export default function Timecard() {
             <section className="mb-4 rounded-lg bg-white p-4 text-gray-950 shadow-xl sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Driver / Co-driver</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Driver / Navigator</p>
                   <h2 className="mt-1 break-words text-2xl font-black leading-tight">{timecard.participant.driver_name}</h2>
                   <p className="mt-1 text-sm font-bold text-gray-500">{timecard.participant.codriver_name || '-'}</p>
                 </div>

@@ -684,7 +684,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
             <tr className="bg-gray-100 text-gray-700">
               <th className="border border-gray-300 p-2 text-center">Rank</th>
               <th className="border border-gray-300 p-2 text-center">No Start</th>
-              <th className="border border-gray-300 p-2 text-left">Driver/Co driver</th>
+              <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
               <th className="border border-gray-300 p-2 text-left">Entrant</th>
               <th className="border border-gray-300 p-2 text-left">Regional</th>
               <th className="border border-gray-300 p-2 text-left">Class</th>
@@ -793,7 +793,7 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                     <tr className="bg-gray-100 text-gray-700">
                       <th className="border border-gray-300 p-2 text-center">Rank</th>
                       <th className="border border-gray-300 p-2 text-center">No Start</th>
-                      <th className="border border-gray-300 p-2 text-left">Driver/Co driver</th>
+                      <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
                       <th className="border border-gray-300 p-2 text-left">Entrant</th>
                       <th className="border border-gray-300 p-2 text-left">Regional</th>
                       <th className="border border-gray-300 p-2 text-left">Class</th>

@@ -75,7 +75,7 @@ export default function MasterRacer() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.is_driver && !formData.is_codriver) {
-      alert("Peserta harus bertindak minimal sebagai Driver atau Co-Driver!");
+      alert("Peserta harus bertindak minimal sebagai Driver atau Navigator!");
       return;
     }
 
@@ -136,7 +136,7 @@ export default function MasterRacer() {
                 <td className="p-4 text-gray-600">{getRegionName(r.region_id)}</td>
                 <td className="p-4 text-xs font-bold">
                   {r.is_driver && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded mr-1">D</span>}
-                  {r.is_codriver && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Co-D</span>}
+                  {r.is_codriver && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Navigator</span>}
                 </td>
                 <td className="p-4 text-right space-x-3">
                   <button onClick={() => openModal(r)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
@@ -202,7 +202,7 @@ export default function MasterRacer() {
               </label>
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 text-red-600 rounded" checked={formData.is_codriver} onChange={e => setFormData({...formData, is_codriver: e.target.checked})} />
-                <span className="text-sm font-medium">Co-Driver (Navigator)</span>
+                <span className="text-sm font-medium">Navigator</span>
               </label>
             </div>
           </div>
