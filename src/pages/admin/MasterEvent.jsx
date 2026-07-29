@@ -143,7 +143,7 @@ export default function MasterEvent() {
               {[6, 12, 24, 48, 96].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition whitespace-nowrap">+ Buat Event Baru</button>
+          <button onClick={() => openModal()} className="admin-btn-primary">+ Buat Event Baru</button>
         </div>
       </div>
 
@@ -170,8 +170,8 @@ export default function MasterEvent() {
             <div className="mt-1 text-xs font-bold text-gray-500">Decimal time: {event.time_decimal_places ?? 2} digit</div>
             <div className="mt-1 text-xs font-bold text-gray-500">TC: telat +{event.tc_late_penalty_seconds_per_minute ?? 10} dtk/m, cepat +{event.tc_early_penalty_seconds_per_minute ?? 60} dtk/m</div>
             <div className="flex gap-2 mt-4">
-              <button onClick={() => openModal(event)} className="flex-1 py-2 text-xs font-bold bg-gray-200 rounded hover:bg-gray-300">EDIT</button>
-              <Link to={`/admin/event/${event.id}`} className="flex-[2] py-2 text-center text-xs font-bold bg-red-600 text-white rounded hover:bg-red-700">KELOLA</Link>
+              <button onClick={() => openModal(event)} className="admin-btn-muted flex-1">EDIT</button>
+              <Link to={`/admin/event/${event.id}`} className="admin-btn-primary flex-[2] text-center">KELOLA</Link>
             </div>
           </div>
         ))}
@@ -322,7 +322,7 @@ export default function MasterEvent() {
               />
               {formData.logo_url && !logoFile && <p className="text-xs text-gray-500">Biarkan kosong jika tidak ingin mengganti logo.</p>}
             </div>
-            <button type="submit" className="w-full py-2 bg-red-600 text-white rounded font-bold">Simpan</button>
+            <button type="submit" className="admin-btn-submit">Simpan</button>
         </form>
       </Modal>
     </div>

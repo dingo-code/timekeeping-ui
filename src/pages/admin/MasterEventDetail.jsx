@@ -699,7 +699,7 @@ export default function MasterEventDetail() {
       {/* Header Halaman */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <button onClick={() => navigate(-1)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition font-bold text-sm">
+          <button onClick={() => navigate(-1)} className="admin-btn-muted">
             ⬅️ KEMBALI
           </button>
           <div>
@@ -765,7 +765,7 @@ export default function MasterEventDetail() {
                   </select>
                 </div>
               </div>
-              <button onClick={() => openStageModal()} className="px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700">+ Tambah Stage</button>
+              <button onClick={() => openStageModal()} className="admin-btn-primary">+ Tambah Stage</button>
             </div>
             
             <table className="w-full text-left border-collapse border border-gray-200 rounded overflow-hidden">
@@ -798,11 +798,11 @@ export default function MasterEventDetail() {
                         </span>
                       </td>
                       <td className="p-3 text-right space-x-3">
-                        <button onClick={() => handleToggleStageOpen(ss)} className={`text-sm font-bold hover:underline ${ss.is_open ?? true ? 'text-gray-700' : 'text-emerald-700'}`}>
+                        <button onClick={() => handleToggleStageOpen(ss)} className={ss.is_open ?? true ? 'admin-btn-muted' : 'admin-btn-edit'}>
                           {ss.is_open ?? true ? 'Close' : 'Open'}
                         </button>
-                        <button onClick={() => openStageModal(ss)} className="text-blue-600 hover:underline text-sm font-bold">Edit</button>
-                        <button onClick={() => handleDeleteStage(ss.id)} className="text-red-600 hover:underline text-sm font-bold">Hapus</button>
+                        <button onClick={() => openStageModal(ss)} className="admin-btn-edit">Edit</button>
+                        <button onClick={() => handleDeleteStage(ss.id)} className="admin-btn-delete">Hapus</button>
                       </td>
                     </tr>
                   ))
@@ -841,7 +841,7 @@ export default function MasterEventDetail() {
                     ))}
                   </select>
                 </div>
-                <button onClick={() => openParticipantModal()} className="px-4 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700 whitespace-nowrap">+ Peserta</button>
+                <button onClick={() => openParticipantModal()} className="admin-btn-primary whitespace-nowrap">+ Peserta</button>
               </div>
             </div>
 
@@ -889,9 +889,9 @@ export default function MasterEventDetail() {
                           <TimecardQR value={getTimecardUrl(p)} />
                         </td>
                         <td className="p-3 text-right space-x-3">
-                          <a href={getTimecardUrl(p)} target="_blank" rel="noreferrer" className="text-green-700 hover:underline text-sm font-bold">Timecard</a>
-                          <button onClick={() => openParticipantModal(p)} className="text-blue-600 hover:underline text-sm font-bold">Edit</button>
-                          <button onClick={() => handleDeleteParticipant(p.id)} className="text-red-600 hover:underline text-sm font-bold">Hapus</button>
+                          <a href={getTimecardUrl(p)} target="_blank" rel="noreferrer" className="rounded bg-green-100 px-2 py-1 text-xs font-bold text-green-700 transition hover:bg-green-200">Timecard</a>
+                          <button onClick={() => openParticipantModal(p)} className="admin-btn-edit">Edit</button>
+                          <button onClick={() => handleDeleteParticipant(p.id)} className="admin-btn-delete">Hapus</button>
                         </td>
                       </tr>
                     );
@@ -949,7 +949,7 @@ export default function MasterEventDetail() {
                 <p className="mt-1 text-xs text-gray-500">Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.</p>
                 {startingListImportSummary && <p className="mt-2 text-xs font-bold text-green-700">{startingListImportSummary}</p>}
               </div>
-              <label className="cursor-pointer rounded bg-white px-4 py-2 text-center text-xs font-black uppercase tracking-wide text-gray-800 ring-1 ring-gray-300 hover:bg-gray-100">
+              <label className="admin-btn-muted cursor-pointer text-center">
                 Import Excel
                 <input
                   type="file"
@@ -982,7 +982,7 @@ export default function MasterEventDetail() {
                 type="button"
                 onClick={handleSaveStartingList}
                 disabled={!selectedTCStageId || isSavingStartingList || isGeneratingTC}
-                className="rounded bg-gray-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-black disabled:opacity-50"
+                className="admin-btn-dark"
               >
                 {isSavingStartingList ? 'Menyimpan...' : 'Simpan Starting List'}
               </button>
@@ -990,7 +990,7 @@ export default function MasterEventDetail() {
                 type="button"
                 onClick={handleGenerateTCTargets}
                 disabled={!selectedTCStageId || isGeneratingTC}
-                className="rounded bg-red-600 px-4 py-2 text-xs font-black uppercase tracking-wide text-white hover:bg-red-700 disabled:opacity-50"
+                className="admin-btn-primary"
               >
                 {isGeneratingTC ? 'Generate...' : 'Generate TC'}
               </button>
@@ -1074,7 +1074,7 @@ export default function MasterEventDetail() {
                           <button
                             onClick={() => handleSaveTCTarget(row.id)}
                             disabled={savingTCParticipantId === row.id || isWithdrawActive}
-                            className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded transition disabled:opacity-50"
+                            className="admin-btn-primary"
                           >
                             {savingTCParticipantId === row.id ? 'MENYIMPAN...' : 'TARGET'}
                           </button>
@@ -1082,7 +1082,7 @@ export default function MasterEventDetail() {
                             <button
                               onClick={() => handleClearWithdraw(row)}
                               disabled={savingWithdrawParticipantId === row.id}
-                              className="text-xs font-bold text-gray-700 bg-white ring-1 ring-gray-300 hover:bg-gray-100 px-3 py-2 rounded transition disabled:opacity-50"
+                              className="admin-btn-muted"
                             >
                               {savingWithdrawParticipantId === row.id ? '...' : 'BATAL WD'}
                             </button>
@@ -1090,7 +1090,7 @@ export default function MasterEventDetail() {
                             <button
                               onClick={() => handleSetWithdraw(row)}
                               disabled={savingWithdrawParticipantId === row.id}
-                              className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-3 py-2 rounded transition disabled:opacity-50"
+                              className="admin-btn-dark"
                             >
                               {savingWithdrawParticipantId === row.id ? '...' : 'WD'}
                             </button>
@@ -1132,7 +1132,7 @@ export default function MasterEventDetail() {
                     {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
                   </select>
                 </div>
-                <button onClick={() => openPenaltyModal()} className="px-4 py-2 bg-black text-white font-bold rounded text-xs hover:bg-red-600 transition whitespace-nowrap">
+                <button onClick={() => openPenaltyModal()} className="admin-btn-dark">
                   + TAMBAH REGULASI
                 </button>
               </div>
@@ -1164,8 +1164,8 @@ export default function MasterEventDetail() {
                           </span>
                         </td>
                         <td className="p-3 text-right space-x-3">
-                          <button onClick={() => openPenaltyModal(p)} className="text-blue-600 hover:underline text-xs font-bold">Edit</button>
-                          <button onClick={() => handleDeletePenalty(p.id)} className="text-red-600 hover:underline text-xs font-bold">Hapus</button>
+                          <button onClick={() => openPenaltyModal(p)} className="admin-btn-edit">Edit</button>
+                          <button onClick={() => handleDeletePenalty(p.id)} className="admin-btn-delete">Hapus</button>
                         </td>
                       </tr>
                     ))
@@ -1209,7 +1209,7 @@ export default function MasterEventDetail() {
             <input type="text" required placeholder={stageForm.is_shakedown ? 'Contoh: Shakedown Area' : 'Contoh: SS1 - Cikampek'} className="w-full p-2 border border-gray-300 rounded focus:ring-red-500 outline-none" value={stageForm.ss_name} onChange={e => setStageForm({...stageForm, ss_name: e.target.value})} />
           </div>
           <div className="pt-4 flex justify-end">
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700">
+            <button type="submit" className="admin-btn-primary">
               {editingStageId ? 'Update Stage' : 'Simpan Stage'}
             </button>
           </div>
@@ -1336,7 +1336,7 @@ export default function MasterEventDetail() {
           </div>
 
           <div className="pt-4 flex justify-end">
-            <button type="submit" className="px-4 py-3 bg-red-600 text-white rounded font-bold hover:bg-red-700 w-full">
+            <button type="submit" className="admin-btn-submit">
               {editingParticipantId ? 'Update Data Peserta' : 'Daftarkan Peserta Ini'}
             </button>
           </div>
@@ -1359,7 +1359,7 @@ export default function MasterEventDetail() {
             <label className="block text-sm font-bold text-gray-700 mb-1">Keterangan Tambahan</label>
             <textarea rows="3" className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-red-600 text-sm" value={penaltyForm.description} onChange={e => setPenaltyForm({...penaltyForm, description: e.target.value})}></textarea>
           </div>
-          <button type="submit" className="w-full py-3 bg-red-600 text-white font-bold text-sm hover:bg-black transition">
+          <button type="submit" className="admin-btn-submit">
             {editingPenaltyId ? 'Update Regulasi' : 'Simpan Regulasi'}
           </button>
         </form>

@@ -188,7 +188,7 @@ export default function ShakedownReport() {
                 <option value="landscape">Landscape</option>
               </select>
             </label>
-            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="self-end rounded-lg bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50">
+            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary self-end py-3">
               CETAK
             </button>
           </div>

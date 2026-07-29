@@ -111,7 +111,7 @@ export default function MasterRacer() {
               {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">+ Tambah</button>
+          <button onClick={() => openModal()} className="admin-btn-primary">+ Tambah</button>
         </div>
       </div>
 
@@ -139,8 +139,8 @@ export default function MasterRacer() {
                   {r.is_codriver && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Navigator</span>}
                 </td>
                 <td className="p-4 text-right space-x-3">
-                  <button onClick={() => openModal(r)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
-                  <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:underline text-sm font-medium">Hapus</button>
+                  <button onClick={() => openModal(r)} className="admin-btn-edit">Edit</button>
+                  <button onClick={() => handleDelete(r.id)} className="admin-btn-delete">Hapus</button>
                 </td>
               </tr>
             ))}
@@ -208,8 +208,8 @@ export default function MasterRacer() {
           </div>
 
           <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg font-medium">Batal</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium">Simpan Data</button>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="admin-btn-muted">Batal</button>
+            <button type="submit" className="admin-btn-primary font-medium">Simpan Data</button>
           </div>
         </form>
       </Modal>

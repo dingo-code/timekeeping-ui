@@ -112,7 +112,7 @@ export default function MasterVehicle() {
               {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+          <button onClick={() => openModal()} className="admin-btn-primary">
             + Tambah
           </button>
         </div>
@@ -141,8 +141,8 @@ export default function MasterVehicle() {
                   <td className="p-4 text-gray-600">{v.type}</td>
                   <td className="p-4 text-gray-600">{v.engine_capacity} cc</td>
                   <td className="p-4 text-right space-x-3">
-                    <button onClick={() => openModal(v)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
-                    <button onClick={() => handleDelete(v.id)} className="text-red-600 hover:underline text-sm font-medium">Hapus</button>
+                    <button onClick={() => openModal(v)} className="admin-btn-edit">Edit</button>
+                    <button onClick={() => handleDelete(v.id)} className="admin-btn-delete">Hapus</button>
                   </td>
                 </tr>
               ))
@@ -171,8 +171,8 @@ export default function MasterVehicle() {
             <input type="number" required className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-red-500" value={formData.engine_capacity} onChange={e => setFormData({...formData, engine_capacity: e.target.value})} />
           </div>
           <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={closeModal} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Simpan</button>
+            <button type="button" onClick={closeModal} className="admin-btn-muted hover:bg-gray-200">Batal</button>
+            <button type="submit" className="admin-btn-primary hover:bg-red-700">Simpan</button>
           </div>
         </form>
       </Modal>

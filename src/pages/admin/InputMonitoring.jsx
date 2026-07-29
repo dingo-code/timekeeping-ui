@@ -214,7 +214,7 @@ export default function InputMonitoring() {
               <button
                 type="button"
                 onClick={() => fetchRecords(stagesRef.current, selectedStageIdRef.current)}
-                className="h-11 rounded bg-red-600 px-5 text-sm font-black uppercase tracking-widest text-white transition hover:bg-red-700 sm:col-span-1"
+                className="admin-btn-primary h-11 px-5 sm:col-span-1"
               >
                 Refresh
               </button>

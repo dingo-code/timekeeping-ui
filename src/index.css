@@ -7,3 +7,37 @@
     color: #1f2937; /* text-gray-800 */
   }
 }
+
+@layer components {
+  .admin-btn-primary {
+    @apply whitespace-nowrap rounded bg-red-600 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-red-700 disabled:opacity-50;
+  }
+
+  .admin-btn-dark {
+    @apply whitespace-nowrap rounded bg-gray-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-black disabled:opacity-50;
+  }
+
+  .admin-btn-edit {
+    @apply rounded bg-blue-100 px-2 py-1 text-xs font-bold text-blue-600 transition hover:bg-blue-200 disabled:opacity-50;
+  }
+
+  .admin-btn-delete {
+    @apply rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-700 transition hover:bg-red-200 disabled:opacity-50;
+  }
+
+  .admin-btn-muted {
+    @apply rounded bg-gray-200 px-3 py-2 text-xs font-black uppercase tracking-wide text-gray-700 transition hover:bg-gray-300 disabled:opacity-50;
+  }
+
+  .admin-btn-orange {
+    @apply rounded bg-orange-600 px-3 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-orange-700 disabled:opacity-50;
+  }
+
+  .admin-btn-blue {
+    @apply rounded bg-blue-600 px-3 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-blue-700 disabled:opacity-50;
+  }
+
+  .admin-btn-submit {
+    @apply w-full bg-red-600 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-black disabled:opacity-50;
+  }
+}

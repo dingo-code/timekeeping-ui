@@ -388,7 +388,7 @@ export default function PrintResults() {
                 <option value="landscape">Landscape</option>
               </select>
             </div>
-            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="h-[42px] w-full self-end rounded-lg bg-red-600 px-4 text-sm font-black text-white hover:bg-red-700 disabled:opacity-50">
+            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary h-[42px] w-full self-end">
               CETAK
             </button>
           </div>

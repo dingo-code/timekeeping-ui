@@ -76,7 +76,7 @@ export default function MasterSeries() {
               {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">
+          <button onClick={() => openModal()} className="admin-btn-primary">
             + Tambah Series
           </button>
         </div>
@@ -102,7 +102,7 @@ export default function MasterSeries() {
                   <td className="p-4 font-bold text-gray-800">{s.name}</td>
                   <td className="p-4 text-gray-600">{s.year}</td>
                   <td className="p-4 text-right">
-                    <button onClick={() => openModal(s)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
+                    <button onClick={() => openModal(s)} className="admin-btn-edit">Edit</button>
                   </td>
                 </tr>
               ))
@@ -126,8 +126,8 @@ export default function MasterSeries() {
             <input type="number" required className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-red-500" value={formData.year} onChange={e => setFormData({...formData, year: parseInt(e.target.value)})} />
           </div>
           <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg">Batal</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg">Simpan</button>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="admin-btn-muted">Batal</button>
+            <button type="submit" className="admin-btn-primary">Simpan</button>
           </div>
         </form>
       </Modal>
