@@ -182,7 +182,7 @@ export default function KamarHitung() {
   const requestManualBWTMTime = (status) => {
     const dnsNote = status === 'DNS' ? '\nUntuk DNS, sistem tetap menambahkan penalti DNS 1 pos otomatis setelah waktu ini.' : '';
     const value = window.prompt(
-      `BWTM otomatis tidak bisa dihitung karena tidak ada pembanding waktu tercepat.\n\nMasukkan waktu BWTM manual.\nContoh: 05:30.00 atau 1:05:30.00.${dnsNote}`
+      `BWTM otomatis tidak bisa dihitung karena tidak ada pembanding waktu tercepat di class ini.\n\nMasukkan waktu BWTM manual.\nContoh: 05:30.00 atau 1:05:30.00.${dnsNote}`
     );
     if (value === null) return 0;
 
