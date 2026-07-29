@@ -669,8 +669,8 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
           <colgroup>
             <col style={{ width: columnWidths.rank }} />
             <col style={{ width: columnWidths.noStart }} />
-            <col style={{ width: columnWidths.driver }} />
             <col style={{ width: columnWidths.entrant }} />
+            <col style={{ width: columnWidths.driver }} />
             <col style={{ width: columnWidths.regional }} />
             <col style={{ width: columnWidths.className }} />
             <col style={{ width: columnWidths.category }} />
@@ -682,10 +682,10 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
           </colgroup>
           <thead>
             <tr className="bg-gray-100 text-gray-700">
-              <th className="border border-gray-300 p-2 text-center">Rank</th>
+              <th className="border border-gray-300 p-2 text-center">Pos</th>
               <th className="border border-gray-300 p-2 text-center">No Start</th>
-              <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
               <th className="border border-gray-300 p-2 text-left">Entrant</th>
+              <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
               <th className="border border-gray-300 p-2 text-left">Regional</th>
               <th className="border border-gray-300 p-2 text-left">Class</th>
               <th className="border border-gray-300 p-2 text-left">Cat</th>
@@ -701,11 +701,11 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
               <tr key={entry.participant_id} className={resultRowClass(entry.status)}>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.print_rank || '-'}</td>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
+                <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                 <td className="border border-gray-300 p-2">
                   <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
                   <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                 </td>
-                <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                 <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
@@ -776,8 +776,8 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                   <colgroup>
                     <col style={{ width: columnWidths.rank }} />
                     <col style={{ width: columnWidths.noStart }} />
-                    <col style={{ width: columnWidths.driver }} />
                     <col style={{ width: columnWidths.entrant }} />
+                    <col style={{ width: columnWidths.driver }} />
                     <col style={{ width: columnWidths.regional }} />
                     <col style={{ width: columnWidths.className }} />
                     <col style={{ width: columnWidths.category }} />
@@ -791,10 +791,10 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                   </colgroup>
                   <thead>
                     <tr className="bg-gray-100 text-gray-700">
-                      <th className="border border-gray-300 p-2 text-center">Rank</th>
+                      <th className="border border-gray-300 p-2 text-center">Pos</th>
                       <th className="border border-gray-300 p-2 text-center">No Start</th>
-                      <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
                       <th className="border border-gray-300 p-2 text-left">Entrant</th>
+                      <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
                       <th className="border border-gray-300 p-2 text-left">Regional</th>
                       <th className="border border-gray-300 p-2 text-left">Class</th>
                       <th className="border border-gray-300 p-2 text-left">Cat</th>
@@ -812,11 +812,11 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                       <tr key={entry.participant_id} className={resultRowClass(stageTime.status)}>
                         <td className="border border-gray-300 p-2 text-center font-black">{rank || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
+                        <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                         <td className="border border-gray-300 p-2">
                           <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
                           <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
                         </td>
-                        <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                         <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>

@@ -100,8 +100,8 @@ export default function Timecard() {
 
             {timecard.final_stamp === 'FINISHER' && (
               <section className="mb-4 grid gap-3 sm:grid-cols-2">
-                <Summary label="Rank Overall" value={timecard.overall_rank ? `#${timecard.overall_rank}` : '-'} highlight />
-                <Summary label="Rank Class" value={timecard.class_rank ? `#${timecard.class_rank}` : '-'} highlight />
+                <Summary label="Pos Overall" value={timecard.overall_rank ? `#${timecard.overall_rank}` : '-'} highlight />
+                <Summary label="Pos Class" value={timecard.class_rank ? `#${timecard.class_rank}` : '-'} highlight />
               </section>
             )}
 

@@ -251,7 +251,7 @@ export default function Leaderboard() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
-                  <th className="p-4 text-center">Rank</th>
+                  <th className="p-4 text-center">Pos</th>
                   <th className="p-4 text-center">No Start</th>
                   <th className="p-4">Entrant</th>
                   <th className="p-4">Driver / Navigator</th>
@@ -397,7 +397,7 @@ function LeaderboardCard({ entry, nowMs, timeDecimalPlaces = 2 }) {
     <article className={`rounded-lg border border-white/10 p-4 ${rowClass(displayStatus(entry)) || 'bg-neutral-800'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-black uppercase tracking-widest text-gray-400">Rank #{entry.rank}</div>
+          <div className="text-xs font-black uppercase tracking-widest text-gray-400">Pos #{entry.rank}</div>
           <h2 className="mt-1 break-words text-xl font-black text-white">{entry.driver_name}</h2>
           <p className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</p>
