@@ -26,7 +26,8 @@ export default function MasterEvent() {
     tc_early_penalty_seconds_per_minute: 60,
     tc_max_delta_minutes: 15,
     join_car_tc_tolerance_minutes: 22,
-    time_decimal_places: 2
+    time_decimal_places: 2,
+    is_active: true
   });
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function MasterEvent() {
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/events');
+      const res = await api.get('/admin/events');
       setEvents(res.data.data || []);
     } catch (e) { alert('Gagal memuat event'); }
     finally { setIsLoading(false); }
@@ -55,7 +56,7 @@ export default function MasterEvent() {
   // Logic Pencarian & Paginasi
   const filteredEvents = events.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    e.location.toLowerCase().includes(searchTerm.toLowerCase())
+    (e.location || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / itemsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -81,7 +82,8 @@ export default function MasterEvent() {
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
         tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
         join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22,
-        time_decimal_places: event.time_decimal_places ?? 2
+        time_decimal_places: event.time_decimal_places ?? 2,
+        is_active: event.is_active ?? true
       });
     } else {
       setEditingId(null);
@@ -99,7 +101,8 @@ export default function MasterEvent() {
         tc_early_penalty_seconds_per_minute: 60,
         tc_max_delta_minutes: 15,
         join_car_tc_tolerance_minutes: 22,
-        time_decimal_places: 2
+        time_decimal_places: 2,
+        is_active: true
       });
     }
     setLogoFile(null);
@@ -154,7 +157,12 @@ export default function MasterEvent() {
                 <img src={assetUrl(event.logo_url)} alt={`Logo ${event.name}`} className="max-h-16 max-w-28 object-contain" />
               </div>
             )}
-            <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase ${event.is_active ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                {event.is_active ?? true ? 'Aktif' : 'Tidak aktif'}
+              </span>
+            </div>
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
             <div className="mt-1 text-xs font-bold text-gray-500">BWTM: +{event.bwtm_penalty_minutes ?? 3} menit</div>
@@ -189,6 +197,21 @@ export default function MasterEvent() {
             <input type="date" className="w-full p-2 border rounded" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}/>
             <input type="date" className="w-full p-2 border rounded" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})}/>
             <input type="text" className="w-full p-2 border rounded" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Lokasi"/>
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
+              <span>
+                <span className="block text-sm font-bold text-gray-700">Status Event</span>
+                <span className="block text-xs text-gray-500">Event aktif muncul di petugas pos, kamar hitung, leaderboard, dan result.</span>
+              </span>
+              <span className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.is_active)}
+                  onChange={e => setFormData({...formData, is_active: e.target.checked})}
+                  className="h-5 w-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                Aktif
+              </span>
+            </label>
             <div>
               <label className="mb-1 block text-sm font-bold text-gray-700">BWTM tambahan menit</label>
               <input
