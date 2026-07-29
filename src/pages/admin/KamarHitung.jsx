@@ -37,7 +37,7 @@ export default function KamarHitung() {
   const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
   const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
   const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
-  const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
+  const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
 
   // State Modal Edit Waktu
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);

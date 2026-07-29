@@ -29,7 +29,7 @@ export default function MasterEventDetail() {
   // --- State Modal & Edit SS ---
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [editingStageId, setEditingStageId] = useState(null);
-  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false });
+  const [stageForm, setStageForm] = useState({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true });
   const [stageSearchTerm, setStageSearchTerm] = useState('');
   const [stageCurrentPage, setStageCurrentPage] = useState(1);
   const [stageItemsPerPage, setStageItemsPerPage] = useState(5);
@@ -391,10 +391,10 @@ export default function MasterEventDetail() {
   const openStageModal = (ss = null) => {
     if (ss) {
       setEditingStageId(ss.id);
-      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km, is_shakedown: Boolean(ss.is_shakedown) });
+      setStageForm({ ss_name: ss.ss_name, ss_order: ss.ss_order, distance_km: ss.distance_km, is_shakedown: Boolean(ss.is_shakedown), is_open: ss.is_open ?? true });
     } else {
       setEditingStageId(null);
-      setStageForm({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false });
+      setStageForm({ ss_name: '', ss_order: '', distance_km: '', is_shakedown: false, is_open: true });
     }
     setIsStageModalOpen(true);
   };
@@ -407,6 +407,7 @@ export default function MasterEventDetail() {
         ss_order: parseInt(stageForm.ss_order),
         distance_km: parseFloat(stageForm.distance_km),
         is_shakedown: Boolean(stageForm.is_shakedown),
+        is_open: stageForm.is_open ?? true,
       };
       
       if (editingStageId) {
@@ -426,6 +427,25 @@ export default function MasterEventDetail() {
       await api.delete(`/admin/events/${id}/stages/${stageId}`);
       fetchEventData();
     } catch (err) { alert('Gagal menghapus SS'); }
+  };
+
+  const handleToggleStageOpen = async (stage) => {
+    const nextIsOpen = !(stage.is_open ?? true);
+    const actionLabel = nextIsOpen ? 'open' : 'close';
+    if (!window.confirm(`${actionLabel === 'close' ? 'Close' : 'Open'} ${stage.ss_name}?`)) return;
+
+    try {
+      await api.put(`/admin/events/${id}/stages/${stage.id}`, {
+        ss_name: stage.ss_name,
+        ss_order: Number(stage.ss_order),
+        distance_km: Number(stage.distance_km),
+        is_shakedown: Boolean(stage.is_shakedown),
+        is_open: nextIsOpen,
+      });
+      fetchEventData();
+    } catch (err) {
+      alert(`Gagal mengubah status SS menjadi ${actionLabel}`);
+    }
   };
 
   // ==========================================
@@ -755,12 +775,13 @@ export default function MasterEventDetail() {
                   <th className="p-3">Jenis</th>
                   <th className="p-3">Nama Stage</th>
                   <th className="p-3">Jarak (KM)</th>
+                  <th className="p-3">Status</th>
                   <th className="p-3 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td colSpan="5" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
-                  currentStages.length === 0 ? <tr><td colSpan="5" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
+                {isLoading ? <tr><td colSpan="6" className="text-center p-4 text-gray-500">Memuat...</td></tr> :
+                  currentStages.length === 0 ? <tr><td colSpan="6" className="text-center p-4 text-gray-500">Data tidak ditemukan.</td></tr> :
                   currentStages.map(ss => (
                     <tr key={ss.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="p-3 font-bold text-red-600">{ss.is_shakedown ? '-' : `SS ${ss.ss_order}`}</td>
@@ -771,7 +792,15 @@ export default function MasterEventDetail() {
                       </td>
                       <td className="p-3 font-medium">{ss.ss_name}</td>
                       <td className="p-3 text-gray-600">{ss.distance_km} km</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${ss.is_open ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                          {ss.is_open ?? true ? 'Open' : 'Close'}
+                        </span>
+                      </td>
                       <td className="p-3 text-right space-x-3">
+                        <button onClick={() => handleToggleStageOpen(ss)} className={`text-sm font-bold hover:underline ${ss.is_open ?? true ? 'text-gray-700' : 'text-emerald-700'}`}>
+                          {ss.is_open ?? true ? 'Close' : 'Open'}
+                        </button>
                         <button onClick={() => openStageModal(ss)} className="text-blue-600 hover:underline text-sm font-bold">Edit</button>
                         <button onClick={() => handleDeleteStage(ss.id)} className="text-red-600 hover:underline text-sm font-bold">Hapus</button>
                       </td>

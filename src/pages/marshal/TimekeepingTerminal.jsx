@@ -141,7 +141,8 @@ export default function TimekeepingTerminal() {
 
   const selectedStage = stages.find(stage => stage.id === selectedSS) || null;
   const isShakedownStage = Boolean(selectedStage?.is_shakedown);
-  const stageLabel = (stage) => stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`;
+  const isStageClosed = selectedStage?.is_open === false;
+  const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
   const selectedParticipant = startNumber ? getParticipantByStartNumber(startNumber) : null;
   const activeRecord = startNumber ? getActiveRecordByStartNumber(startNumber) : null;
   const openShakedownRecord = startNumber ? getOpenShakedownRecordByStartNumber(startNumber) : null;
@@ -154,7 +155,7 @@ export default function TimekeepingTerminal() {
   const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
   const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
-  const canSubmit = Boolean(startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
+  const canSubmit = Boolean(!isStageClosed && startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
 
   const normalizeManualTimeForSubmit = () => {
@@ -167,6 +168,7 @@ export default function TimekeepingTerminal() {
   };
 
   const getInputStatus = () => {
+    if (isStageClosed) return { tone: 'danger', text: 'SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.' };
     if (!startNumber) return { tone: 'neutral', text: 'Masukkan No Start untuk melihat status attempt aktif.' };
     if (!selectedParticipant) return { tone: 'danger', text: `Mobil #${startNumber} tidak terdaftar di event ini.` };
     if (isStarter && isShakedownStage) return { tone: 'ready', text: `Siap input shakedown run #${(activeRecord?.attempt_no || 0) + 1}.` };
@@ -192,6 +194,7 @@ export default function TimekeepingTerminal() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (isStageClosed) return alert('SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.');
     if (!startNumber || !manualTime) return alert('Lengkapi No Start dan Waktu!');
     
     const participantId = getParticipantIdByStartNumber(startNumber);
@@ -295,6 +298,7 @@ export default function TimekeepingTerminal() {
   };
 
   const handleCancelStart = async () => {
+    if (isStageClosed) return alert('SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.');
     if (!canCorrectStart || !activeRecord?.id) return alert('Start belum bisa dibatalkan.');
     if (!window.confirm(`Batalkan waktu START Mobil #${startNumber}? Peserta bisa diinput ulang saat benar-benar siap start.`)) return;
 
@@ -314,6 +318,7 @@ export default function TimekeepingTerminal() {
   };
 
   const handleRequestRestart = async () => {
+    if (isStageClosed) return alert('SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.');
     if (!activeRecord?.id) return alert('Data start aktif belum ditemukan.');
     if (!restartReason.trim()) return alert('Alasan permintaan restart wajib diisi.');
     if (!window.confirm(`Kirim permintaan restart untuk mobil #${startNumber} ke Kamar Hitung?`)) return;
@@ -413,18 +418,24 @@ export default function TimekeepingTerminal() {
 
       <main className="flex-1 flex flex-col items-center justify-center">
         <form onSubmit={handleSubmit} className="w-full max-w-sm bg-gray-900 p-8 rounded-3xl border border-gray-800 shadow-2xl space-y-6">
+          {isStageClosed && (
+            <div className="rounded-xl border border-red-700 bg-red-950/50 p-4 text-center text-sm font-black uppercase tracking-widest text-red-100">
+              SS CLOSE - INPUT PETUGAS POS TERKUNCI
+            </div>
+          )}
           
           <div className="text-center">
             <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">No Start</label>
             <input 
               type="number" 
               required
+              disabled={isStageClosed}
               value={startNumber} 
               onChange={e => {
                 setStartNumber(e.target.value);
                 setStatusMessage('');
               }}
-              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-6xl font-black text-white p-4 outline-none focus:border-white transition-colors"
+              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-6xl font-black text-white p-4 outline-none focus:border-white disabled:opacity-50 transition-colors"
               placeholder="00"
             />
           </div>
@@ -450,7 +461,7 @@ export default function TimekeepingTerminal() {
             )}
           </div>
 
-          {canCorrectStart && (
+          {canCorrectStart && !isStageClosed && (
             <div className="rounded-xl border border-green-700 bg-green-950/40 p-4">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-green-200">Koreksi Start</div>
               <p className="mb-3 text-xs font-semibold text-green-100">
@@ -467,7 +478,7 @@ export default function TimekeepingTerminal() {
             </div>
           )}
 
-          {isStarter && !isShakedownStage && startAlreadyRecorded && !canCorrectStart && activeRecord?.id && (
+          {isStarter && !isShakedownStage && startAlreadyRecorded && !canCorrectStart && activeRecord?.id && !isStageClosed && (
             <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-4">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-orange-200">Permintaan Restart</div>
               <p className="mb-3 text-xs font-semibold text-orange-100">
@@ -504,10 +515,11 @@ export default function TimekeepingTerminal() {
             <input 
               type={usesMinuteOnlyInput ? 'time' : 'text'}
               required
+              disabled={isStageClosed}
               step={usesMinuteOnlyInput ? 60 : undefined}
               value={manualTime} 
               onChange={e => setManualTime(e.target.value)}
-              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white transition-colors"
+              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white disabled:opacity-50 transition-colors"
               placeholder={usesMinuteOnlyInput ? '08:15' : '08:15:30.00'}
             />
             <p className="text-gray-500 text-xs mt-2 italic">
