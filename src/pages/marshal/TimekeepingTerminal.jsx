@@ -155,16 +155,68 @@ export default function TimekeepingTerminal() {
   const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
   const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
-  const canSubmit = Boolean(!isStageClosed && startNumber && manualTime && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
+  const timeDigits = manualTime.replace(/\D/g, '');
+  const maxTimeDigits = usesMinuteOnlyInput ? 4 : 8;
+  const expectedTimeDigits = usesMinuteOnlyInput ? '4 digit, contoh 0815' : '6 atau 8 digit, contoh 081530 atau 08153045';
+
+  const formatQuickTimeInput = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, maxTimeDigits);
+    if (usesMinuteOnlyInput) {
+      if (digits.length <= 2) return digits;
+      return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    }
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    if (digits.length <= 6) return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
+    return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4, 6)}.${digits.slice(6)}`;
+  };
+
+  const isValidTimeParts = (hours, minutes, seconds = '00') => {
+    const h = Number(hours);
+    const m = Number(minutes);
+    const s = Number(seconds);
+    return h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 59;
+  };
+
+  const getManualTimeValidation = () => {
+    if (!manualTime) return { isValid: false, message: `Ketik ${expectedTimeDigits}.` };
+    if (usesMinuteOnlyInput) {
+      if (timeDigits.length !== 4) return { isValid: false, message: `Format belum lengkap. Ketik ${expectedTimeDigits}.` };
+      if (!isValidTimeParts(timeDigits.slice(0, 2), timeDigits.slice(2, 4))) return { isValid: false, message: 'Jam atau menit tidak valid.' };
+      return { isValid: true, message: 'Format siap dikirim sebagai HH:mm.' };
+    }
+
+    if (timeDigits.length < 6) return { isValid: false, message: `Format belum lengkap. Ketik ${expectedTimeDigits}.` };
+    if (timeDigits.length === 7) return { isValid: false, message: 'Lengkapi centisecond jadi 8 digit, atau hapus satu digit agar memakai .00.' };
+    if (!isValidTimeParts(timeDigits.slice(0, 2), timeDigits.slice(2, 4), timeDigits.slice(4, 6))) return { isValid: false, message: 'Jam, menit, atau detik tidak valid.' };
+    return { isValid: true, message: timeDigits.length >= 8 ? 'Format siap dikirim sebagai HH:mm:ss.SS.' : 'Format siap dikirim sebagai HH:mm:ss.00.' };
+  };
+
+  const manualTimeValidation = getManualTimeValidation();
+  const canSubmit = Boolean(!isStageClosed && startNumber && manualTimeValidation.isValid && (isStarter ? canSubmitStart : isFinisher ? canSubmitFinish : canSubmitTC));
 
   const normalizeManualTimeForSubmit = () => {
-    const trimmedTime = manualTime.trim();
-    if (!trimmedTime) return '';
-    if (usesMinuteOnlyInput && /^\d{2}:\d{2}$/.test(trimmedTime)) {
-      return `${trimmedTime}:00`;
+    if (usesMinuteOnlyInput) {
+      return `${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}:00`;
     }
-    return trimmedTime;
+    const centiseconds = timeDigits.slice(6, 8).padEnd(2, '0') || '00';
+    return `${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}:${timeDigits.slice(4, 6)}.${centiseconds}`;
+  };
+
+  const handleManualTimeChange = (e) => {
+    setManualTime(formatQuickTimeInput(e.target.value));
+  };
+
+  const handleUseCurrentTime = () => {
+    const now = new Date();
+    const pad2 = (value) => String(value).padStart(2, '0');
+    const centiseconds = pad2(Math.floor(now.getMilliseconds() / 10));
+    const raw = usesMinuteOnlyInput
+      ? `${pad2(now.getHours())}${pad2(now.getMinutes())}`
+      : `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}${centiseconds}`;
+    setManualTime(formatQuickTimeInput(raw));
   };
 
   const getInputStatus = () => {
@@ -196,17 +248,12 @@ export default function TimekeepingTerminal() {
 
     if (isStageClosed) return alert('SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.');
     if (!startNumber || !manualTime) return alert('Lengkapi No Start dan Waktu!');
+    if (!manualTimeValidation.isValid) return alert(manualTimeValidation.message);
     
     const participantId = getParticipantIdByStartNumber(startNumber);
     if (!participantId) return alert(`Mobil dengan No Start #${startNumber} tidak terdaftar di event ini!`);
 
     const submittedTime = normalizeManualTimeForSubmit();
-    if (usesMinuteOnlyInput && !/^\d{2}:\d{2}:00$/.test(submittedTime)) {
-      return alert('Format waktu tidak valid. Gunakan format HH:mm (contoh: 08:15)');
-    }
-    if (isFinisher && !submittedTime.includes(':')) {
-      return alert('Format waktu tidak valid. Gunakan format HH:mm:ss.SS (contoh: 08:15:30.00)');
-    }
 
     const isStartCorrection = isStarter && !isShakedownStage && startAlreadyRecorded;
     const confirmMsg = isStarter 
@@ -512,19 +559,44 @@ export default function TimekeepingTerminal() {
             <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">
               {isStarter ? 'Waktu Start' : isFinisher ? 'Waktu Finish' : 'Waktu Masuk TC'}
             </label>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={handleUseCurrentTime}
+                disabled={isStageClosed}
+                className="rounded-lg bg-gray-800 px-3 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-gray-700 disabled:opacity-50"
+              >
+                JAM SEKARANG
+              </button>
+              <button
+                type="button"
+                onClick={() => setManualTime('')}
+                disabled={isStageClosed || !manualTime}
+                className="rounded-lg border border-gray-700 px-3 py-3 text-xs font-black uppercase tracking-widest text-gray-300 transition hover:bg-gray-800 disabled:opacity-50"
+              >
+                RESET WAKTU
+              </button>
+            </div>
             <input 
-              type={usesMinuteOnlyInput ? 'time' : 'text'}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               required
               disabled={isStageClosed}
-              step={usesMinuteOnlyInput ? 60 : undefined}
+              maxLength={usesMinuteOnlyInput ? 5 : 11}
               value={manualTime} 
-              onChange={e => setManualTime(e.target.value)}
+              onChange={handleManualTimeChange}
               className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white disabled:opacity-50 transition-colors"
-              placeholder={usesMinuteOnlyInput ? '08:15' : '08:15:30.00'}
+              placeholder={usesMinuteOnlyInput ? '0815' : '08153045'}
             />
-            <p className="text-gray-500 text-xs mt-2 italic">
-              Format: {usesMinuteOnlyInput ? 'HH:mm' : 'HH:mm:ss.SS'}
+            <p className={`mt-2 text-xs font-bold ${manualTimeValidation.isValid ? 'text-green-400' : 'text-gray-500'}`}>
+              {manualTime ? manualTimeValidation.message : `Ketik angka saja: ${expectedTimeDigits}.`}
             </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-black uppercase tracking-wide text-gray-500">
+              <span className="rounded bg-black px-2 py-2">0815 = 08:15</span>
+              <span className="rounded bg-black px-2 py-2">Finish: 081530</span>
+              <span className="rounded bg-black px-2 py-2">08153045</span>
+            </div>
           </div>
 
           <button 
