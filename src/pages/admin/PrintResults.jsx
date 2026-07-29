@@ -126,6 +126,10 @@ export default function PrintResults() {
   const stageTimeFor = (entry, stageId) => entry.stage_times?.find((stageTime) => stageTime.ss_id === stageId);
 
   const finalRemark = (entry) => {
+    const statusRemarks = (entry.stage_times || [])
+      .filter((stageTime) => stageTime?.status && stageTime.status !== 'OK')
+      .map((stageTime) => `${printableStatusLabel(stageTime.status).toUpperCase()}${stageTime.ss_order || ''}`);
+    if (statusRemarks.length > 0) return `(${statusRemarks.join(', ')})`;
     if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER' || entry.status === 'WITHDRAW') return '';
     if (!entry.status || entry.status === 'OK') return '';
     return printableStatusLabel(entry.status);
@@ -204,15 +208,20 @@ export default function PrintResults() {
 
     const best = numericMs(rows.find((row) => hasStageResult(row.stageTime))?.stageTime.total_time_ms);
     let rank = 1;
+    let previousRankedTotal = 0;
     return rows.map((row) => {
       const isOk = hasStageResult(row.stageTime);
       const total = numericMs(row.stageTime.total_time_ms);
       const result = {
         ...row,
         rank: isOk ? rank : 0,
-        diffMs: isOk && best ? total - best : 0,
+        diffPrevMs: isOk && previousRankedTotal ? total - previousRankedTotal : 0,
+        diffFirstMs: isOk && best ? total - best : 0,
       };
-      if (isOk) rank += 1;
+      if (isOk) {
+        previousRankedTotal = total;
+        rank += 1;
+      }
       return result;
     });
   };
@@ -593,6 +602,8 @@ function finalResultColumnWidths(stageCount) {
     className: 4,
     category: 4,
     total: 7,
+    diffPrev: 6,
+    diffFirst: 6,
     remark: 8,
   };
   const fixedTotal = Object.values(fixed).reduce((sum, value) => sum + value, 0);
@@ -612,6 +623,8 @@ function finalResultColumnWidths(stageCount) {
     category: `${fixed.category}%`,
     stageTime: `${stageTime.toFixed(1)}%`,
     total: `${fixed.total}%`,
+    diffPrev: `${fixed.diffPrev}%`,
+    diffFirst: `${fixed.diffFirst}%`,
     remark: `${fixed.remark}%`,
   };
 }
@@ -620,19 +633,26 @@ function stageResultColumnWidths() {
   return {
     rank: '4%',
     noStart: '5%',
-    driver: '20%',
-    entrant: '14%',
-    regional: '7%',
+    entrant: '12%',
+    driver: '17%',
+    regional: '6%',
     className: '4%',
     category: '4%',
-    start: '6%',
-    finish: '6%',
+    start: '5.5%',
+    finish: '5.5%',
     time: '6%',
     penalty: '6%',
     total: '6%',
-    diff: '5%',
+    diffPrev: '6%',
+    diffFirst: '6%',
     remark: '7%',
   };
+}
+
+function formatDiffMs(value, formatMs) {
+  const diff = Number(value || 0);
+  if (!Number.isFinite(diff) || diff <= 0) return '-';
+  return `+${formatMs(diff)}`;
 }
 
 function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses }) {
@@ -642,16 +662,33 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
     return Number(stage.ss_order) > Number(latest.ss_order) ? stage : latest;
   }, null);
   const printableGroups = groups
-    .map((group) => ({
-      ...group,
-      entries: sortFinalResultEntries(group.entries
+    .map((group) => {
+      const sortedEntries = sortFinalResultEntries(group.entries
         .filter((entry) => !excludedStatuses.has(entry.status))
-        .filter((entry) => !isLastStageNonFinisher(entry, lastStage)))
-        .map((entry, index) => ({
-          ...entry,
-          print_rank: isRankableFinalEntry(entry) ? index + 1 : 0,
-        })),
-    }))
+        .filter((entry) => !isLastStageNonFinisher(entry, lastStage)));
+      const firstTotal = Number(sortedEntries.find((entry) => isRankableFinalEntry(entry))?.total_time_ms || 0);
+      let previousRankedTotal = 0;
+      let printRank = 1;
+
+      return {
+        ...group,
+        entries: sortedEntries.map((entry) => {
+          const isRankable = isRankableFinalEntry(entry);
+          const total = Number(entry.total_time_ms || 0);
+          const nextEntry = {
+            ...entry,
+            print_rank: isRankable ? printRank : 0,
+            diff_prev_ms: isRankable && previousRankedTotal ? total - previousRankedTotal : 0,
+            diff_first_ms: isRankable && firstTotal ? total - firstTotal : 0,
+          };
+          if (isRankable) {
+            previousRankedTotal = total;
+            printRank += 1;
+          }
+          return nextEntry;
+        }),
+      };
+    })
     .filter((group) => group.entries.length > 0);
 
   if (printableGroups.length === 0) {
@@ -678,6 +715,8 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
               <col key={stage.id} style={{ width: columnWidths.stageTime }} />
             ))}
             <col style={{ width: columnWidths.total }} />
+            <col style={{ width: columnWidths.diffPrev }} />
+            <col style={{ width: columnWidths.diffFirst }} />
             <col style={{ width: columnWidths.remark }} />
           </colgroup>
           <thead>
@@ -690,9 +729,11 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
               <th className="border border-gray-300 p-2 text-left">Class</th>
               <th className="border border-gray-300 p-2 text-left">Cat</th>
               {stages.map((stage) => (
-                <th key={stage.id} className="border border-gray-300 p-2 text-right">Time SS{stage.ss_order}</th>
+                <th key={stage.id} className="border border-gray-300 p-2 text-right">SS{stage.ss_order}</th>
               ))}
               <th className="border border-gray-300 p-2 text-right">Total</th>
+              <th className="border border-gray-300 p-2 text-right">Diff Prev</th>
+              <th className="border border-gray-300 p-2 text-right">Diff First</th>
               <th className="border border-gray-300 p-2 text-left">Keterangan</th>
             </tr>
           </thead>
@@ -718,6 +759,8 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                     );
                   })}
                 <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(entry.total_time_ms)}</td>
+                <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(entry.diff_prev_ms, formatMs)}</td>
+                <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(entry.diff_first_ms, formatMs)}</td>
                 <td className="border border-gray-300 p-2">{finalRemark(entry)}</td>
               </tr>
             ))}
@@ -786,7 +829,8 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                     <col style={{ width: columnWidths.time }} />
                     <col style={{ width: columnWidths.penalty }} />
                     <col style={{ width: columnWidths.total }} />
-                    <col style={{ width: columnWidths.diff }} />
+                    <col style={{ width: columnWidths.diffPrev }} />
+                    <col style={{ width: columnWidths.diffFirst }} />
                     <col style={{ width: columnWidths.remark }} />
                   </colgroup>
                   <thead>
@@ -803,12 +847,13 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                       <th className="border border-gray-300 p-2 text-right">Time</th>
                       <th className="border border-gray-300 p-2 text-right">time Penalty</th>
                       <th className="border border-gray-300 p-2 text-right">Total</th>
-                      <th className="border border-gray-300 p-2 text-right">Dif</th>
+                      <th className="border border-gray-300 p-2 text-right">Diff Prev</th>
+                      <th className="border border-gray-300 p-2 text-right">Diff First</th>
                       <th className="border border-gray-300 p-2 text-left">Keterangan</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ entry, stageTime, rank, diffMs }) => (
+                    {rows.map(({ entry, stageTime, rank, diffPrevMs, diffFirstMs }) => (
                       <tr key={entry.participant_id} className={resultRowClass(stageTime.status)}>
                         <td className="border border-gray-300 p-2 text-center font-black">{rank || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
@@ -825,7 +870,8 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.elapsed_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.penalty_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(stageTime.total_time_ms)}</td>
-                        <td className="border border-gray-300 p-2 text-right font-mono">{diffMs ? `+${formatMs(diffMs)}` : '-'}</td>
+                        <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(diffPrevMs, formatMs)}</td>
+                        <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(diffFirstMs, formatMs)}</td>
                         <td className="border border-gray-300 p-2">{stageRemark(stageTime)}</td>
                       </tr>
                     ))}

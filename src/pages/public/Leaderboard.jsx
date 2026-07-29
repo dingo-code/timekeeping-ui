@@ -260,13 +260,15 @@ export default function Leaderboard() {
                   <th className="p-4 text-center">Finish</th>
                   <th className="p-4 text-right">Penalti</th>
                   <th className="p-4 text-right">Total</th>
+                  <th className="p-4 text-right">Diff Prev</th>
+                  <th className="p-4 text-right">Diff First</th>
                   <th className="p-4">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="p-10 text-center text-sm font-bold text-gray-500">
+                    <td colSpan="12" className="p-10 text-center text-sm font-bold text-gray-500">
                       {selectedStageId ? 'Belum ada peserta start, finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
                     </td>
                   </tr>
@@ -287,6 +289,8 @@ export default function Leaderboard() {
                       <td className="p-4 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)}</td>
                       <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'}</td>
                       <td className={`p-4 text-right font-mono text-lg font-black ${entry.is_live_running ? 'text-cyan-300' : 'text-yellow-300'}`}>{formatMs(displayTotalMs(entry, nowMs), timeDecimalPlaces)}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-300">{formatDiffMs(entry.diff_prev_ms, timeDecimalPlaces)}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-300">{formatDiffMs(entry.diff_first_ms, timeDecimalPlaces)}</td>
                       <td className="p-4">
                         <StatusPill status={displayStatus(entry)} />
                         {entry.is_live_running && <div className="mt-1 text-xs font-black uppercase tracking-widest text-cyan-200">Live</div>}
@@ -364,16 +368,24 @@ function normalizeStageEntries(records, isShakedown = false) {
   });
 
   let rank = 1;
+  const firstTotal = numericMs(activeRecords.find((record) => hasStageResult(record))?.total_time_ms);
+  let previousRankedTotal = 0;
   return activeRecords.map((record) => {
     const ranked = hasStageResult(record);
+    const total = numericMs(record.total_time_ms);
     const entry = {
       ...record,
       rank: ranked ? rank : '-',
+      diff_prev_ms: ranked && previousRankedTotal ? total - previousRankedTotal : 0,
+      diff_first_ms: ranked && firstTotal ? total - firstTotal : 0,
       is_live_running: hasLiveStart(record),
       driver_name: isShakedown && record.attempt_no ? `${record.driver_name} (Run ${record.attempt_no})` : record.driver_name,
       penalty_desc: formatPenaltyDetails(record.penalty_details),
     };
-    if (ranked) rank += 1;
+    if (ranked) {
+      previousRankedTotal = total;
+      rank += 1;
+    }
     return entry;
   });
 }
@@ -415,6 +427,8 @@ function LeaderboardCard({ entry, nowMs, timeDecimalPlaces = 2 }) {
         <MiniMetric label="Finish" value={formatClockCentiseconds(entry.finish_time, timeDecimalPlaces)} />
         <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms, timeDecimalPlaces)}` : '-'} />
         <MiniMetric label="Total" value={formatMs(displayTotalMs(entry, nowMs), timeDecimalPlaces)} highlight />
+        <MiniMetric label="Diff Prev" value={formatDiffMs(entry.diff_prev_ms, timeDecimalPlaces)} />
+        <MiniMetric label="Diff First" value={formatDiffMs(entry.diff_first_ms, timeDecimalPlaces)} />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <StatusPill status={displayStatus(entry)} />
@@ -498,6 +512,12 @@ function displayStatus(entry) {
 function displayTotalMs(entry, nowMs) {
   if (!entry?.is_live_running) return entry?.total_time_ms;
   return liveElapsedMs(entry.start_time, nowMs) + Number(entry.penalty_time_ms || 0);
+}
+
+function formatDiffMs(value, timeDecimalPlaces = 2) {
+  const diff = Number(value || 0);
+  if (!Number.isFinite(diff) || diff <= 0) return '-';
+  return `+${formatMs(diff, timeDecimalPlaces)}`;
 }
 
 function liveElapsedMs(startTime, nowMs) {
