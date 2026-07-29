@@ -194,11 +194,12 @@ export default function MasterEvent() {
               <input
                 type="number"
                 min="0"
-                step="1"
+                step="0.01"
+                inputMode="decimal"
                 className="w-full p-2 border rounded"
                 value={formData.bwtm_penalty_minutes}
                 onChange={e => setFormData({...formData, bwtm_penalty_minutes: e.target.value})}
-                placeholder="Default 3 menit"
+                placeholder="Default 3 menit, contoh 2.5"
               />
               <p className="mt-1 text-xs text-gray-500">DNF sebelum SS terakhir: waktu tercepat kelas di SS tersebut + nilai ini.</p>
             </div>
@@ -207,11 +208,12 @@ export default function MasterEvent() {
               <input
                 type="number"
                 min="1"
-                step="1"
+                step="0.01"
+                inputMode="decimal"
                 className="w-full p-2 border rounded"
                 value={formData.dns_penalty_minutes}
                 onChange={e => setFormData({...formData, dns_penalty_minutes: e.target.value})}
-                placeholder="Default 5 menit"
+                placeholder="Default 5 menit, contoh 2.5"
               />
               <p className="mt-1 text-xs text-gray-500">DNS: BWTM + nilai 1 pos ini. Default 1 pos = 5 menit.</p>
             </div>
