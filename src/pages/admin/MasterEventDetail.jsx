@@ -29,6 +29,7 @@ export default function MasterEventDetail() {
   const [classes, setClasses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [regions, setRegions] = useState([]);
+  const [groups, setGroups] = useState([]);
 
   // --- State Modal & Edit SS ---
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
@@ -77,6 +78,7 @@ export default function MasterEventDetail() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState([]);
 
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
   const officialStages = stages.filter((stage) => !stage.is_shakedown);
@@ -143,10 +145,10 @@ export default function MasterEventDetail() {
 
   const fetchMasterData = async () => {
     try {
-      const [resR, resT, resV, resC, resCat, resReg] = await Promise.all([
+      const [resR, resT, resV, resC, resCat, resReg, resGroups] = await Promise.all([
         api.get('/admin/racers'), api.get('/admin/teams'),
         api.get('/admin/vehicles'), api.get('/admin/classes'), api.get('/admin/categories'),
-        api.get('/admin/regions')
+        api.get('/admin/regions'), api.get('/admin/groups')
       ]);
       setRacers(resR.data.data || []);
       setTeams(resT.data.data || []);
@@ -154,6 +156,7 @@ export default function MasterEventDetail() {
       setClasses(resC.data.data || []);
       setCategories(resCat.data.data || []);
       setRegions(resReg.data.data || []);
+      setGroups(resGroups.data.data || []);
     } catch (e) {
       console.error('Gagal memuat master data untuk form dropdown');
     }
