@@ -29,7 +29,7 @@ export default function PrintResults() {
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [resultStatus, setResultStatus] = useState(localStorage.getItem('print_result_status') || 'unofficial');
   const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('print_result_orientation') || 'landscape');
-  const [report, setReport] = useState({ stages: [], groups: [] });
+  const [report, setReport] = useState(emptyReport());
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -98,9 +98,10 @@ export default function PrintResults() {
     try {
       const regionalParam = selectedRegionalId === 'all' ? '' : `&regional_id=${selectedRegionalId}`;
       const res = await api.get(`/public/race-results/${selectedEventId}?group_by=${reportType}${regionalParam}`);
-      setReport(res.data.data || { stages: [], groups: [] });
+      setReport(normalizeRaceReport(res.data.data));
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal memuat hasil balapan.');
+      setReport(emptyReport());
     } finally {
       setIsLoading(false);
     }
@@ -531,6 +532,23 @@ function uniqueEntryOptions(entries, field) {
     })
     .sort((a, b) => a.localeCompare(b, 'id-ID', { numeric: true }))
     .map((value) => ({ value, label: value }));
+}
+
+function emptyReport() {
+  return { stages: [], groups: [] };
+}
+
+function normalizeRaceReport(value) {
+  if (!value || typeof value !== 'object') return emptyReport();
+  return {
+    stages: Array.isArray(value.stages) ? value.stages : [],
+    groups: Array.isArray(value.groups)
+      ? value.groups.map((group) => ({
+          ...group,
+          entries: Array.isArray(group?.entries) ? group.entries : [],
+        }))
+      : [],
+  };
 }
 
 function uniqueGenderOptions(entries) {
