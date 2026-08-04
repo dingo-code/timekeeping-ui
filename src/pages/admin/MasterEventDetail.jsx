@@ -6,6 +6,8 @@ import Modal from '../../components/Modal';
 import DataTableFooter from '../../components/DataTableFooter';
 import { tcStatusLabel } from '../../utils/tcDisplay';
 
+const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
+
 export default function MasterEventDetail() {
   const { id } = useParams(); // Mengambil ID Event dari URL
   const navigate = useNavigate();
@@ -44,6 +46,8 @@ export default function MasterEventDetail() {
     start_number: '', entrant_name: '', driver_id: '', codriver_id: '', 
     team_id: '', vehicle_id: '', join_car_with_participant_id: '', class_id: '', category_id: ''
   });
+  const [isImportingEntryList, setIsImportingEntryList] = useState(false);
+  const [entryListImportSummary, setEntryListImportSummary] = useState('');
 
   // --- State Modal & Edit Penalti ---
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
@@ -530,6 +534,225 @@ export default function MasterEventDetail() {
     } catch (err) { alert('Gagal menyimpan peserta'); }
   };
 
+  const handleImportEntryListExcel = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsImportingEntryList(true);
+    try {
+      const XLSX = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      if (rows.length === 0) return alert('File Excel kosong.');
+
+      let nextRacers = [...racers];
+      let nextTeams = [...teams];
+      let nextVehicles = [...vehicles];
+      const participantsByStartNumber = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
+      const stats = {
+        createdParticipants: 0,
+        updatedParticipants: 0,
+        createdRacers: 0,
+        updatedRacers: 0,
+        createdTeams: 0,
+        createdVehicles: 0,
+      };
+      const errors = [];
+      const importToken = Date.now();
+
+      const findRacer = (name, kisNumber) => {
+        const normalizedKIS = normalizeLookupText(kisNumber);
+        const normalizedName = normalizeLookupText(name);
+        return nextRacers.find((racer) => (
+          (normalizedKIS && normalizeLookupText(racer.kis_number) === normalizedKIS) ||
+          (normalizedName && normalizeLookupText(racer.full_name) === normalizedName)
+        ));
+      };
+
+      const ensureRacer = async ({ name, kisNumber, gender, dob, bloodType, role, rowNumber }) => {
+        const fullName = cleanExcelText(name);
+        if (!fullName) throw new Error(`${role === 'driver' ? 'Driver' : 'Navigator'} wajib diisi.`);
+
+        const existing = findRacer(fullName, kisNumber);
+        const rolePatch = {
+          is_driver: role === 'driver' || Boolean(existing?.is_driver),
+          is_codriver: role === 'navigator' || Boolean(existing?.is_codriver),
+        };
+
+        if (existing) {
+          const payload = {
+            kis_number: cleanExcelText(kisNumber) || existing.kis_number,
+            full_name: fullName || existing.full_name,
+            gender: normalizeRacerGender(gender) || existing.gender || 'L',
+            dob: normalizeExcelDate(dob) || formatExistingRacerDate(existing.dob) || DEFAULT_IMPORT_RACER_DOB,
+            blood_type: normalizeBloodType(bloodType) || existing.blood_type || 'O',
+            region_id: existing.region_id || '',
+            ...rolePatch,
+          };
+          const needsUpdate = Object.keys(payload).some((key) => {
+            const existingValue = key === 'dob' ? formatExistingRacerDate(existing[key]) : existing[key];
+            return normalizePayloadValue(existingValue) !== normalizePayloadValue(payload[key]);
+          });
+          if (needsUpdate) {
+            const response = await api.put(`/admin/racers/${existing.id}`, payload);
+            const updated = response.data.data || { ...existing, ...payload };
+            nextRacers = nextRacers.map((racer) => (racer.id === existing.id ? updated : racer));
+            stats.updatedRacers += 1;
+            return updated;
+          }
+          return existing;
+        }
+
+        const payload = {
+          kis_number: cleanExcelText(kisNumber) || generateImportedKIS(fullName, role, rowNumber, importToken),
+          full_name: fullName,
+          gender: normalizeRacerGender(gender) || 'L',
+          dob: normalizeExcelDate(dob) || DEFAULT_IMPORT_RACER_DOB,
+          blood_type: normalizeBloodType(bloodType) || 'O',
+          region_id: '',
+          is_driver: role === 'driver',
+          is_codriver: role === 'navigator',
+        };
+        const response = await api.post('/admin/racers', payload);
+        const created = response.data.data;
+        nextRacers = [...nextRacers, created];
+        stats.createdRacers += 1;
+        return created;
+      };
+
+      const ensureTeam = async (name) => {
+        const teamName = cleanExcelText(name);
+        if (!teamName) return '';
+        const existing = findMasterByText(nextTeams, teamName, (team) => [team.name]);
+        if (existing) return existing.id;
+
+        const response = await api.post('/admin/teams', { name: teamName, manager_name: '' });
+        const created = response.data.data;
+        nextTeams = [...nextTeams, created];
+        stats.createdTeams += 1;
+        return created.id;
+      };
+
+      const ensureVehicle = async ({ brand, type, label, engineCapacity }) => {
+        const vehicleBrand = cleanExcelText(brand);
+        const vehicleType = cleanExcelText(type);
+        const vehicleLabel = cleanExcelText(label) || [vehicleBrand, vehicleType].filter(Boolean).join(' ');
+        if (!vehicleLabel && !vehicleBrand && !vehicleType) throw new Error('Kendaraan wajib diisi.');
+
+        const existing = findMasterByText(nextVehicles, vehicleLabel || `${vehicleBrand} ${vehicleType}`, (vehicle) => [
+          vehicle.brand,
+          vehicle.type,
+          `${vehicle.brand || ''} ${vehicle.type || ''}`,
+          `${vehicle.brand || ''} - ${vehicle.type || ''}`,
+        ]);
+        if (existing) return existing.id;
+
+        const response = await api.post('/admin/vehicles', {
+          brand: vehicleBrand || vehicleLabel,
+          type: vehicleType,
+          engine_capacity: parseEngineCapacity(engineCapacity),
+        });
+        const created = response.data.data;
+        nextVehicles = [...nextVehicles, created];
+        stats.createdVehicles += 1;
+        return created.id;
+      };
+
+      for (const [index, row] of rows.entries()) {
+        const rowNumber = index + 2;
+        try {
+          const startNumber = parseStartNumber(readExcelValue(row, ['NO START', 'START NO', 'CAR NO', 'CARNO', 'NO', 'NOMOR START']));
+          if (!startNumber) throw new Error('No Start wajib berupa angka.');
+
+          const entrantName = cleanExcelText(readExcelValue(row, ['ENTRANT', 'ENTRANT NAME', 'NAMA ENTRANT', 'TEAM', 'TIM', 'NAMA TEAM']));
+          const driver = await ensureRacer({
+            name: readExcelValue(row, ['DRIVER', 'DRIVER NAME', 'NAMA DRIVER', 'PEMBALAP', 'RACER']),
+            kisNumber: readExcelValue(row, ['DRIVER KIS', 'KIS DRIVER', 'NO KIS DRIVER', 'KIS PEMBALAP']),
+            gender: readExcelValue(row, ['DRIVER GENDER', 'GENDER DRIVER', 'JK DRIVER']),
+            dob: readExcelValue(row, ['DRIVER DOB', 'DOB DRIVER', 'TGL LAHIR DRIVER', 'TANGGAL LAHIR DRIVER']),
+            bloodType: readExcelValue(row, ['DRIVER BLOOD', 'BLOOD DRIVER', 'GOL DARAH DRIVER']),
+            role: 'driver',
+            rowNumber,
+          });
+          const navigator = await ensureRacer({
+            name: readExcelValue(row, ['NAVIGATOR', 'NAVIGATOR NAME', 'NAMA NAVIGATOR', 'CO DRIVER', 'CODRIVER', 'CO-DRIVER', 'NAMA CO DRIVER']),
+            kisNumber: readExcelValue(row, ['NAVIGATOR KIS', 'KIS NAVIGATOR', 'NO KIS NAVIGATOR', 'CODRIVER KIS', 'KIS CODRIVER']),
+            gender: readExcelValue(row, ['NAVIGATOR GENDER', 'GENDER NAVIGATOR', 'JK NAVIGATOR', 'CODRIVER GENDER']),
+            dob: readExcelValue(row, ['NAVIGATOR DOB', 'DOB NAVIGATOR', 'TGL LAHIR NAVIGATOR', 'TANGGAL LAHIR NAVIGATOR', 'CODRIVER DOB']),
+            bloodType: readExcelValue(row, ['NAVIGATOR BLOOD', 'BLOOD NAVIGATOR', 'GOL DARAH NAVIGATOR', 'CODRIVER BLOOD']),
+            role: 'navigator',
+            rowNumber,
+          });
+
+          const classValue = readExcelValue(row, ['CLASS', 'KELAS']);
+          const classItem = findMasterByText(classes, classValue, (item) => [item.code, item.name, `${item.code} ${item.name}`, `${item.code} - ${item.name}`]);
+          if (!classItem) throw new Error(`Class "${classValue || '-'}" tidak ditemukan di master class.`);
+
+          const categoryValue = readExcelValue(row, ['CATEGORY', 'KATEGORI', 'SEED', 'SEEDED']);
+          const categoryItem = findMasterByText(categories, categoryValue, (item) => [item.code, item.description, `${item.code} ${item.description || ''}`]);
+          if (!categoryItem) throw new Error(`Kategori "${categoryValue || '-'}" tidak ditemukan di master category.`);
+
+          const teamId = await ensureTeam(readExcelValue(row, ['TEAM', 'TIM', 'NAMA TEAM']) || entrantName);
+          const vehicleId = await ensureVehicle({
+            brand: readExcelValue(row, ['BRAND', 'MERK', 'MEREK']),
+            type: readExcelValue(row, ['TYPE', 'TIPE', 'MODEL']),
+            label: readExcelValue(row, ['VEHICLE', 'KENDARAAN', 'MOBIL', 'CAR']),
+            engineCapacity: readExcelValue(row, ['CC', 'ENGINE', 'ENGINE CAPACITY', 'KAPASITAS MESIN']),
+          });
+
+          const payload = {
+            start_number: startNumber,
+            entrant_name: entrantName || cleanExcelText(readExcelValue(row, ['TEAM', 'TIM', 'NAMA TEAM'])) || driver.full_name,
+            driver_id: driver.id,
+            codriver_id: navigator.id,
+            team_id: teamId,
+            vehicle_id: vehicleId,
+            join_car_with_participant_id: '',
+            class_id: classItem.id,
+            category_id: categoryItem.id,
+          };
+
+          const existingParticipant = participantsByStartNumber.get(String(startNumber));
+          if (existingParticipant) {
+            await api.put(`/admin/events/${id}/participants/${existingParticipant.id}`, payload);
+            participantsByStartNumber.set(String(startNumber), { ...existingParticipant, ...payload });
+            stats.updatedParticipants += 1;
+          } else {
+            const response = await api.post(`/admin/events/${id}/participants`, payload);
+            participantsByStartNumber.set(String(startNumber), response.data.data || payload);
+            stats.createdParticipants += 1;
+          }
+        } catch (err) {
+          errors.push(`Baris ${rowNumber}: ${err.response?.data?.error || err.message}`);
+        }
+      }
+
+      setRacers(nextRacers);
+      setTeams(nextTeams);
+      setVehicles(nextVehicles);
+      await Promise.all([fetchMasterData(), fetchEventData()]);
+
+      const summary = [
+        `${stats.createdParticipants} peserta baru`,
+        `${stats.updatedParticipants} peserta diupdate`,
+        `${stats.createdRacers} racer baru`,
+        `${stats.updatedRacers} racer diupdate`,
+        `${stats.createdTeams} team baru`,
+        `${stats.createdVehicles} kendaraan baru`,
+        errors.length ? `${errors.length} baris gagal` : '',
+      ].filter(Boolean).join(', ');
+      setEntryListImportSummary(`${file.name}: ${summary}.`);
+      alert(errors.length ? `${summary}.\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? '\n...' : ''}` : `Import selesai: ${summary}.`);
+    } catch (err) {
+      alert(err.message || 'Gagal membaca file Excel entry list.');
+    } finally {
+      setIsImportingEntryList(false);
+    }
+  };
+
   const handleDeleteParticipant = async (participantId) => {
     if (!window.confirm('Cabut pendaftaran peserta ini dari event?')) return;
     try {
@@ -825,7 +1048,7 @@ export default function MasterEventDetail() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
                 <input 
                   type="text" 
-                  placeholder="Cari entrant, driver, co-driver, mobil, atau no start..."
+                  placeholder="Cari entrant, driver, navigator, mobil, atau no start..."
                   className="w-full sm:w-64 p-2 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-red-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -842,9 +1065,24 @@ export default function MasterEventDetail() {
                     ))}
                   </select>
                 </div>
+                <label className={`admin-btn-muted whitespace-nowrap cursor-pointer ${isImportingEntryList ? 'opacity-60 pointer-events-none' : ''}`}>
+                  {isImportingEntryList ? 'Import...' : 'Import Excel'}
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    disabled={isImportingEntryList}
+                    onChange={handleImportEntryListExcel}
+                  />
+                </label>
                 <button onClick={() => openParticipantModal()} className="admin-btn-primary whitespace-nowrap">+ Peserta</button>
               </div>
             </div>
+            {entryListImportSummary && (
+              <div className="mb-4 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+                {entryListImportSummary}
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse border border-gray-200">
@@ -1257,7 +1495,7 @@ export default function MasterEventDetail() {
             <div>
               <SearchableSelect
                 label="Navigator"
-                placeholder="Cari co-driver..."
+                placeholder="Cari navigator..."
                 value={participantForm.codriver_id}
                 options={racers.filter(r => r.is_codriver).map(r => ({ value: r.id, label: r.full_name }))}
                 onChange={(value) => setParticipantForm({ ...participantForm, codriver_id: value })}
@@ -1541,4 +1779,84 @@ function normalizeImportedClock(value) {
     return `${hour.padStart(2, '0')}:${minute}:${second}`;
   }
   return text.slice(0, 8);
+}
+
+function cleanExcelText(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeLookupText(value) {
+  return cleanExcelText(value).toLowerCase();
+}
+
+function normalizePayloadValue(value) {
+  if (typeof value === 'boolean') return value;
+  return cleanExcelText(value);
+}
+
+function findMasterByText(items, value, getCandidates) {
+  const normalizedValue = normalizeLookupText(value);
+  if (!normalizedValue) return null;
+  return items.find((item) => getCandidates(item).some((candidate) => normalizeLookupText(candidate) === normalizedValue)) || null;
+}
+
+function parseStartNumber(value) {
+  const text = cleanExcelText(value);
+  if (!text) return 0;
+  const number = Number.parseInt(text.replace(/[^\d]/g, ''), 10);
+  return Number.isInteger(number) && number > 0 ? number : 0;
+}
+
+function parseEngineCapacity(value) {
+  const number = Number.parseInt(cleanExcelText(value).replace(/[^\d]/g, ''), 10);
+  return Number.isInteger(number) && number > 0 ? number : 0;
+}
+
+function normalizeRacerGender(value) {
+  const text = normalizeLookupText(value);
+  if (!text) return '';
+  if (['p', 'perempuan', 'f', 'female', 'wanita'].includes(text)) return 'P';
+  return 'L';
+}
+
+function normalizeBloodType(value) {
+  const text = cleanExcelText(value).toUpperCase().replace(/[^ABO]/g, '');
+  return ['A', 'B', 'AB', 'O'].includes(text) ? text : '';
+}
+
+function normalizeExcelDate(value) {
+  const text = cleanExcelText(value);
+  if (!text) return '';
+
+  const isoMatch = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) return formatDateParts(isoMatch[1], isoMatch[2], isoMatch[3]);
+
+  const localMatch = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (localMatch) {
+    let [, first, second, year] = localMatch;
+    if (year.length === 2) year = Number(year) > 40 ? `19${year}` : `20${year}`;
+    const firstNumber = Number(first);
+    const secondNumber = Number(second);
+    const day = firstNumber > 12 ? first : (secondNumber > 12 ? second : first);
+    const month = firstNumber > 12 ? second : (secondNumber > 12 ? first : second);
+    return formatDateParts(year, month, day);
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatDateParts(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+}
+
+function formatDateParts(year, month, day) {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function formatExistingRacerDate(value) {
+  if (!value) return '';
+  return String(value).split('T')[0];
+}
+
+function generateImportedKIS(name, role, rowNumber, token) {
+  const slug = cleanExcelText(name).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'RACER';
+  return `IMP-${String(token).slice(-6)}-${rowNumber}-${role === 'driver' ? 'D' : 'N'}-${slug}`.slice(0, 50);
 }
