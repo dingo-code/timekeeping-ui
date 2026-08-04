@@ -40,9 +40,8 @@ export default function KamarHitung() {
   const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
   const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
 
-  // State Modal Edit Waktu
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ tc_time: '', start_time: '', finish_time: '' });
+  const [timeDrafts, setTimeDrafts] = useState({});
+  const [savingTimeCell, setSavingTimeCell] = useState('');
 
   useEffect(() => {
     fetchEvents();
@@ -266,38 +265,95 @@ export default function KamarHitung() {
     }
   };
 
-  // ==========================================
-  // HANDLER EDIT WAKTU
-  // ==========================================
-  const openEditModal = (record) => {
-    setSelectedRecord(record);
-    setEditForm({
-      tc_time: record.tc_time || '',
-      start_time: record.start_time || '',
-      finish_time: record.finish_time || ''
-    });
-    setIsEditModalOpen(true);
+  const getJoinedByStartNumbers = (record) => records
+    .filter((item) => Number(item.join_car_with_start_number) === Number(record.start_number))
+    .map((item) => item.start_number)
+    .filter(Boolean)
+    .sort((a, b) => Number(a) - Number(b));
+
+  const getTimeDraftValue = (record, field) => timeDrafts[record.id]?.[field] ?? record[field] ?? '';
+
+  const updateTimeDraft = (recordId, field, value) => {
+    setTimeDrafts((current) => ({
+      ...current,
+      [recordId]: {
+        ...(current[recordId] || {}),
+        [field]: value,
+      },
+    }));
   };
 
-  const submitEditTime = async (e) => {
-    e.preventDefault();
+  const clearTimeDraft = (recordId) => {
+    setTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[recordId];
+      return next;
+    });
+  };
+
+  const saveInlineTime = async (record, field) => {
+    const cellKey = `${record.id}:${field}`;
+    if (savingTimeCell === cellKey) return;
+
+    const draft = timeDrafts[record.id] || {};
+    const payload = {
+      id: record.id,
+      ss_id: record.ss_id,
+      participant_id: record.participant_id,
+      tc_time: draft.tc_time ?? record.tc_time ?? '',
+      start_time: draft.start_time ?? record.start_time ?? '',
+      finish_time: draft.finish_time ?? record.finish_time ?? '',
+      force_update: true,
+    };
+    if (String(payload[field] || '').trim() === String(record[field] || '').trim()) {
+      clearTimeDraft(record.id);
+      return;
+    }
+
+    setSavingTimeCell(cellKey);
     try {
-      // Kita manfaatkan endpoint POST pencatatan waktu yang otomatis melakukan UPDATE jika data sudah ada
-      await api.post('/timekeeping/ss-records', {
-        id: selectedRecord.id,
-        ss_id: selectedRecord.ss_id,
-        participant_id: selectedRecord.participant_id,
-        tc_time: editForm.tc_time,
-        start_time: editForm.start_time,
-        finish_time: editForm.finish_time,
-        force_update: true
-      });
-      alert('Waktu berhasil dikoreksi!');
-      setIsEditModalOpen(false);
-      fetchRecords(selectedSS);
+      await api.post('/timekeeping/ss-records', payload);
+      clearTimeDraft(record.id);
+      fetchRecords(selectedSS, true);
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal mengedit waktu');
+    } finally {
+      setSavingTimeCell('');
     }
+  };
+
+  const handleTimeInputKeyDown = (event, record, field) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      updateTimeDraft(record.id, field, record[field] || '');
+      event.currentTarget.blur();
+    }
+  };
+
+  const renderEditableTimeCell = (record, field, displayValue, placeholder) => {
+    const cellKey = `${record.id}:${field}`;
+    const canEdit = record.is_active && record.status === 'OK';
+    return (
+      <input
+        type="text"
+        disabled={!canEdit || savingTimeCell === cellKey}
+        className={`w-28 rounded border px-2 py-1 text-center font-mono text-xs font-semibold outline-none transition ${
+          canEdit
+            ? 'border-transparent bg-transparent hover:border-blue-200 hover:bg-blue-50 focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-200'
+            : 'border-transparent bg-transparent text-gray-400'
+        } ${savingTimeCell === cellKey ? 'border-amber-300 bg-amber-50 text-amber-700' : ''}`}
+        value={getTimeDraftValue(record, field)}
+        onChange={(event) => updateTimeDraft(record.id, field, event.target.value)}
+        onBlur={() => saveInlineTime(record, field)}
+        onKeyDown={(event) => handleTimeInputKeyDown(event, record, field)}
+        placeholder={displayValue || placeholder}
+        title={canEdit ? 'Klik untuk koreksi waktu' : 'Hanya record aktif OK yang bisa diedit inline'}
+      />
+    );
   };
 
   const normalizedRecordSearch = recordSearch.trim().toLowerCase();
@@ -312,6 +368,7 @@ export default function KamarHitung() {
         record.attempt_no ? `attempt ${record.attempt_no}` : '',
         record.attempt_no ? `#${record.attempt_no}` : '',
         record.join_car_with_start_number ? `join car with ${record.join_car_with_start_number}` : '',
+        getJoinedByStartNumbers(record).length ? `joined by ${getJoinedByStartNumbers(record).join(' ')}` : '',
       ].join(' ').toLowerCase().includes(normalizedRecordSearch))
     : records;
 
@@ -392,7 +449,9 @@ export default function KamarHitung() {
                 <tbody className="divide-y divide-gray-100">
                   {isLoading ? <tr><td colSpan="13" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
                    filteredRecords.length === 0 ? <tr><td colSpan="13" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
-                   filteredRecords.map((r, rowIndex) => (
+                   filteredRecords.map((r, rowIndex) => {
+                    const joinedByStartNumbers = getJoinedByStartNumbers(r);
+                    return (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
                     <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${!r.is_active ? 'text-gray-500' : ''}`}>
@@ -402,6 +461,11 @@ export default function KamarHitung() {
                           {Number(r.join_car_with_start_number) > 0 && (
                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">
                               Join car with #{r.join_car_with_start_number}
+                            </span>
+                          )}
+                          {joinedByStartNumbers.length > 0 && (
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                              Joined by #{joinedByStartNumbers.join(', #')}
                             </span>
                           )}
                         </div>
@@ -426,9 +490,15 @@ export default function KamarHitung() {
                         )}
                       </td>
                       <td className="p-3 text-center text-xs font-black uppercase text-gray-700">{r.class_name || '-'}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.tc_time)}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{formatClockHourMinute(r.start_time)}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{formatClockCentiseconds(r.finish_time, timeDecimalPlaces)}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'tc_time', formatClockHourMinute(r.tc_time), 'HH:MM:SS')}
+                      </td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'start_time', formatClockHourMinute(r.start_time), 'HH:MM:SS.00')}
+                      </td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'finish_time', formatClockCentiseconds(r.finish_time, timeDecimalPlaces), 'HH:MM:SS.00')}
+                      </td>
                       <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms, timeDecimalPlaces)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
                           {r.penalty_time_ms > 0 ? (
@@ -456,8 +526,6 @@ export default function KamarHitung() {
                       <td className="w-44 p-2 align-top">
                         {r.is_active && r.status === 'OK' && (
                           <div className="ml-auto grid w-40 grid-cols-2 gap-1 [&_button]:min-h-8 [&_button]:whitespace-normal [&_button]:px-1.5 [&_button]:py-1 [&_button]:text-[10px] [&_button]:font-black [&_button]:leading-tight">
-                            <button onClick={() => openEditModal(r)} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded transition">EDIT ✏️</button>
-                            
                             {/* 1. TOMBOL + PENALTI SELALU MUNCUL AGAR BISA DITUMPUK */}
                             <button onClick={() => openPenaltyModal(r)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition">+ PENALTI</button>
                             
@@ -500,7 +568,7 @@ export default function KamarHitung() {
                         </tr>
                       )}
                     </Fragment>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -546,52 +614,6 @@ export default function KamarHitung() {
             />
           </div>
           <button type="submit" className="w-full py-3 bg-orange-600 text-white font-black uppercase tracking-widest text-xs hover:bg-black transition">Setujui Restart</button>
-        </form>
-      </Modal>
-
-      {/* MODAL EDIT WAKTU (BARU) */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Koreksi Waktu Manual">
-        <form onSubmit={submitEditTime} className="p-6 space-y-4">
-          <p className="text-sm text-gray-600 mb-2">Koreksi waktu untuk Mobil <strong>#{selectedRecord?.start_number} ({selectedRecord?.driver_name})</strong></p>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU TC (Format: 08:15:30)</label>
-            <input
-              type="text"
-              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
-              value={editForm.tc_time}
-              onChange={(e) => setEditForm({...editForm, tc_time: e.target.value})}
-              placeholder="00:00:00"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU START (Format: 08:15:30.00)</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
-              value={editForm.start_time}
-              onChange={(e) => setEditForm({...editForm, start_time: e.target.value})}
-              placeholder="00:00:00.00"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU FINISH (Format: 08:15:30.00)</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
-              value={editForm.finish_time}
-              onChange={(e) => setEditForm({...editForm, finish_time: e.target.value})}
-              placeholder="00:00:00.00"
-            />
-          </div>
-
-          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
-            <p className="text-xs text-yellow-800">⚠️ Sistem akan menghitung ulang <b>Elapsed Time</b> secara otomatis jika Anda menyimpan perubahan ini.</p>
-          </div>
-
-          <button type="submit" className="w-full py-3 bg-blue-600 text-white font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition">Simpan Koreksi</button>
         </form>
       </Modal>
 
