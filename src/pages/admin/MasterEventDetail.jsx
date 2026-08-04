@@ -28,6 +28,7 @@ export default function MasterEventDetail() {
   const [vehicles, setVehicles] = useState([]);
   const [classes, setClasses] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [regions, setRegions] = useState([]);
 
   // --- State Modal & Edit SS ---
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
@@ -142,15 +143,17 @@ export default function MasterEventDetail() {
 
   const fetchMasterData = async () => {
     try {
-      const [resR, resT, resV, resC, resCat] = await Promise.all([
+      const [resR, resT, resV, resC, resCat, resReg] = await Promise.all([
         api.get('/admin/racers'), api.get('/admin/teams'),
-        api.get('/admin/vehicles'), api.get('/admin/classes'), api.get('/admin/categories')
+        api.get('/admin/vehicles'), api.get('/admin/classes'), api.get('/admin/categories'),
+        api.get('/admin/regions')
       ]);
       setRacers(resR.data.data || []);
       setTeams(resT.data.data || []);
       setVehicles(resV.data.data || []);
       setClasses(resC.data.data || []);
       setCategories(resCat.data.data || []);
+      setRegions(resReg.data.data || []);
     } catch (e) {
       console.error('Gagal memuat master data untuk form dropdown');
     }
@@ -551,6 +554,7 @@ export default function MasterEventDetail() {
       let nextRacers = [...racers];
       let nextTeams = [...teams];
       let nextVehicles = [...vehicles];
+      let nextRegions = [...regions];
       const participantsByStartNumber = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
       const stats = {
         createdParticipants: 0,
@@ -559,6 +563,7 @@ export default function MasterEventDetail() {
         updatedRacers: 0,
         createdTeams: 0,
         createdVehicles: 0,
+        createdRegions: 0,
       };
       const errors = [];
       const importToken = Date.now();
@@ -572,11 +577,29 @@ export default function MasterEventDetail() {
         ));
       };
 
-      const ensureRacer = async ({ name, kisNumber, gender, dob, bloodType, role, rowNumber }) => {
+      const ensureRegion = async (name) => {
+        const regionName = cleanExcelText(name);
+        if (!regionName) return '';
+        const existing = findMasterByText(nextRegions, regionName, (region) => [region.name]);
+        if (existing) return existing.id;
+
+        const response = await api.post('/admin/regions', { name: regionName });
+        const created = response.data.data;
+        nextRegions = [...nextRegions, created];
+        stats.createdRegions += 1;
+        return created.id;
+      };
+
+      const ensureRacer = async ({ name, kisNumber, gender, dob, bloodType, regionName, role, rowNumber }) => {
         const fullName = cleanExcelText(name);
         if (!fullName) throw new Error(`${role === 'driver' ? 'Driver' : 'Navigator'} wajib diisi.`);
 
         const existing = findRacer(fullName, kisNumber);
+        const importedRegionName = cleanExcelText(regionName);
+        if (!importedRegionName && !existing?.region_id) {
+          throw new Error(`Regional ${role === 'driver' ? 'Driver' : 'Navigator'} wajib diisi.`);
+        }
+        const regionId = importedRegionName ? await ensureRegion(importedRegionName) : existing?.region_id || '';
         const rolePatch = {
           is_driver: role === 'driver' || Boolean(existing?.is_driver),
           is_codriver: role === 'navigator' || Boolean(existing?.is_codriver),
@@ -589,7 +612,7 @@ export default function MasterEventDetail() {
             gender: normalizeRacerGender(gender) || existing.gender || 'L',
             dob: normalizeExcelDate(dob) || formatExistingRacerDate(existing.dob) || DEFAULT_IMPORT_RACER_DOB,
             blood_type: normalizeBloodType(bloodType) || existing.blood_type || 'O',
-            region_id: existing.region_id || '',
+            region_id: regionId,
             ...rolePatch,
           };
           const needsUpdate = Object.keys(payload).some((key) => {
@@ -612,7 +635,7 @@ export default function MasterEventDetail() {
           gender: normalizeRacerGender(gender) || 'L',
           dob: normalizeExcelDate(dob) || DEFAULT_IMPORT_RACER_DOB,
           blood_type: normalizeBloodType(bloodType) || 'O',
-          region_id: '',
+          region_id: regionId,
           is_driver: role === 'driver',
           is_codriver: role === 'navigator',
         };
@@ -674,6 +697,7 @@ export default function MasterEventDetail() {
             gender: readExcelValue(row, ['DRIVER GENDER', 'GENDER DRIVER', 'JK DRIVER']),
             dob: readExcelValue(row, ['DRIVER DOB', 'DOB DRIVER', 'TGL LAHIR DRIVER', 'TANGGAL LAHIR DRIVER']),
             bloodType: readExcelValue(row, ['DRIVER BLOOD', 'BLOOD DRIVER', 'GOL DARAH DRIVER']),
+            regionName: readExcelValue(row, ['DRIVER REGION', 'DRIVER REGIONAL', 'REGION DRIVER', 'REGIONAL DRIVER', 'ASAL DRIVER', 'DAERAH DRIVER', 'KOTA DRIVER', 'PROVINSI DRIVER', 'REGION', 'REGIONAL']),
             role: 'driver',
             rowNumber,
           });
@@ -683,6 +707,7 @@ export default function MasterEventDetail() {
             gender: readExcelValue(row, ['NAVIGATOR GENDER', 'GENDER NAVIGATOR', 'JK NAVIGATOR', 'CODRIVER GENDER']),
             dob: readExcelValue(row, ['NAVIGATOR DOB', 'DOB NAVIGATOR', 'TGL LAHIR NAVIGATOR', 'TANGGAL LAHIR NAVIGATOR', 'CODRIVER DOB']),
             bloodType: readExcelValue(row, ['NAVIGATOR BLOOD', 'BLOOD NAVIGATOR', 'GOL DARAH NAVIGATOR', 'CODRIVER BLOOD']),
+            regionName: readExcelValue(row, ['NAVIGATOR REGION', 'NAVIGATOR REGIONAL', 'REGION NAVIGATOR', 'REGIONAL NAVIGATOR', 'ASAL NAVIGATOR', 'DAERAH NAVIGATOR', 'KOTA NAVIGATOR', 'PROVINSI NAVIGATOR', 'CODRIVER REGION', 'REGION', 'REGIONAL']),
             role: 'navigator',
             rowNumber,
           });
@@ -733,6 +758,7 @@ export default function MasterEventDetail() {
       setRacers(nextRacers);
       setTeams(nextTeams);
       setVehicles(nextVehicles);
+      setRegions(nextRegions);
       await Promise.all([fetchMasterData(), fetchEventData()]);
 
       const summary = [
@@ -740,6 +766,7 @@ export default function MasterEventDetail() {
         `${stats.updatedParticipants} peserta diupdate`,
         `${stats.createdRacers} racer baru`,
         `${stats.updatedRacers} racer diupdate`,
+        `${stats.createdRegions} regional baru`,
         `${stats.createdTeams} team baru`,
         `${stats.createdVehicles} kendaraan baru`,
         errors.length ? `${errors.length} baris gagal` : '',
