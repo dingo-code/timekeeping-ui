@@ -564,8 +564,10 @@ export default function MasterEventDetail() {
         createdTeams: 0,
         createdVehicles: 0,
         createdRegions: 0,
+        joinedParticipants: 0,
       };
       const errors = [];
+      const joinUpdates = [];
       const importToken = Date.now();
 
       const findRacer = (name, kisNumber) => {
@@ -596,9 +598,6 @@ export default function MasterEventDetail() {
 
         const existing = findRacer(fullName, kisNumber);
         const importedRegionName = cleanExcelText(regionName);
-        if (!importedRegionName && !existing?.region_id) {
-          throw new Error(`Regional ${role === 'driver' ? 'Driver' : 'Navigator'} wajib diisi.`);
-        }
         const regionId = importedRegionName ? await ensureRegion(importedRegionName) : existing?.region_id || '';
         const rolePatch = {
           is_driver: role === 'driver' || Boolean(existing?.is_driver),
@@ -692,8 +691,8 @@ export default function MasterEventDetail() {
 
           const entrantName = cleanExcelText(readExcelValue(row, ['ENTRANT', 'ENTRANT NAME', 'NAMA ENTRANT', 'TEAM', 'TIM', 'NAMA TEAM']));
           const driver = await ensureRacer({
-            name: readExcelValue(row, ['DRIVER', 'DRIVER NAME', 'NAMA DRIVER', 'PEMBALAP', 'RACER']),
-            kisNumber: readExcelValue(row, ['DRIVER KIS', 'KIS DRIVER', 'NO KIS DRIVER', 'KIS PEMBALAP']),
+            name: readExcelValue(row, ['DRIVER', 'DIRVER', 'DRIVER NAME', 'NAMA DRIVER', 'PEMBALAP', 'RACER']),
+            kisNumber: readExcelValue(row, ['KIS', 'DRIVER KIS', 'KIS DRIVER', 'NO KIS DRIVER', 'KIS PEMBALAP']),
             gender: readExcelValue(row, ['DRIVER GENDER', 'GENDER DRIVER', 'JK DRIVER']),
             dob: readExcelValue(row, ['DRIVER DOB', 'DOB DRIVER', 'TGL LAHIR DRIVER', 'TANGGAL LAHIR DRIVER']),
             bloodType: readExcelValue(row, ['DRIVER BLOOD', 'BLOOD DRIVER', 'GOL DARAH DRIVER']),
@@ -735,10 +734,11 @@ export default function MasterEventDetail() {
             codriver_id: navigator.id,
             team_id: teamId,
             vehicle_id: vehicleId,
-            join_car_with_participant_id: '',
+            join_car_with_participant_id: participantsByStartNumber.get(String(startNumber))?.join_car_with_participant_id || '',
             class_id: classItem.id,
             category_id: categoryItem.id,
           };
+          const joinStartNumber = parseStartNumber(readExcelValue(row, ['JOIN', 'JOIN CAR', 'JOIN WITH', 'JOIN CAR WITH']));
 
           const existingParticipant = participantsByStartNumber.get(String(startNumber));
           if (existingParticipant) {
@@ -750,8 +750,32 @@ export default function MasterEventDetail() {
             participantsByStartNumber.set(String(startNumber), response.data.data || payload);
             stats.createdParticipants += 1;
           }
+          if (joinStartNumber) joinUpdates.push({ rowNumber, startNumber, joinStartNumber });
         } catch (err) {
           errors.push(`Baris ${rowNumber}: ${err.response?.data?.error || err.message}`);
+        }
+      }
+
+      for (const joinUpdate of joinUpdates) {
+        try {
+          if (joinUpdate.startNumber === joinUpdate.joinStartNumber) {
+            throw new Error('Join tidak boleh ke nomor start yang sama.');
+          }
+          const targetParticipant = participantsByStartNumber.get(String(joinUpdate.startNumber));
+          const sourceParticipant = participantsByStartNumber.get(String(joinUpdate.joinStartNumber));
+          if (!targetParticipant?.id) throw new Error(`No Start ${joinUpdate.startNumber} tidak ditemukan untuk join.`);
+          if (!sourceParticipant?.id) throw new Error(`No Start sumber join ${joinUpdate.joinStartNumber} tidak ditemukan.`);
+
+          const payload = {
+            ...targetParticipant,
+            join_car_with_participant_id: sourceParticipant.id,
+            vehicle_id: sourceParticipant.vehicle_id || targetParticipant.vehicle_id,
+          };
+          await api.put(`/admin/events/${id}/participants/${targetParticipant.id}`, payload);
+          participantsByStartNumber.set(String(joinUpdate.startNumber), payload);
+          stats.joinedParticipants += 1;
+        } catch (err) {
+          errors.push(`Baris ${joinUpdate.rowNumber}: ${err.response?.data?.error || err.message}`);
         }
       }
 
@@ -769,6 +793,7 @@ export default function MasterEventDetail() {
         `${stats.createdRegions} regional baru`,
         `${stats.createdTeams} team baru`,
         `${stats.createdVehicles} kendaraan baru`,
+        `${stats.joinedParticipants} join car`,
         errors.length ? `${errors.length} baris gagal` : '',
       ].filter(Boolean).join(', ');
       setEntryListImportSummary(`${file.name}: ${summary}.`);
@@ -786,6 +811,23 @@ export default function MasterEventDetail() {
       await api.delete(`/admin/events/${id}/participants/${participantId}`);
       fetchEventData();
     } catch (err) { alert('Gagal menghapus peserta'); }
+  };
+
+  const handleDeleteAllParticipants = async () => {
+    if (participants.length === 0) return alert('Entry list masih kosong.');
+    const confirmed = window.confirm(
+      `Hapus SEMUA ${participants.length} peserta dari entry list event ini?\n\nData catatan waktu, starting list, dan relasi peserta yang terkait bisa ikut terhapus. Aksi ini tidak bisa dibatalkan.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/admin/events/${id}/participants`);
+      setEntryListImportSummary('');
+      await fetchEventData();
+      alert('Semua entry list berhasil dihapus.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menghapus semua entry list.');
+    }
   };
 
   const handleSetWithdraw = async (participant) => {
@@ -1102,6 +1144,14 @@ export default function MasterEventDetail() {
                     onChange={handleImportEntryListExcel}
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={handleDeleteAllParticipants}
+                  disabled={participants.length === 0 || isImportingEntryList}
+                  className="admin-btn-delete whitespace-nowrap px-4 py-2 uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hapus Semua
+                </button>
                 <button onClick={() => openParticipantModal()} className="admin-btn-primary whitespace-nowrap">+ Peserta</button>
               </div>
             </div>
