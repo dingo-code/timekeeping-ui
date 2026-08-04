@@ -311,6 +311,7 @@ export default function KamarHitung() {
         record.status,
         record.attempt_no ? `attempt ${record.attempt_no}` : '',
         record.attempt_no ? `#${record.attempt_no}` : '',
+        record.join_car_with_start_number ? `join car with ${record.join_car_with_start_number}` : '',
       ].join(' ').toLowerCase().includes(normalizedRecordSearch))
     : records;
 
@@ -396,7 +397,14 @@ export default function KamarHitung() {
                     <Fragment key={r.id}>
                     <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${!r.is_active ? 'text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
-                        <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
+                          {Number(r.join_car_with_start_number) > 0 && (
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                              Join car with #{r.join_car_with_start_number}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex flex-col items-center gap-1">
