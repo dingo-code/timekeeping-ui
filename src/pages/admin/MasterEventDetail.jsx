@@ -348,6 +348,30 @@ export default function MasterEventDetail() {
   const currentParticipants = filteredParticipants.slice(startIndex, startIndex + itemsPerPage);
   useEffect(() => { setCurrentPage(1); }, [searchTerm, itemsPerPage]);
 
+  useEffect(() => {
+    setSelectedParticipantIds((current) => current.filter((participantId) => participants.some((participant) => participant.id === participantId)));
+  }, [participants]);
+
+  const currentParticipantIds = currentParticipants.map((participant) => participant.id);
+  const isAllCurrentParticipantsSelected = currentParticipantIds.length > 0 && currentParticipantIds.every((participantId) => selectedParticipantIds.includes(participantId));
+
+  const toggleParticipantSelection = (participantId) => {
+    setSelectedParticipantIds((current) => (
+      current.includes(participantId)
+        ? current.filter((id) => id !== participantId)
+        : [...current, participantId]
+    ));
+  };
+
+  const toggleCurrentParticipantsSelection = () => {
+    setSelectedParticipantIds((current) => {
+      if (isAllCurrentParticipantsSelected) {
+        return current.filter((participantId) => !currentParticipantIds.includes(participantId));
+      }
+      return Array.from(new Set([...current, ...currentParticipantIds]));
+    });
+  };
+
   const normalizedPenaltySearch = penaltySearchTerm.trim().toLowerCase();
   const filteredPenalties = penalties.filter((p) => (
     [
@@ -558,6 +582,8 @@ export default function MasterEventDetail() {
       let nextTeams = [...teams];
       let nextVehicles = [...vehicles];
       let nextRegions = [...regions];
+      let nextClasses = [...classes];
+      let nextGroups = [...groups];
       const participantsByStartNumber = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
       const stats = {
         createdParticipants: 0,
@@ -567,6 +593,8 @@ export default function MasterEventDetail() {
         createdTeams: 0,
         createdVehicles: 0,
         createdRegions: 0,
+        createdGroups: 0,
+        createdClasses: 0,
         joinedParticipants: 0,
       };
       const errors = [];
@@ -686,6 +714,42 @@ export default function MasterEventDetail() {
         return created.id;
       };
 
+      const ensureGroup = async (name) => {
+        const rawName = cleanExcelText(name);
+        const groupCode = rawName ? getClassCodeFromText(rawName) : 'AUTO';
+        const groupName = rawName || 'Imported Classes';
+        const existing = findMasterByText(nextGroups, rawName || groupCode, (group) => [group.code, group.name, `${group.code} ${group.name}`]);
+        if (existing) return existing.id;
+
+        const response = await api.post('/admin/groups', {
+          code: groupCode.slice(0, 10),
+          name: groupName,
+        });
+        const created = response.data.data;
+        nextGroups = [...nextGroups, created];
+        stats.createdGroups += 1;
+        return created.id;
+      };
+
+      const ensureClass = async ({ classValue, className, groupName }) => {
+        const rawClass = cleanExcelText(classValue);
+        if (!rawClass) throw new Error('Class wajib diisi.');
+        const existing = findMasterByText(nextClasses, rawClass, (item) => [item.code, item.name, `${item.code} ${item.name}`, `${item.code} - ${item.name}`]);
+        if (existing) return existing;
+
+        const groupId = await ensureGroup(groupName);
+        const payload = {
+          group_id: groupId,
+          code: getClassCodeFromText(rawClass).slice(0, 10),
+          name: cleanExcelText(className) || rawClass,
+        };
+        const response = await api.post('/admin/classes', payload);
+        const created = response.data.data;
+        nextClasses = [...nextClasses, created];
+        stats.createdClasses += 1;
+        return created;
+      };
+
       for (const [index, row] of rows.entries()) {
         const rowNumber = index + 2;
         try {
@@ -715,8 +779,11 @@ export default function MasterEventDetail() {
           });
 
           const classValue = readExcelValue(row, ['CLASS', 'KELAS']);
-          const classItem = findMasterByText(classes, classValue, (item) => [item.code, item.name, `${item.code} ${item.name}`, `${item.code} - ${item.name}`]);
-          if (!classItem) throw new Error(`Class "${classValue || '-'}" tidak ditemukan di master class.`);
+          const classItem = await ensureClass({
+            classValue,
+            className: readExcelValue(row, ['CLASS NAME', 'NAMA CLASS', 'NAMA KELAS', 'KETERANGAN CLASS']),
+            groupName: readExcelValue(row, ['GROUP', 'CLASS GROUP', 'GROUP CLASS', 'GRUP', 'GROUP KELAS']),
+          });
 
           const categoryValue = readExcelValue(row, ['CATEGORY', 'KATEGORI', 'SEED', 'SEEDED']);
           const categoryItem = findMasterByText(categories, categoryValue, (item) => [item.code, item.description, `${item.code} ${item.description || ''}`]);
@@ -786,6 +853,8 @@ export default function MasterEventDetail() {
       setTeams(nextTeams);
       setVehicles(nextVehicles);
       setRegions(nextRegions);
+      setClasses(nextClasses);
+      setGroups(nextGroups);
       await Promise.all([fetchMasterData(), fetchEventData()]);
 
       const summary = [
@@ -796,6 +865,8 @@ export default function MasterEventDetail() {
         `${stats.createdRegions} regional baru`,
         `${stats.createdTeams} team baru`,
         `${stats.createdVehicles} kendaraan baru`,
+        `${stats.createdGroups} group baru`,
+        `${stats.createdClasses} class baru`,
         `${stats.joinedParticipants} join car`,
         errors.length ? `${errors.length} baris gagal` : '',
       ].filter(Boolean).join(', ');
@@ -830,6 +901,25 @@ export default function MasterEventDetail() {
       alert('Semua entry list berhasil dihapus.');
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal menghapus semua entry list.');
+    }
+  };
+
+  const handleDeleteSelectedParticipants = async () => {
+    if (selectedParticipantIds.length === 0) return alert('Pilih peserta yang mau dihapus.');
+    const confirmed = window.confirm(
+      `Hapus ${selectedParticipantIds.length} peserta terpilih dari entry list event ini?\n\nData catatan waktu, starting list, dan relasi peserta yang terkait bisa ikut terhapus.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/admin/events/${id}/participants/selected`, {
+        data: { participant_ids: selectedParticipantIds },
+      });
+      setSelectedParticipantIds([]);
+      await fetchEventData();
+      alert('Peserta terpilih berhasil dihapus.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menghapus peserta terpilih.');
     }
   };
 
@@ -1149,6 +1239,14 @@ export default function MasterEventDetail() {
                 </label>
                 <button
                   type="button"
+                  onClick={handleDeleteSelectedParticipants}
+                  disabled={selectedParticipantIds.length === 0 || isImportingEntryList}
+                  className="admin-btn-orange whitespace-nowrap px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Hapus Terpilih ({selectedParticipantIds.length})
+                </button>
+                <button
+                  type="button"
                   onClick={handleDeleteAllParticipants}
                   disabled={participants.length === 0 || isImportingEntryList}
                   className="admin-btn-delete whitespace-nowrap px-4 py-2 uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-50"
@@ -1168,6 +1266,15 @@ export default function MasterEventDetail() {
               <table className="w-full text-left border-collapse border border-gray-200">
                 <thead className="bg-gray-100 text-sm">
                   <tr>
+                    <th className="p-3 text-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-red-600"
+                        checked={isAllCurrentParticipantsSelected}
+                        onChange={toggleCurrentParticipantsSelection}
+                        aria-label="Pilih semua peserta pada halaman ini"
+                      />
+                    </th>
                     <th className="p-3 text-center">No Start</th>
                     <th className="p-3">Nama Entrant / Tim</th>
                     <th className="p-3">Driver / Navigator</th>
@@ -1177,12 +1284,21 @@ export default function MasterEventDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentParticipants.length === 0 ? <tr><td colSpan="6" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr> :
+                  {currentParticipants.length === 0 ? <tr><td colSpan="7" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr> :
                     currentParticipants.map(p => {
                       const joinSource = getJoinCarSource(p);
                       const joinedBy = getJoinCarParticipants(p).filter((item) => item.join_car_with_participant_id === p.id);
                       return (
                       <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-red-600"
+                            checked={selectedParticipantIds.includes(p.id)}
+                            onChange={() => toggleParticipantSelection(p.id)}
+                            aria-label={`Pilih peserta no start ${p.start_number}`}
+                          />
+                        </td>
                         <td className="p-3 text-center">
                           <span className="bg-black text-white font-black text-xl px-3 py-1 rounded">{p.start_number}</span>
                         </td>
@@ -1939,4 +2055,10 @@ function formatExistingRacerDate(value) {
 function generateImportedKIS(name, role, rowNumber, token) {
   const slug = cleanExcelText(name).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) || 'RACER';
   return `IMP-${String(token).slice(-6)}-${rowNumber}-${role === 'driver' ? 'D' : 'N'}-${slug}`.slice(0, 50);
+}
+
+function getClassCodeFromText(value) {
+  const text = cleanExcelText(value).toUpperCase();
+  const firstToken = text.split(/[\s-/]+/).find(Boolean);
+  return (firstToken || text || 'AUTO').replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'AUTO';
 }
