@@ -318,12 +318,6 @@ export default function Leaderboard() {
           onSelect={setSelectedStageId}
         />
 
-        <section className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
-          <Summary label={summaryCountLabel(resultCategory)} value={summaryCount(resultCategory, entries, overallForStage, stageWinners, startingList, penalties)} />
-          <Summary label="Fastest" value={leaderName(resultCategory === 'overall' ? overallForStage[0] : entries[0])} />
-        </section>
-
         <main className="min-h-0 flex-1">
           {resultCategory === 'stage-times' && (
             <div className="grid gap-5 xl:grid-cols-2">
@@ -733,28 +727,6 @@ function SimpleSection({ title, subtitle, count, isLoading, emptyText, children,
   );
 }
 
-function summaryCountLabel(category) {
-  const labels = {
-    overall: 'Overall',
-    'stage-times': 'Stage Finish',
-    'stage-winners': 'Stage Winners',
-    'starting-list': 'Starting List',
-    penalties: 'Penalties',
-  };
-  return labels[category] || 'Data';
-}
-
-function summaryCount(category, stageEntries, overallEntries, stageWinners, startingList, penalties) {
-  const counts = {
-    overall: overallEntries.length,
-    'stage-times': stageEntries.length,
-    'stage-winners': stageWinners.length,
-    'starting-list': startingList.length,
-    penalties: penalties.length,
-  };
-  return counts[category] ?? 0;
-}
-
 function buildStageWinners(stages, entriesByStage) {
   return stages
     .map((stage) => {
@@ -1014,20 +986,6 @@ function LeaderboardCard({ entry, resultView }) {
       )}
     </article>
   );
-}
-
-function Summary({ label, value, highlight = false }) {
-  return (
-    <div className={`rounded-lg border border-white/10 p-4 ${highlight ? 'bg-red-950/70' : 'bg-neutral-900'}`}>
-      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-1 truncate text-2xl font-black text-white">{value}</p>
-    </div>
-  );
-}
-
-function leaderName(entry) {
-  if (!entry) return '-';
-  return entry.codriver_name ? `${entry.driver_name} / ${entry.codriver_name}` : entry.driver_name;
 }
 
 function MiniMetric({ label, value, highlight = false }) {
