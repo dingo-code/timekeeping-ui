@@ -10,16 +10,20 @@ export default function Leaderboard() {
   const [selectedStageId, setSelectedStageId] = useState('');
   const [entries, setEntries] = useState([]);
   const [entriesByStage, setEntriesByStage] = useState({});
+  const [stageRecordsById, setStageRecordsById] = useState({});
   const [overallEntries, setOverallEntries] = useState([]);
+  const [resultCategory, setResultCategory] = useState('stage-times');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [isLoadingOverall, setIsLoadingOverall] = useState(false);
+  const [isLoadingAllStages, setIsLoadingAllStages] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
   const reconnectTimerRef = useRef(null);
   const shouldReconnectRef = useRef(false);
   const selectedStageIdRef = useRef('');
+  const stagesRef = useRef([]);
   const wsRef = useRef(null);
 
   const selectedEvent = useMemo(
@@ -35,6 +39,18 @@ export default function Leaderboard() {
   const overallForStage = useMemo(
     () => buildOverallEntries(overallEntries, selectedStage),
     [overallEntries, selectedStage]
+  );
+  const stageWinners = useMemo(
+    () => buildStageWinners(stages, entriesByStage),
+    [stages, entriesByStage]
+  );
+  const startingList = useMemo(
+    () => buildStartingList(overallEntries),
+    [overallEntries]
+  );
+  const penalties = useMemo(
+    () => buildPenaltyRows(stages, stageRecordsById),
+    [stages, stageRecordsById]
   );
 
   useEffect(() => {
@@ -60,9 +76,11 @@ export default function Leaderboard() {
     }
     setEntries([]);
     setEntriesByStage({});
+    setStageRecordsById({});
     setOverallEntries([]);
     setStages([]);
     setSelectedStageId('');
+    setResultCategory('stage-times');
 
     if (!selectedEventId) {
       shouldReconnectRef.current = false;
@@ -107,6 +125,10 @@ export default function Leaderboard() {
     if (selectedStageId) fetchStageLeaderboard(selectedStageId);
   }, [selectedStageId]);
 
+  useEffect(() => {
+    stagesRef.current = stages;
+  }, [stages]);
+
   const fetchStages = async (eventId) => {
     setIsLoadingStages(true);
     setError('');
@@ -115,6 +137,7 @@ export default function Leaderboard() {
       const nextStages = res.data.data || [];
       setStages(nextStages);
       setSelectedStageId(nextStages[0]?.id || '');
+      fetchAllStageRecords(nextStages);
     } catch (err) {
       setStages([]);
       setSelectedStageId('');
@@ -136,6 +159,38 @@ export default function Leaderboard() {
       setError(err.response?.data?.error || 'Gagal memuat leaderboard.');
     } finally {
       setIsLoadingEntries(false);
+    }
+  };
+
+  const fetchAllStageRecords = async (stageList) => {
+    if (!stageList.length) {
+      setStageRecordsById({});
+      return;
+    }
+
+    setIsLoadingAllStages(true);
+    try {
+      const pairs = await Promise.all(stageList.map(async (stage) => {
+        const res = await api.get(`/public/stages/${stage.id}/records`);
+        const rawRecords = res.data.data || [];
+        return [stage.id, rawRecords, normalizeStageEntries(rawRecords)];
+      }));
+
+      const nextRawRecords = {};
+      const nextEntries = {};
+      pairs.forEach(([stageId, rawRecords, normalizedEntries]) => {
+        nextRawRecords[stageId] = rawRecords;
+        nextEntries[stageId] = normalizedEntries;
+      });
+      setStageRecordsById(nextRawRecords);
+      setEntriesByStage((current) => ({ ...current, ...nextEntries }));
+      if (selectedStageIdRef.current && nextEntries[selectedStageIdRef.current]) {
+        setEntries(nextEntries[selectedStageIdRef.current]);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Gagal memuat data semua SS.');
+    } finally {
+      setIsLoadingAllStages(false);
     }
   };
 
@@ -169,11 +224,13 @@ export default function Leaderboard() {
       setConnectionState('connected');
       if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
       fetchOverallResults(eventId);
+      fetchAllStageRecords(stagesRef.current);
     };
 
     socket.onmessage = () => {
       if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
       fetchOverallResults(eventId);
+      fetchAllStageRecords(stagesRef.current);
     };
 
     socket.onerror = () => {
@@ -247,31 +304,61 @@ export default function Leaderboard() {
           onSelect={setSelectedStageId}
         />
 
+        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
+
         <section className="mb-4 grid gap-3 sm:grid-cols-3">
           <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
-          <Summary label="Stage Finish" value={entries.length} />
-          <Summary label="Fastest" value={leaderName(entries[0])} />
+          <Summary label={summaryCountLabel(resultCategory)} value={summaryCount(resultCategory, entries, overallForStage, stageWinners, startingList, penalties)} />
+          <Summary label="Fastest" value={leaderName(resultCategory === 'overall' ? overallForStage[0] : entries[0])} />
         </section>
 
-        <main className="grid min-h-0 flex-1 gap-5 xl:grid-cols-2">
-          <ResultsSection
-            title="Stage Times"
-            subtitle="Waktu tercepat pada SS yang dipilih"
-            entries={entries}
-            isLoading={isLoadingStages || isLoadingEntries}
-            emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
-            resultView="stage-times"
-            selectedStage={selectedStage}
-          />
-          <ResultsSection
-            title="Overall"
-            subtitle="Akumulasi total sampai SS yang dipilih"
-            entries={overallForStage}
-            isLoading={isLoadingStages || isLoadingOverall}
-            emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
-            resultView="overall"
-            selectedStage={selectedStage}
-          />
+        <main className="min-h-0 flex-1">
+          {resultCategory === 'stage-times' && (
+            <div className="grid gap-5 xl:grid-cols-2">
+              <ResultsSection
+                title="Stage Times"
+                subtitle="Waktu tercepat pada SS yang dipilih"
+                entries={entries}
+                isLoading={isLoadingStages || isLoadingEntries}
+                emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                resultView="stage-times"
+                selectedStage={selectedStage}
+              />
+              <ResultsSection
+                title="Overall"
+                subtitle="Akumulasi total sampai SS yang dipilih"
+                entries={overallForStage}
+                isLoading={isLoadingStages || isLoadingOverall}
+                emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                resultView="overall"
+                selectedStage={selectedStage}
+              />
+            </div>
+          )}
+
+          {resultCategory === 'overall' && (
+            <ResultsSection
+              title="Overall"
+              subtitle="Akumulasi total sampai SS yang dipilih"
+              entries={overallForStage}
+              isLoading={isLoadingStages || isLoadingOverall}
+              emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+              resultView="overall"
+              selectedStage={selectedStage}
+            />
+          )}
+
+          {resultCategory === 'stage-winners' && (
+            <StageWinnersSection entries={stageWinners} isLoading={isLoadingAllStages} />
+          )}
+
+          {resultCategory === 'starting-list' && (
+            <StartingListSection entries={startingList} isLoading={isLoadingOverall} />
+          )}
+
+          {resultCategory === 'penalties' && (
+            <PenaltiesSection entries={penalties} isLoading={isLoadingAllStages} />
+          )}
         </main>
       </div>
     </div>
@@ -330,6 +417,39 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ResultCategoryTabs({ value, onChange }) {
+  const tabs = [
+    { value: 'overall', label: 'Overall' },
+    { value: 'stage-times', label: 'Stage Times' },
+    { value: 'stage-winners', label: 'Stage Winners' },
+    { value: 'starting-list', label: 'Starting List' },
+    { value: 'penalties', label: 'Penalties' },
+  ];
+
+  return (
+    <section className="mb-4 overflow-x-auto border-b border-white/10">
+      <div className="flex min-w-max gap-1">
+        {tabs.map((tab) => {
+          const active = tab.value === value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => onChange(tab.value)}
+              className={`relative px-5 py-3 text-sm font-black uppercase tracking-widest transition ${
+                active ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {tab.label}
+              {active && <span className="absolute inset-x-5 bottom-0 h-1 bg-red-600" />}
+            </button>
+          );
+        })}
       </div>
     </section>
   );
@@ -413,6 +533,207 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
       </div>
     </section>
   );
+}
+
+function StageWinnersSection({ entries, isLoading }) {
+  return (
+    <SimpleSection title="Stage Winners" subtitle="Pemenang tercepat dari setiap SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada stage winner.">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4">SS</th>
+            <th className="p-4">Crew</th>
+            <th className="p-4 text-center">No</th>
+            <th className="p-4 text-right">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr key={entry.stage_id} className="border-t border-white/10">
+              <td className="p-4">
+                <div className="font-black text-white">SS {entry.ss_order}</div>
+                <div className="text-xs font-bold text-gray-500">{entry.ss_name}</div>
+              </td>
+              <td className="p-4">
+                <div className="font-black text-white">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
+              </td>
+              <td className="p-4 text-center">
+                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+              </td>
+              <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SimpleSection>
+  );
+}
+
+function StartingListSection({ entries, isLoading }) {
+  return (
+    <SimpleSection title="Starting List" subtitle="Daftar peserta berdasarkan nomor start" count={entries.length} isLoading={isLoading} emptyText="Belum ada starting list.">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4 text-center">No</th>
+            <th className="p-4">Crew</th>
+            <th className="p-4">Class</th>
+            <th className="p-4">Regional</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr key={entry.participant_id} className="border-t border-white/10">
+              <td className="p-4 text-center">
+                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+              </td>
+              <td className="p-4">
+                <div className="font-black text-white">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || entry.entrant_name || '-'}</div>
+              </td>
+              <td className="p-4 font-bold text-gray-300">{entry.class_name || '-'}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.regional_name || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SimpleSection>
+  );
+}
+
+function PenaltiesSection({ entries, isLoading }) {
+  return (
+    <SimpleSection title="Penalties" subtitle="Daftar penalti yang tercatat pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4">SS</th>
+            <th className="p-4 text-center">No</th>
+            <th className="p-4">Crew</th>
+            <th className="p-4">Penalty</th>
+            <th className="p-4 text-right">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => (
+            <tr key={entry.key} className="border-t border-white/10">
+              <td className="p-4">
+                <div className="font-black text-white">SS {entry.ss_order}</div>
+                <div className="text-xs font-bold text-gray-500">{entry.ss_name}</div>
+              </td>
+              <td className="p-4 text-center">
+                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+              </td>
+              <td className="p-4">
+                <div className="font-black text-white">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
+              </td>
+              <td className="p-4 font-bold text-gray-300">{entry.penalty_name}</td>
+              <td className="p-4 text-right font-mono font-black text-red-300">+{formatMs(entry.penalty_time_ms)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SimpleSection>
+  );
+}
+
+function SimpleSection({ title, subtitle, count, isLoading, emptyText, children }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-widest text-white">{title}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-black uppercase text-gray-500">{count}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
+        </div>
+      </div>
+      <div className={`overflow-x-auto transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+        {count === 0 ? (
+          <div className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</div>
+        ) : children}
+      </div>
+    </section>
+  );
+}
+
+function summaryCountLabel(category) {
+  const labels = {
+    overall: 'Overall',
+    'stage-times': 'Stage Finish',
+    'stage-winners': 'Stage Winners',
+    'starting-list': 'Starting List',
+    penalties: 'Penalties',
+  };
+  return labels[category] || 'Data';
+}
+
+function summaryCount(category, stageEntries, overallEntries, stageWinners, startingList, penalties) {
+  const counts = {
+    overall: overallEntries.length,
+    'stage-times': stageEntries.length,
+    'stage-winners': stageWinners.length,
+    'starting-list': startingList.length,
+    penalties: penalties.length,
+  };
+  return counts[category] ?? 0;
+}
+
+function buildStageWinners(stages, entriesByStage) {
+  return stages
+    .map((stage) => {
+      const winner = (entriesByStage[stage.id] || []).find((entry) => entry.rank === 1);
+      if (!winner) return null;
+      return {
+        ...winner,
+        stage_id: stage.id,
+        ss_order: stage.ss_order,
+        ss_name: stage.ss_name,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildStartingList(entries) {
+  return [...entries].sort((a, b) => Number(a.start_number || 0) - Number(b.start_number || 0));
+}
+
+function buildPenaltyRows(stages, stageRecordsById) {
+  const rows = [];
+  stages.forEach((stage) => {
+    const records = stageRecordsById[stage.id] || [];
+    records
+      .filter((record) => record.is_active !== false)
+      .forEach((record) => {
+        const penalties = normalizePenaltyDetails(record.penalty_details);
+        penalties.forEach((penalty, index) => {
+          rows.push({
+            key: `${stage.id}-${record.id}-${index}`,
+            ss_order: stage.ss_order,
+            ss_name: stage.ss_name,
+            start_number: record.start_number,
+            driver_name: record.driver_name,
+            codriver_name: record.codriver_name,
+            penalty_name: penalty.name || 'Penalty',
+            penalty_time_ms: Number(penalty.time_ms || 0),
+          });
+        });
+      });
+  });
+  return rows.sort((a, b) => {
+    if (Number(a.ss_order) !== Number(b.ss_order)) return Number(a.ss_order) - Number(b.ss_order);
+    return Number(a.start_number || 0) - Number(b.start_number || 0);
+  });
+}
+
+function normalizePenaltyDetails(details) {
+  const parsed = typeof details === 'string' ? parsePenaltyDetails(details) : details;
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function buildOverallEntries(entries, selectedStage) {
