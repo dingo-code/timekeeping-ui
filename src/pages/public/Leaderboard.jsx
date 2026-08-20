@@ -415,13 +415,13 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
                 onClick={() => onSelect(stage.id)}
                 className={`relative min-w-20 border px-4 py-3 text-left transition ${
                   active
-                    ? 'border-neutral-950 bg-neutral-950 text-white'
+                    ? 'border-neutral-200 bg-white text-neutral-950'
                     : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'
                 }`}
               >
-                {active && <span className="absolute inset-x-0 top-0 h-1 bg-red-600" />}
+                {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}
                 <span className="block text-xs font-black uppercase tracking-widest">{isFinal ? 'Final' : `SS ${stage.ss_order}`}</span>
-                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-white/80' : 'text-neutral-500'}`}>
+                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-700' : 'text-neutral-500'}`}>
                   {stage.ss_name}
                 </span>
               </button>
@@ -454,7 +454,7 @@ function ResultCategoryTabs({ value, onChange }) {
               type="button"
               onClick={() => onChange(tab.value)}
               className={`relative border-r border-neutral-200 px-5 py-4 text-sm font-black uppercase tracking-widest transition ${
-                active ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950'
+                active ? 'bg-white text-neutral-950' : 'bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950'
               }`}
             >
               {tab.label}
@@ -619,11 +619,12 @@ function StartingListSection({ entries, stageEntries, selectedStage, mode, onMod
                 key={tab.value}
                 type="button"
                 onClick={() => onModeChange(tab.value)}
-                className={`border px-4 py-2 text-xs font-black uppercase tracking-widest transition ${
-                  active ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-300 bg-white text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'
+                className={`relative border px-4 py-2 text-xs font-black uppercase tracking-widest transition ${
+                  active ? 'border-neutral-300 bg-white text-neutral-950' : 'border-neutral-300 bg-white text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'
                 }`}
               >
                 {tab.label}
+                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-red-600" />}
               </button>
             );
           })}
