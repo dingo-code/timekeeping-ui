@@ -253,7 +253,7 @@ export default function Leaderboard() {
           <Summary label="Fastest" value={leaderName(entries[0])} />
         </section>
 
-        <main className="min-h-0 flex-1 space-y-5">
+        <main className="grid min-h-0 flex-1 gap-5 xl:grid-cols-2">
           <ResultsSection
             title="Stage Times"
             subtitle="Waktu tercepat pada SS yang dipilih"
@@ -344,7 +344,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
           <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-gray-500">{entries.length} peserta</span>
+          <span className="text-xs font-black uppercase text-gray-500">{entries.length}</span>
           {isLoading && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
         </div>
       </div>
@@ -353,31 +353,26 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         <table className={`w-full border-collapse text-sm transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
             <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
-              <th className="p-4 text-center">Rank</th>
-              <th className="p-4 text-center">No Start</th>
-              <th className="p-4">Driver / Co-driver</th>
+              <th className="p-4 text-center">Pos</th>
+              <th className="p-4 text-center">No</th>
+              <th className="p-4">Crew</th>
               {resultView === 'overall' ? (
                 <>
-                  <th className="p-4 text-center">SS Done</th>
-                  <th className="p-4 text-right">Penalti</th>
                   <th className="p-4 text-right">Total</th>
                   <th className="p-4 text-right">Dif</th>
                 </>
               ) : (
                 <>
-                  <th className="p-4 text-center">Start</th>
-                  <th className="p-4 text-center">Finish</th>
-                  <th className="p-4 text-right">Penalti</th>
-                  <th className="p-4 text-right">Total</th>
+                  <th className="p-4 text-right">Time</th>
+                  <th className="p-4 text-right">Dif</th>
                 </>
               )}
-              <th className="p-4">Status</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan="8" className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</td>
+                <td colSpan="5" className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</td>
               </tr>
             ) : (
               entries.map((entry) => (
@@ -393,23 +388,15 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                   </td>
                   {resultView === 'overall' ? (
                     <>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.completed_count || 0}/{selectedStage?.ss_order || '-'}</td>
-                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
                       <td className="p-4 text-right font-mono font-black text-gray-300">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
                     </>
                   ) : (
                     <>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.finish_time || '-'}</td>
-                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-300">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
                     </>
                   )}
-                  <td className="p-4">
-                    <StatusPill status={entry.status} />
-                    {entry.penalty_desc && <div className="mt-1 text-xs font-bold text-yellow-200">{entry.penalty_desc}</div>}
-                  </td>
                 </tr>
               ))
             )}
@@ -421,7 +408,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         {entries.length === 0 ? (
           <div className="rounded-lg bg-black p-6 text-center text-sm font-bold text-gray-500">{emptyText}</div>
         ) : (
-          entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} selectedStage={selectedStage} />)
+          entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} />)
         )}
       </div>
     </section>
@@ -528,11 +515,13 @@ function normalizeStageEntries(records) {
   });
 
   let rank = 1;
+  const bestTime = activeRecords.find(hasStageResult)?.total_time_ms || 0;
   return activeRecords.map((record) => {
     const ranked = hasStageResult(record);
     const entry = {
       ...record,
       rank: ranked ? rank : '-',
+      diff_ms: ranked && bestTime ? numericMs(record.total_time_ms) - numericMs(bestTime) : 0,
       penalty_desc: formatPenaltyDetails(record.penalty_details),
     };
     if (ranked) rank += 1;
@@ -563,7 +552,7 @@ function resultStatusWeight(status) {
   return 3;
 }
 
-function LeaderboardCard({ entry, resultView, selectedStage }) {
+function LeaderboardCard({ entry, resultView }) {
   return (
     <article className={`rounded-lg border border-white/10 p-4 ${rowClass(entry.status) || 'bg-neutral-800'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -580,23 +569,15 @@ function LeaderboardCard({ entry, resultView, selectedStage }) {
       </div>
       {resultView === 'overall' ? (
         <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
-          <MiniMetric label="SS Done" value={`${entry.completed_count || 0}/${selectedStage?.ss_order || '-'}`} />
-          <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
           <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
           <MiniMetric label="Dif" value={entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'} />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
-          <MiniMetric label="Start" value={entry.start_time || '-'} />
-          <MiniMetric label="Finish" value={entry.finish_time || '-'} />
-          <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
-          <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
+          <MiniMetric label="Time" value={formatMs(entry.total_time_ms)} highlight />
+          <MiniMetric label="Dif" value={entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'} />
         </div>
       )}
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <StatusPill status={entry.status} />
-        {entry.penalty_desc && <span className="text-right text-xs font-bold text-yellow-200">{entry.penalty_desc}</span>}
-      </div>
     </article>
   );
 }
@@ -640,27 +621,11 @@ function ConnectionBadge({ state }) {
   );
 }
 
-function StatusPill({ status }) {
-  const label = status || 'OK';
-  return (
-    <span className={`inline-flex rounded px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${statusClass(label)}`}>
-      {label}
-    </span>
-  );
-}
-
 function rowClass(status) {
   if (status === 'DNF') return 'bg-orange-950/60';
   if (status === 'DNS') return 'bg-yellow-950/60';
   if (status === 'DSQ') return 'bg-red-950/60';
   return '';
-}
-
-function statusClass(status) {
-  if (status === 'DNF') return 'bg-orange-200 text-orange-950';
-  if (status === 'DNS') return 'bg-yellow-200 text-yellow-950';
-  if (status === 'DSQ') return 'bg-red-200 text-red-950';
-  return 'bg-green-200 text-green-950';
 }
 
 function formatMs(ms) {
