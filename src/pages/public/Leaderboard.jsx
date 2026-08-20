@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
 
 const reconnectDelayMs = 3000;
+const FINAL_STAGE_ID = 'final';
 
 export default function Leaderboard() {
   const [events, setEvents] = useState([]);
@@ -13,6 +14,7 @@ export default function Leaderboard() {
   const [stageRecordsById, setStageRecordsById] = useState({});
   const [overallEntries, setOverallEntries] = useState([]);
   const [resultCategory, setResultCategory] = useState('stage-times');
+  const [startingListMode, setStartingListMode] = useState('entry-list');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
@@ -31,10 +33,12 @@ export default function Leaderboard() {
     [events, selectedEventId]
   );
 
-  const selectedStage = useMemo(
-    () => stages.find((stage) => stage.id === selectedStageId),
-    [stages, selectedStageId]
-  );
+  const selectedStage = useMemo(() => {
+    if (selectedStageId === FINAL_STAGE_ID) {
+      return { id: FINAL_STAGE_ID, ss_order: 'Final', ss_name: 'Final' };
+    }
+    return stages.find((stage) => stage.id === selectedStageId);
+  }, [stages, selectedStageId]);
 
   const overallForStage = useMemo(
     () => buildOverallEntries(overallEntries, selectedStage),
@@ -47,6 +51,10 @@ export default function Leaderboard() {
   const startingList = useMemo(
     () => buildStartingList(overallEntries),
     [overallEntries]
+  );
+  const selectedStageRecords = useMemo(
+    () => (selectedStageId === FINAL_STAGE_ID ? [] : (stageRecordsById[selectedStageId] || [])),
+    [stageRecordsById, selectedStageId]
   );
   const penalties = useMemo(
     () => buildPenaltyRows(stages, stageRecordsById),
@@ -121,6 +129,10 @@ export default function Leaderboard() {
 
   useEffect(() => {
     selectedStageIdRef.current = selectedStageId;
+    if (selectedStageId === FINAL_STAGE_ID) {
+      setEntries([]);
+      return;
+    }
     if (entriesByStage[selectedStageId]) setEntries(entriesByStage[selectedStageId]);
     if (selectedStageId) fetchStageLeaderboard(selectedStageId);
   }, [selectedStageId]);
@@ -222,13 +234,13 @@ export default function Leaderboard() {
 
     socket.onopen = () => {
       setConnectionState('connected');
-      if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
+      if (selectedStageIdRef.current && selectedStageIdRef.current !== FINAL_STAGE_ID) fetchStageLeaderboard(selectedStageIdRef.current);
       fetchOverallResults(eventId);
       fetchAllStageRecords(stagesRef.current);
     };
 
     socket.onmessage = () => {
-      if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
+      if (selectedStageIdRef.current && selectedStageIdRef.current !== FINAL_STAGE_ID) fetchStageLeaderboard(selectedStageIdRef.current);
       fetchOverallResults(eventId);
       fetchAllStageRecords(stagesRef.current);
     };
@@ -322,7 +334,6 @@ export default function Leaderboard() {
                 isLoading={isLoadingStages || isLoadingEntries}
                 emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
                 resultView="stage-times"
-                selectedStage={selectedStage}
               />
               <ResultsSection
                 title="Overall"
@@ -331,7 +342,6 @@ export default function Leaderboard() {
                 isLoading={isLoadingStages || isLoadingOverall}
                 emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
                 resultView="overall"
-                selectedStage={selectedStage}
               />
             </div>
           )}
@@ -339,12 +349,11 @@ export default function Leaderboard() {
           {resultCategory === 'overall' && (
             <ResultsSection
               title="Overall"
-              subtitle="Akumulasi total sampai SS yang dipilih"
+              subtitle={selectedStageId === FINAL_STAGE_ID ? 'Overall all time' : 'Akumulasi total sampai SS yang dipilih'}
               entries={overallForStage}
               isLoading={isLoadingStages || isLoadingOverall}
               emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
               resultView="overall"
-              selectedStage={selectedStage}
             />
           )}
 
@@ -353,7 +362,14 @@ export default function Leaderboard() {
           )}
 
           {resultCategory === 'starting-list' && (
-            <StartingListSection entries={startingList} isLoading={isLoadingOverall} />
+            <StartingListSection
+              entries={startingList}
+              stageEntries={selectedStageRecords}
+              selectedStage={selectedStage}
+              mode={startingListMode}
+              onModeChange={setStartingListMode}
+              isLoading={isLoadingOverall || isLoadingEntries}
+            />
           )}
 
           {resultCategory === 'penalties' && (
@@ -368,34 +384,35 @@ export default function Leaderboard() {
 function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect }) {
   if (isLoading) {
     return (
-      <section className="mb-4 rounded border border-neutral-200 bg-white p-3">
-        <div className="h-11 animate-pulse rounded bg-neutral-100" />
+      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-3">
+        <div className="h-11 animate-pulse rounded bg-white/10" />
       </section>
     );
   }
 
   if (stages.length === 0) {
     return (
-      <section className="mb-4 rounded border border-neutral-200 bg-white p-4">
-        <p className="text-sm font-bold text-neutral-500">Belum ada SS untuk event ini.</p>
+      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-4">
+        <p className="text-sm font-bold text-gray-500">Belum ada SS untuk event ini.</p>
       </section>
     );
   }
 
   return (
-    <section className="mb-4 overflow-hidden rounded border border-neutral-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
+    <section className="mb-4 overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Stage</p>
-          <h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">
-            {selectedStage ? `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}` : 'Pilih SS'}
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-400">Select Stage</p>
+          <h2 className="truncate text-sm font-black uppercase tracking-widest text-white">
+            {selectedStageId === FINAL_STAGE_ID ? 'Final - Overall All Time' : selectedStage ? `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}` : 'Pilih SS'}
           </h2>
         </div>
-        <span className="shrink-0 text-xs font-black text-neutral-500">{stages.length} SS</span>
+        <span className="shrink-0 text-xs font-black text-gray-500">{stages.length} SS + Final</span>
       </div>
       <div className="overflow-x-auto">
         <div className="flex min-w-max gap-1 px-3 py-3">
-          {stages.map((stage) => {
+          {[...stages, { id: FINAL_STAGE_ID, ss_order: 'Final', ss_name: 'Overall' }].map((stage) => {
+            const isFinal = stage.id === FINAL_STAGE_ID;
             const active = stage.id === selectedStageId;
             return (
               <button
@@ -404,13 +421,13 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
                 onClick={() => onSelect(stage.id)}
                 className={`relative min-w-20 border px-4 py-3 text-left transition ${
                   active
-                    ? 'border-red-600 bg-red-600 text-white'
-                    : 'border-neutral-200 bg-neutral-100 text-neutral-600 hover:border-neutral-400 hover:bg-white'
+                    ? 'border-red-500 bg-red-600 text-white'
+                    : 'border-white/10 bg-black text-gray-400 hover:border-red-500/70 hover:bg-neutral-800 hover:text-white'
                 }`}
               >
-                {active && <span className="absolute inset-x-0 top-0 h-1 bg-neutral-950" />}
-                <span className="block text-xs font-black uppercase tracking-widest">SS {stage.ss_order}</span>
-                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-white/80' : 'text-neutral-500'}`}>
+                {active && <span className="absolute inset-x-0 top-0 h-1 bg-white" />}
+                <span className="block text-xs font-black uppercase tracking-widest">{isFinal ? 'Final' : `SS ${stage.ss_order}`}</span>
+                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-white/80' : 'text-gray-500'}`}>
                   {stage.ss_name}
                 </span>
               </button>
@@ -432,7 +449,7 @@ function ResultCategoryTabs({ value, onChange }) {
   ];
 
   return (
-    <section className="mb-4 overflow-hidden rounded border border-neutral-200 bg-white shadow-sm">
+    <section className="mb-4 overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
       <div className="overflow-x-auto">
         <div className="flex min-w-max">
         {tabs.map((tab) => {
@@ -442,12 +459,12 @@ function ResultCategoryTabs({ value, onChange }) {
               key={tab.value}
               type="button"
               onClick={() => onChange(tab.value)}
-              className={`relative border-r border-neutral-200 px-5 py-4 text-sm font-black uppercase tracking-widest transition ${
-                active ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950'
+              className={`relative border-r border-white/10 px-5 py-4 text-sm font-black uppercase tracking-widest transition ${
+                active ? 'bg-red-600 text-white' : 'bg-black text-gray-500 hover:bg-neutral-800 hover:text-white'
               }`}
             >
               {tab.label}
-              {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}
+              {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-white" />}
             </button>
           );
         })}
@@ -457,34 +474,44 @@ function ResultCategoryTabs({ value, onChange }) {
   );
 }
 
-function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, selectedStage }) {
+function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView }) {
+  const isOverall = resultView === 'overall';
+  const colSpan = isOverall ? 9 : 5;
+
   return (
-    <section className="overflow-hidden rounded border border-neutral-200 bg-white text-neutral-950 shadow-sm">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+    <section className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
+          <h2 className="text-sm font-black uppercase tracking-widest text-white">{title}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-neutral-500">{entries.length}</span>
-          {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
+          <span className="text-xs font-black uppercase text-gray-500">{entries.length}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-400">Memuat...</span>}
         </div>
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
         <table className={`w-full border-collapse text-sm transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
-            <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
-              <th className="p-4 text-center">Pos</th>
-              <th className="p-4 text-center">No</th>
-              <th className="p-4">Crew</th>
-              {resultView === 'overall' ? (
+            <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+              {isOverall ? (
                 <>
+                  <th className="p-4 text-center">Pos</th>
+                  <th className="p-4 text-center">Car No</th>
+                  <th className="p-4">Driver/Reg</th>
+                  <th className="p-4">Navigator/Reg</th>
+                  <th className="p-4">Car</th>
+                  <th className="p-4 text-right">Penalties</th>
                   <th className="p-4 text-right">Total</th>
-                  <th className="p-4 text-right">Dif</th>
+                  <th className="p-4 text-right">Diff</th>
+                  <th className="p-4 text-right">Diff 1st</th>
                 </>
               ) : (
                 <>
+                  <th className="p-4 text-center">Pos</th>
+                  <th className="p-4 text-center">No</th>
+                  <th className="p-4">Crew</th>
                   <th className="p-4 text-right">Time</th>
                   <th className="p-4 text-right">Dif</th>
                 </>
@@ -494,29 +521,38 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</td>
+                <td colSpan={colSpan} className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</td>
               </tr>
             ) : (
               entries.map((entry) => (
-                <tr key={entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
-                  <td className="p-4 text-center text-2xl font-black">{entry.rank}</td>
-                  <td className="p-4 text-center">
-                    <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
-                  </td>
-                  <td className="p-4">
-                    <div className="font-black text-neutral-950">{entry.driver_name}</div>
-                    <div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-                    <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
-                  </td>
-                  {resultView === 'overall' ? (
+                <tr key={entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
+                  {isOverall ? (
                     <>
-                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                      <td className="p-4 text-center text-2xl font-black text-white">{entry.rank}</td>
+                      <td className="p-4 text-center">
+                        <span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{entry.start_number}</span>
+                      </td>
+                      <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+                      <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+                      <td className="p-4 font-bold text-gray-300">{carName(entry)}</td>
+                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-400">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-400">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   ) : (
                     <>
-                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                      <td className="p-4 text-center text-2xl font-black text-white">{entry.rank}</td>
+                      <td className="p-4 text-center">
+                        <span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{entry.start_number}</span>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-black text-white">{entry.driver_name}</div>
+                        <div className="mt-0.5 text-xs font-bold text-gray-400">{entry.codriver_name || '-'}</div>
+                        <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
+                      </td>
+                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono font-black text-gray-400">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
                     </>
                   )}
                 </tr>
@@ -528,7 +564,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
 
       <div className="space-y-3 p-3 lg:hidden">
         {entries.length === 0 ? (
-          <div className="rounded bg-neutral-100 p-6 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
+          <div className="rounded bg-black p-6 text-center text-sm font-bold text-gray-500">{emptyText}</div>
         ) : (
           entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} />)
         )}
@@ -542,28 +578,24 @@ function StageWinnersSection({ entries, isLoading }) {
     <SimpleSection title="Stage Winners" subtitle="Pemenang tercepat dari setiap SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada stage winner.">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
-            <th className="p-4">SS</th>
-            <th className="p-4">Crew</th>
-            <th className="p-4 text-center">No</th>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4">Stage</th>
+            <th className="p-4">Stage Name</th>
+            <th className="p-4">Driver</th>
+            <th className="p-4">Navigator</th>
+            <th className="p-4">Car</th>
             <th className="p-4 text-right">Time</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.stage_id} className="border-t border-neutral-200">
-              <td className="p-4">
-                <div className="font-black text-neutral-950">SS {entry.ss_order}</div>
-                <div className="text-xs font-bold text-neutral-500">{entry.ss_name}</div>
-              </td>
-              <td className="p-4">
-                <div className="font-black text-neutral-950">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-              </td>
-              <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
-              </td>
-              <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
+            <tr key={entry.stage_id} className="border-t border-white/10">
+              <td className="p-4 font-black text-white">SS {entry.ss_order}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.ss_name}</td>
+              <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+              <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+              <td className="p-4 font-bold text-gray-300">{carName(entry)}</td>
+              <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -572,31 +604,68 @@ function StageWinnersSection({ entries, isLoading }) {
   );
 }
 
-function StartingListSection({ entries, isLoading }) {
+function StartingListSection({ entries, stageEntries, selectedStage, mode, onModeChange, isLoading }) {
+  const isStageMode = mode === 'stage-list';
+  const displayEntries = isStageMode ? buildStageStartingList(stageEntries) : entries;
+  const emptyText = isStageMode && selectedStage?.id === FINAL_STAGE_ID
+    ? 'Starting list per SS tidak tersedia untuk Final.'
+    : 'Belum ada starting list.';
+
   return (
-    <SimpleSection title="Starting List" subtitle="Daftar peserta berdasarkan nomor start" count={entries.length} isLoading={isLoading} emptyText="Belum ada starting list.">
+    <SimpleSection title="Starting List" subtitle="Entry list dan urutan start per SS" count={displayEntries.length} isLoading={isLoading} emptyText={emptyText} showChildrenWhenEmpty>
+      <div className="border-b border-white/10 bg-black px-3 py-3">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { value: 'entry-list', label: 'Entry List' },
+            { value: 'stage-list', label: selectedStage?.id === FINAL_STAGE_ID ? 'Starting List per SS' : `Starting List SS ${selectedStage?.ss_order || ''}` },
+          ].map((tab) => {
+            const active = mode === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => onModeChange(tab.value)}
+                className={`rounded border px-4 py-2 text-xs font-black uppercase tracking-widest transition ${
+                  active ? 'border-red-500 bg-red-600 text-white' : 'border-white/10 bg-neutral-900 text-gray-500 hover:border-red-500/70 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
-            <th className="p-4 text-center">No</th>
-            <th className="p-4">Crew</th>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4 text-center">{isStageMode ? 'Start' : 'No'}</th>
+            <th className="p-4 text-center">Car No.</th>
+            <th className="p-4">Driver / Reg</th>
+            <th className="p-4">Navigator / Reg</th>
+            <th className="p-4">Car</th>
             <th className="p-4">Class</th>
-            <th className="p-4">Regional</th>
+            <th className="p-4">Category</th>
+            {isStageMode && <th className="p-4 text-right">Start Time</th>}
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => (
-            <tr key={entry.participant_id} className="border-t border-neutral-200">
+          {displayEntries.length === 0 && (
+            <tr>
+              <td colSpan={isStageMode ? 8 : 7} className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</td>
+            </tr>
+          )}
+          {displayEntries.map((entry, index) => (
+            <tr key={`${entry.participant_id}-${entry.id || 'entry'}`} className="border-t border-white/10">
+              <td className="p-4 text-center text-lg font-black text-white">{isStageMode ? (entry.start_order || index + 1) : index + 1}</td>
               <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
+                <span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{entry.start_number}</span>
               </td>
-              <td className="p-4">
-                <div className="font-black text-neutral-950">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || entry.entrant_name || '-'}</div>
-              </td>
-              <td className="p-4 font-bold text-neutral-600">{entry.class_name || '-'}</td>
-              <td className="p-4 font-bold text-neutral-600">{entry.regional_name || '-'}</td>
+              <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+              <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+              <td className="p-4 font-bold text-gray-300">{carName(entry)}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.class_name || '-'}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.category_name || '-'}</td>
+              {isStageMode && <td className="p-4 text-right font-mono font-black text-yellow-300">{formatClock(entry.start_time)}</td>}
             </tr>
           ))}
         </tbody>
@@ -610,30 +679,30 @@ function PenaltiesSection({ entries, isLoading }) {
     <SimpleSection title="Penalties" subtitle="Daftar penalti yang tercatat pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
-            <th className="p-4">SS</th>
-            <th className="p-4 text-center">No</th>
-            <th className="p-4">Crew</th>
-            <th className="p-4">Penalty</th>
-            <th className="p-4 text-right">Time</th>
+          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <th className="p-4 text-center">Car No.</th>
+            <th className="p-4">Driver / Reg</th>
+            <th className="p-4">Navigator / Reg</th>
+            <th className="p-4">Car</th>
+            <th className="p-4">Class</th>
+            <th className="p-4">Category</th>
+            <th className="p-4">Reason</th>
+            <th className="p-4 text-right">Penalties</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.key} className="border-t border-neutral-200">
-              <td className="p-4">
-                <div className="font-black text-neutral-950">SS {entry.ss_order}</div>
-                <div className="text-xs font-bold text-neutral-500">{entry.ss_name}</div>
-              </td>
+            <tr key={entry.key} className="border-t border-white/10">
               <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
+                <span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{entry.start_number}</span>
               </td>
-              <td className="p-4">
-                <div className="font-black text-neutral-950">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-              </td>
-              <td className="p-4 font-bold text-neutral-600">{entry.penalty_name}</td>
-              <td className="p-4 text-right font-mono font-black text-red-600">+{formatMs(entry.penalty_time_ms)}</td>
+              <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+              <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+              <td className="p-4 font-bold text-gray-300">{carName(entry)}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.class_name || '-'}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.category_name || '-'}</td>
+              <td className="p-4 font-bold text-gray-300">{entry.penalty_name}</td>
+              <td className="p-4 text-right font-mono font-black text-red-300">+{formatMs(entry.penalty_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -642,22 +711,22 @@ function PenaltiesSection({ entries, isLoading }) {
   );
 }
 
-function SimpleSection({ title, subtitle, count, isLoading, emptyText, children }) {
+function SimpleSection({ title, subtitle, count, isLoading, emptyText, children, showChildrenWhenEmpty = false }) {
   return (
-    <section className="overflow-hidden rounded border border-neutral-200 bg-white text-neutral-950 shadow-sm">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+    <section className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
+          <h2 className="text-sm font-black uppercase tracking-widest text-white">{title}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-neutral-500">{count}</span>
-          {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
+          <span className="text-xs font-black uppercase text-gray-500">{count}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-400">Memuat...</span>}
         </div>
       </div>
       <div className={`overflow-x-auto transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
-        {count === 0 ? (
-          <div className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
+        {count === 0 && !showChildrenWhenEmpty ? (
+          <div className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</div>
         ) : children}
       </div>
     </section>
@@ -705,6 +774,12 @@ function buildStartingList(entries) {
   return [...entries].sort((a, b) => Number(a.start_number || 0) - Number(b.start_number || 0));
 }
 
+function buildStageStartingList(entries) {
+  return [...entries]
+    .filter((entry) => entry.is_active !== false)
+    .sort((a, b) => Number(a.start_order || a.start_number || 0) - Number(b.start_order || b.start_number || 0));
+}
+
 function buildPenaltyRows(stages, stageRecordsById) {
   const rows = [];
   stages.forEach((stage) => {
@@ -720,7 +795,14 @@ function buildPenaltyRows(stages, stageRecordsById) {
             ss_name: stage.ss_name,
             start_number: record.start_number,
             driver_name: record.driver_name,
+            driver_regional_name: record.driver_regional_name,
+            regional_name: record.regional_name,
             codriver_name: record.codriver_name,
+            codriver_regional_name: record.codriver_regional_name,
+            vehicle_name: record.vehicle_name,
+            team_name: record.team_name,
+            class_name: record.class_name,
+            category_name: record.category_name,
             penalty_name: penalty.name || 'Penalty',
             penalty_time_ms: Number(penalty.time_ms || 0),
           });
@@ -741,7 +823,8 @@ function normalizePenaltyDetails(details) {
 function buildOverallEntries(entries, selectedStage) {
   if (!selectedStage) return [];
 
-  const stageLimit = Number(selectedStage.ss_order);
+  const isFinal = selectedStage.id === FINAL_STAGE_ID;
+  const stageLimit = isFinal ? Infinity : Number(selectedStage.ss_order);
   const numericMs = (value) => {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : 0;
@@ -759,13 +842,15 @@ function buildOverallEntries(entries, selectedStage) {
   const rows = entries
     .map((entry) => {
       const stageTimes = entry.stage_times || [];
-      const selectedStageTime = stageTimes.find((stageTime) => (
-        stageTime.ss_id === selectedStage.id || Number(stageTime.ss_order) === stageLimit
-      ));
+      const selectedStageTime = isFinal
+        ? null
+        : stageTimes.find((stageTime) => (
+          stageTime.ss_id === selectedStage.id || Number(stageTime.ss_order) === stageLimit
+        ));
       const upToSelectedStage = stageTimes.filter((stageTime) => Number(stageTime.ss_order) <= stageLimit);
       const completedTimes = upToSelectedStage.filter(isCompletedStage);
       const status = terminalStatus(upToSelectedStage);
-      const hasSelectedResult = isCompletedStage(selectedStageTime);
+      const hasSelectedResult = isFinal ? completedTimes.length > 0 : isCompletedStage(selectedStageTime);
       const hasTerminalStatus = ['DNF', 'DNS', 'DSQ'].includes(status);
 
       if (!hasSelectedResult && !hasTerminalStatus) return null;
@@ -777,7 +862,9 @@ function buildOverallEntries(entries, selectedStage) {
         penalty_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.penalty_time_ms), 0),
         total_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.total_time_ms), 0),
         status: hasTerminalStatus ? status : 'OK',
+        gap_ms: 0,
         diff_ms: 0,
+        diff_first_ms: 0,
       };
     })
     .filter(Boolean);
@@ -792,14 +879,18 @@ function buildOverallEntries(entries, selectedStage) {
 
   const bestTime = rows.find((entry) => entry.status === 'OK')?.total_time_ms || 0;
   let rank = 1;
+  let previousTime = 0;
   return rows.map((entry) => {
-    if (entry.status !== 'OK') return { ...entry, rank: '-' };
+    if (entry.status !== 'OK') return { ...entry, rank: '-', gap_ms: 0, diff_ms: 0, diff_first_ms: 0 };
 
     const rankedEntry = {
       ...entry,
       rank,
+      gap_ms: previousTime ? entry.total_time_ms - previousTime : 0,
       diff_ms: bestTime ? entry.total_time_ms - bestTime : 0,
+      diff_first_ms: bestTime ? entry.total_time_ms - bestTime : 0,
     };
+    previousTime = entry.total_time_ms;
     rank += 1;
     return rankedEntry;
   });
@@ -875,25 +966,45 @@ function resultStatusWeight(status) {
   return 3;
 }
 
-function LeaderboardCard({ entry, resultView }) {
+function renderPerson(name, regional) {
   return (
-    <article className={`rounded border border-neutral-200 p-4 ${rowClass(entry.status) || 'bg-white'}`}>
+    <div>
+      <div className="font-black text-white">{name || '-'}</div>
+      <div className="mt-0.5 text-xs font-bold uppercase tracking-wider text-gray-500">{regional || '-'}</div>
+    </div>
+  );
+}
+
+function carName(entry) {
+  return entry.vehicle_name || entry.car || entry.team_name || entry.entrant_name || '-';
+}
+
+function formatClock(value) {
+  if (!value) return '-';
+  return String(value).slice(0, 8);
+}
+
+function LeaderboardCard({ entry, resultView }) {
+  const isOverall = resultView === 'overall';
+
+  return (
+    <article className={`rounded border border-white/10 p-4 ${rowClass(entry.status) || 'bg-black'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank}</div>
-          <h2 className="mt-1 break-words text-xl font-black text-neutral-950">{entry.driver_name}</h2>
-          <p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</p>
+          <div className="text-xs font-black uppercase tracking-widest text-gray-500">Rank #{entry.rank}</div>
+          <h2 className="mt-1 break-words text-xl font-black text-white">{entry.driver_name}</h2>
+          <p className="text-xs font-bold text-gray-400">{entry.codriver_name || '-'}</p>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{carName(entry)}</p>
         </div>
-        <div className="rounded bg-neutral-950 px-3 py-2 text-center">
-          <div className="text-[9px] font-black uppercase text-neutral-400">No</div>
+        <div className="rounded bg-red-600 px-3 py-2 text-center">
+          <div className="text-[9px] font-black uppercase text-red-100">No</div>
           <div className="text-2xl font-black text-white">{entry.start_number}</div>
         </div>
       </div>
-      {resultView === 'overall' ? (
+      {isOverall ? (
         <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
           <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
-          <MiniMetric label="Dif" value={entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'} />
+          <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
@@ -921,9 +1032,9 @@ function leaderName(entry) {
 
 function MiniMetric({ label, value, highlight = false }) {
   return (
-    <div className="rounded bg-neutral-100 p-3">
-      <p className="text-[9px] uppercase tracking-widest text-neutral-500">{label}</p>
-      <p className={`mt-1 font-mono text-sm font-black ${highlight ? 'text-neutral-950' : 'text-neutral-700'}`}>{value}</p>
+    <div className="rounded bg-neutral-900 p-3">
+      <p className="text-[9px] uppercase tracking-widest text-gray-500">{label}</p>
+      <p className={`mt-1 font-mono text-sm font-black ${highlight ? 'text-yellow-300' : 'text-gray-300'}`}>{value}</p>
     </div>
   );
 }
@@ -945,9 +1056,9 @@ function ConnectionBadge({ state }) {
 }
 
 function rowClass(status) {
-  if (status === 'DNF') return 'bg-orange-50';
-  if (status === 'DNS') return 'bg-yellow-50';
-  if (status === 'DSQ') return 'bg-red-50';
+  if (status === 'DNF') return 'bg-orange-950/60';
+  if (status === 'DNS') return 'bg-yellow-950/60';
+  if (status === 'DSQ') return 'bg-red-950/60';
   return '';
 }
 
