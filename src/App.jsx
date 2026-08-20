@@ -26,8 +26,9 @@ import KamarHitung from './pages/admin/KamarHitung';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { token, role } = useAuthStore();
+  const normalizedRole = String(role || '').trim().toLowerCase();
   if (!token) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(role)) return <Navigate to="/unauthorized" replace />;
+  if (allowedRoles && !allowedRoles.includes(normalizedRole)) return <Navigate to="/unauthorized" replace />;
   return children;
 };
 

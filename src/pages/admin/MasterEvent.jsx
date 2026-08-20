@@ -124,7 +124,9 @@ export default function MasterEvent() {
       else await api.post('/admin/events', payload, config);
       setIsModalOpen(false);
       fetchEvents();
-    } catch (err) { alert('Gagal menyimpan event'); }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menyimpan event');
+    }
   };
 
   return (
