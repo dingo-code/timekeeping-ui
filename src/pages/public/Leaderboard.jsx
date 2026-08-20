@@ -183,7 +183,7 @@ export default function Leaderboard() {
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-[minmax(220px,320px)_minmax(160px,220px)_auto] sm:items-end">
+            <div className="grid gap-2 sm:grid-cols-[minmax(240px,360px)_auto] sm:items-end">
               <label className="block">
                 <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Pilih Event</span>
                 <select
@@ -199,21 +199,6 @@ export default function Leaderboard() {
                   )}
                 </select>
               </label>
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Pilih SS</span>
-                <select
-                  value={selectedStageId}
-                  onChange={(event) => setSelectedStageId(event.target.value)}
-                  disabled={isLoadingStages || stages.length === 0}
-                  className="w-full rounded-lg border border-white/10 bg-black px-3 py-3 text-sm font-black text-white outline-none focus:border-red-500 disabled:opacity-50"
-                >
-                  {stages.length === 0 ? (
-                    <option value="">Belum ada SS</option>
-                  ) : (
-                    stages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order}</option>)
-                  )}
-                </select>
-              </label>
               <ConnectionBadge state={connectionState} />
             </div>
           </div>
@@ -224,6 +209,14 @@ export default function Leaderboard() {
             {error}
           </div>
         )}
+
+        <StageTabs
+          stages={stages}
+          selectedStageId={selectedStageId}
+          selectedStage={selectedStage}
+          isLoading={isLoadingStages}
+          onSelect={setSelectedStageId}
+        />
 
         <section className="mb-4 grid gap-3 sm:grid-cols-3">
           <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
@@ -300,6 +293,63 @@ export default function Leaderboard() {
         </main>
       </div>
     </div>
+  );
+}
+
+function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect }) {
+  if (isLoading) {
+    return (
+      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-3">
+        <div className="h-11 animate-pulse rounded bg-white/5" />
+      </section>
+    );
+  }
+
+  if (stages.length === 0) {
+    return (
+      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-4">
+        <p className="text-sm font-bold text-gray-500">Belum ada SS untuk event ini.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mb-4 overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-400">Stage Times</p>
+          <h2 className="truncate text-sm font-black uppercase tracking-widest text-white">
+            {selectedStage ? `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}` : 'Pilih SS'}
+          </h2>
+        </div>
+        <span className="shrink-0 text-xs font-black text-gray-500">{stages.length} SS</span>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max gap-1 px-3 py-3">
+          {stages.map((stage) => {
+            const active = stage.id === selectedStageId;
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                onClick={() => onSelect(stage.id)}
+                className={`relative min-w-20 border px-4 py-3 text-left transition ${
+                  active
+                    ? 'border-red-500 bg-white text-neutral-950'
+                    : 'border-white/10 bg-black text-gray-300 hover:border-white/30 hover:bg-neutral-800'
+                }`}
+              >
+                {active && <span className="absolute inset-x-0 top-0 h-1 bg-red-600" />}
+                <span className="block text-xs font-black uppercase tracking-widest">SS {stage.ss_order}</span>
+                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-600' : 'text-gray-500'}`}>
+                  {stage.ss_name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 
