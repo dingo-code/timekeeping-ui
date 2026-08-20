@@ -9,9 +9,13 @@ export default function Leaderboard() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedStageId, setSelectedStageId] = useState('');
   const [entries, setEntries] = useState([]);
+  const [entriesByStage, setEntriesByStage] = useState({});
+  const [overallEntries, setOverallEntries] = useState([]);
+  const [resultView, setResultView] = useState('stage-times');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
+  const [isLoadingOverall, setIsLoadingOverall] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
   const reconnectTimerRef = useRef(null);
@@ -28,6 +32,14 @@ export default function Leaderboard() {
     () => stages.find((stage) => stage.id === selectedStageId),
     [stages, selectedStageId]
   );
+
+  const overallForStage = useMemo(
+    () => buildOverallEntries(overallEntries, selectedStage),
+    [overallEntries, selectedStage]
+  );
+
+  const displayedEntries = resultView === 'overall' ? overallForStage : entries;
+  const isLoadingTable = resultView === 'overall' ? isLoadingOverall : isLoadingEntries;
 
   useEffect(() => {
     fetchEvents();
@@ -51,8 +63,11 @@ export default function Leaderboard() {
       socket.close();
     }
     setEntries([]);
+    setEntriesByStage({});
+    setOverallEntries([]);
     setStages([]);
     setSelectedStageId('');
+    setResultView('stage-times');
 
     if (!selectedEventId) {
       shouldReconnectRef.current = false;
@@ -62,6 +77,7 @@ export default function Leaderboard() {
 
     shouldReconnectRef.current = true;
     fetchStages(selectedEventId);
+    fetchOverallResults(selectedEventId);
     connectWebsocket(selectedEventId);
 
     return () => {
@@ -92,7 +108,7 @@ export default function Leaderboard() {
 
   useEffect(() => {
     selectedStageIdRef.current = selectedStageId;
-    setEntries([]);
+    if (entriesByStage[selectedStageId]) setEntries(entriesByStage[selectedStageId]);
     if (selectedStageId) fetchStageLeaderboard(selectedStageId);
   }, [selectedStageId]);
 
@@ -118,11 +134,27 @@ export default function Leaderboard() {
     setError('');
     try {
       const res = await api.get(`/public/stages/${stageId}/records`);
-      setEntries(normalizeStageEntries(res.data.data || []));
+      const normalizedEntries = normalizeStageEntries(res.data.data || []);
+      setEntries(normalizedEntries);
+      setEntriesByStage((current) => ({ ...current, [stageId]: normalizedEntries }));
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memuat leaderboard.');
     } finally {
       setIsLoadingEntries(false);
+    }
+  };
+
+  const fetchOverallResults = async (eventId) => {
+    setIsLoadingOverall(true);
+    setError('');
+    try {
+      const res = await api.get(`/public/race-results/${eventId}?group_by=overall`);
+      const groups = res.data.data?.groups || [];
+      setOverallEntries(groups.flatMap((group) => group.entries || []));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Gagal memuat overall.');
+    } finally {
+      setIsLoadingOverall(false);
     }
   };
 
@@ -141,10 +173,12 @@ export default function Leaderboard() {
     socket.onopen = () => {
       setConnectionState('connected');
       if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
+      fetchOverallResults(eventId);
     };
 
     socket.onmessage = () => {
       if (selectedStageIdRef.current) fetchStageLeaderboard(selectedStageIdRef.current);
+      fetchOverallResults(eventId);
     };
 
     socket.onerror = () => {
@@ -160,7 +194,7 @@ export default function Leaderboard() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-3 py-4 sm:px-6 lg:px-8">
+      <div className="flex min-h-screen w-full flex-col px-3 py-4 sm:px-6 lg:px-8">
         <header className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-4 shadow-2xl sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -218,10 +252,12 @@ export default function Leaderboard() {
           onSelect={setSelectedStageId}
         />
 
+        <ResultViewTabs value={resultView} onChange={setResultView} />
+
         <section className="mb-4 grid gap-3 sm:grid-cols-3">
           <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
-          <Summary label="Peserta Live" value={entries.length} />
-          <Summary label="Fastest" value={leaderName(entries[0])} />
+          <Summary label="Peserta Live" value={displayedEntries.length} />
+          <Summary label="Fastest" value={leaderName(displayedEntries[0])} />
         </section>
 
         <main className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
@@ -230,32 +266,46 @@ export default function Leaderboard() {
               <h2 className="text-sm font-black uppercase tracking-widest text-white">Leaderboard</h2>
               <p className="mt-0.5 text-xs font-semibold text-gray-500">Update otomatis saat data waktu berubah</p>
             </div>
-            {(isLoadingStages || isLoadingEntries) && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black uppercase text-gray-500">{resultView === 'overall' ? 'Overall' : 'Stage Times'}</span>
+              {(isLoadingStages || isLoadingTable) && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
+            </div>
           </div>
 
           <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full border-collapse text-sm">
+            <table className={`w-full border-collapse text-sm transition-opacity duration-200 ${isLoadingTable ? 'opacity-70' : 'opacity-100'}`}>
               <thead>
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
                   <th className="p-4 text-center">Rank</th>
                   <th className="p-4 text-center">No Start</th>
                   <th className="p-4">Driver / Co-driver</th>
-                  <th className="p-4 text-center">Start</th>
-                  <th className="p-4 text-center">Finish</th>
-                  <th className="p-4 text-right">Penalti</th>
-                  <th className="p-4 text-right">Total</th>
+                  {resultView === 'overall' ? (
+                    <>
+                      <th className="p-4 text-center">SS Done</th>
+                      <th className="p-4 text-right">Penalti</th>
+                      <th className="p-4 text-right">Total</th>
+                      <th className="p-4 text-right">Dif</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="p-4 text-center">Start</th>
+                      <th className="p-4 text-center">Finish</th>
+                      <th className="p-4 text-right">Penalti</th>
+                      <th className="p-4 text-right">Total</th>
+                    </>
+                  )}
                   <th className="p-4">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.length === 0 ? (
+                {displayedEntries.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="p-10 text-center text-sm font-bold text-gray-500">
-                      {selectedStageId ? 'Belum ada peserta dengan catatan finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                      {selectedStageId ? `Belum ada data ${resultView === 'overall' ? 'overall' : 'stage times'} untuk SS ini.` : 'Pilih event dan SS untuk melihat leaderboard.'}
                     </td>
                   </tr>
                 ) : (
-                  entries.map((entry) => (
+                  displayedEntries.map((entry) => (
                     <tr key={entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
                       <td className="p-4 text-center text-2xl font-black">{entry.rank}</td>
                       <td className="p-4 text-center">
@@ -266,10 +316,21 @@ export default function Leaderboard() {
                         <div className="mt-0.5 text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
                         <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
                       </td>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
-                      <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.finish_time || '-'}</td>
-                      <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                      {resultView === 'overall' ? (
+                        <>
+                          <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.completed_count || 0}/{selectedStage?.ss_order || '-'}</td>
+                          <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
+                          <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                          <td className="p-4 text-right font-mono font-black text-gray-300">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.start_time || '-'}</td>
+                          <td className="p-4 text-center font-mono font-bold text-gray-300">{entry.finish_time || '-'}</td>
+                          <td className="p-4 text-right font-mono font-black text-red-300">{entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
+                          <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+                        </>
+                      )}
                       <td className="p-4">
                         <StatusPill status={entry.status} />
                         {entry.penalty_desc && <div className="mt-1 text-xs font-bold text-yellow-200">{entry.penalty_desc}</div>}
@@ -282,12 +343,12 @@ export default function Leaderboard() {
           </div>
 
           <div className="space-y-3 p-3 lg:hidden">
-            {entries.length === 0 ? (
+            {displayedEntries.length === 0 ? (
               <div className="rounded-lg bg-black p-6 text-center text-sm font-bold text-gray-500">
-                {selectedStageId ? 'Belum ada peserta dengan catatan finish, DNF, atau DNS pada SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                {selectedStageId ? `Belum ada data ${resultView === 'overall' ? 'overall' : 'stage times'} untuk SS ini.` : 'Pilih event dan SS untuk melihat leaderboard.'}
               </div>
             ) : (
-              entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} />)
+              displayedEntries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} selectedStage={selectedStage} />)
             )}
           </div>
         </main>
@@ -353,6 +414,101 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
   );
 }
 
+function ResultViewTabs({ value, onChange }) {
+  const tabs = [
+    { value: 'stage-times', label: 'Stage Times' },
+    { value: 'overall', label: 'Overall' },
+  ];
+
+  return (
+    <section className="mb-4 flex border-b border-white/10">
+      {tabs.map((tab) => {
+        const active = tab.value === value;
+        return (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => onChange(tab.value)}
+            className={`relative px-5 py-3 text-sm font-black uppercase tracking-widest transition ${
+              active ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {tab.label}
+            {active && <span className="absolute inset-x-5 bottom-0 h-1 bg-red-600" />}
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
+function buildOverallEntries(entries, selectedStage) {
+  if (!selectedStage) return [];
+
+  const stageLimit = Number(selectedStage.ss_order);
+  const numericMs = (value) => {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : 0;
+  };
+  const hasCompleteTime = (stageTime) => Boolean(stageTime?.start_time) && Boolean(stageTime?.finish_time);
+  const isCompletedStage = (stageTime) => (
+    stageTime?.status === 'OK' &&
+    hasCompleteTime(stageTime) &&
+    numericMs(stageTime.total_time_ms) > 0
+  );
+  const terminalStatus = (stageTimes) => (
+    stageTimes.find((stageTime) => ['DNF', 'DNS', 'DSQ'].includes(stageTime.status))?.status || ''
+  );
+
+  const rows = entries
+    .map((entry) => {
+      const stageTimes = entry.stage_times || [];
+      const selectedStageTime = stageTimes.find((stageTime) => (
+        stageTime.ss_id === selectedStage.id || Number(stageTime.ss_order) === stageLimit
+      ));
+      const upToSelectedStage = stageTimes.filter((stageTime) => Number(stageTime.ss_order) <= stageLimit);
+      const completedTimes = upToSelectedStage.filter(isCompletedStage);
+      const status = terminalStatus(upToSelectedStage);
+      const hasSelectedResult = isCompletedStage(selectedStageTime);
+      const hasTerminalStatus = ['DNF', 'DNS', 'DSQ'].includes(status);
+
+      if (!hasSelectedResult && !hasTerminalStatus) return null;
+
+      return {
+        ...entry,
+        rank: 0,
+        completed_count: completedTimes.length,
+        penalty_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.penalty_time_ms), 0),
+        total_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.total_time_ms), 0),
+        status: hasTerminalStatus ? status : 'OK',
+        diff_ms: 0,
+      };
+    })
+    .filter(Boolean);
+
+  rows.sort((a, b) => {
+    const aWeight = resultStatusWeight(a.status);
+    const bWeight = resultStatusWeight(b.status);
+    if (aWeight !== bWeight) return aWeight - bWeight;
+    if (a.status === 'OK' && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
+    return numericMs(a.start_number) - numericMs(b.start_number);
+  });
+
+  const bestTime = rows.find((entry) => entry.status === 'OK')?.total_time_ms || 0;
+  let rank = 1;
+  return rows.map((entry) => {
+    if (entry.status !== 'OK') return { ...entry, rank: '-' };
+
+    const rankedEntry = {
+      ...entry,
+      rank,
+      diff_ms: bestTime ? entry.total_time_ms - bestTime : 0,
+    };
+    rank += 1;
+    return rankedEntry;
+  });
+}
+
 function normalizeStageEntries(records) {
   const numericMs = (value) => {
     const numberValue = Number(value);
@@ -369,18 +525,14 @@ function normalizeStageEntries(records) {
     hasCompleteTime(record) &&
     numericMs(record.total_time_ms) > 0
   );
-  const statusWeight = (record) => {
+  const stageRecordWeight = (record) => {
     if (hasStageResult(record)) return 0;
-    if (record.status === 'OK' || record.status === 'INCOMPLETE' || !record.status) return 1;
-    if (record.status === 'DSQ') return 2;
-    if (record.status === 'DNF') return 3;
-    if (record.status === 'DNS') return 4;
-    return 2;
+    return resultStatusWeight(record.status);
   };
 
   activeRecords.sort((a, b) => {
-    const aWeight = statusWeight(a);
-    const bWeight = statusWeight(b);
+    const aWeight = stageRecordWeight(a);
+    const bWeight = stageRecordWeight(b);
     if (aWeight !== bWeight) return aWeight - bWeight;
 
     const aTotal = numericMs(a.total_time_ms);
@@ -416,7 +568,16 @@ function parsePenaltyDetails(value) {
   }
 }
 
-function LeaderboardCard({ entry }) {
+function resultStatusWeight(status) {
+  if (status === 'OK') return 1;
+  if (status === 'INCOMPLETE' || !status) return 2;
+  if (status === 'DSQ') return 3;
+  if (status === 'DNF') return 4;
+  if (status === 'DNS') return 5;
+  return 3;
+}
+
+function LeaderboardCard({ entry, resultView, selectedStage }) {
   return (
     <article className={`rounded-lg border border-white/10 p-4 ${rowClass(entry.status) || 'bg-neutral-800'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -431,12 +592,21 @@ function LeaderboardCard({ entry }) {
           <div className="text-2xl font-black text-white">{entry.start_number}</div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
-        <MiniMetric label="Start" value={entry.start_time || '-'} />
-        <MiniMetric label="Finish" value={entry.finish_time || '-'} />
-        <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
-        <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
-      </div>
+      {resultView === 'overall' ? (
+        <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
+          <MiniMetric label="SS Done" value={`${entry.completed_count || 0}/${selectedStage?.ss_order || '-'}`} />
+          <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
+          <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
+          <MiniMetric label="Dif" value={entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
+          <MiniMetric label="Start" value={entry.start_time || '-'} />
+          <MiniMetric label="Finish" value={entry.finish_time || '-'} />
+          <MiniMetric label="Penalti" value={entry.penalty_time_ms > 0 ? `+${formatMs(entry.penalty_time_ms)}` : '-'} />
+          <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between gap-3">
         <StatusPill status={entry.status} />
         {entry.penalty_desc && <span className="text-right text-xs font-bold text-yellow-200">{entry.penalty_desc}</span>}
