@@ -97,6 +97,14 @@ function Icon({ name, className = 'h-5 w-5', ...props }) {
         <path d="M6 14h12v8H6z" />
       </>
     ),
+    monitor: (
+      <>
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M8 20h8" />
+        <path d="M12 16v4" />
+        <path d="M7 11h3l2-3 2 6 2-3h1" />
+      </>
+    ),
     logout: (
       <>
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -236,8 +244,50 @@ export default function AdminLayout() {
             }`}
           >
             <Icon name="print" />
-            <span>Cetak Hasil</span>
+            <span>Result</span>
           </Link>
+          <Link
+            to="/admin/results/shakedown"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/results/shakedown' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="print" />
+            <span>Shakedown Result</span>
+          </Link>
+          <a
+            href="/monitoring-input"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/monitoring-input' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Monitoring Input</span>
+          </a>
+          <a
+            href="/kamar-hitung"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/kamar-hitung' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Kamar Hitung</span>
+          </a>
+          <a
+            href="/leaderboard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/leaderboard' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="trophy" />
+            <span>Leaderboard</span>
+          </a>
         </nav>
 
         <div className="p-4 border-t border-gray-800">

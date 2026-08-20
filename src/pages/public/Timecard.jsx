@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { assetUrl } from '../../services/api';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark, tcStatusLabel as displayTCStatusLabel } from '../../utils/tcDisplay';
 
 export default function Timecard() {
   const { eventId, participantId } = useParams();
@@ -37,6 +39,7 @@ export default function Timecard() {
     if (!timecard?.total_ss_count) return 0;
     return Math.round((timecard.completed_ss_count / timecard.total_ss_count) * 100);
   }, [timecard]);
+  const timeDecimalPlaces = timecard?.event?.time_decimal_places ?? 2;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -68,13 +71,16 @@ export default function Timecard() {
             <section className="mb-4 rounded-lg bg-white p-4 text-gray-950 shadow-xl sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Driver / Co-driver</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Driver / Navigator</p>
                   <h2 className="mt-1 break-words text-2xl font-black leading-tight">{timecard.participant.driver_name}</h2>
                   <p className="mt-1 text-sm font-bold text-gray-500">{timecard.participant.codriver_name || '-'}</p>
                 </div>
-                <span className={`shrink-0 rounded px-2.5 py-1 text-[10px] font-black uppercase ${statusClass(timecard.status)}`}>
-                  {timecard.status}
-                </span>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className={`rounded px-2.5 py-1 text-[10px] font-black uppercase ${statusClass(timecard.status)}`}>
+                    {timecard.status}
+                  </span>
+                  {timecard.final_stamp && <LegalStamp value={timecard.final_stamp} />}
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -89,9 +95,16 @@ export default function Timecard() {
 
             <section className="mb-4 grid gap-3 sm:grid-cols-3">
               <Summary label="SS Selesai" value={`${timecard.completed_ss_count}/${timecard.total_ss_count}`} />
-              <Summary label="Total Penalti" value={formatMs(totalPenalty)} />
-              <Summary label="Total Waktu" value={formatMs(timecard.total_time_ms)} highlight />
+              <Summary label="Total Penalti" value={formatMs(totalPenalty, timeDecimalPlaces)} />
+              <Summary label="Total Waktu" value={formatMs(timecard.total_time_ms, timeDecimalPlaces)} highlight />
             </section>
+
+            {timecard.final_stamp === 'FINISHER' && (
+              <section className="mb-4 grid gap-3 sm:grid-cols-2">
+                <Summary label="Pos Overall" value={timecard.overall_rank ? `#${timecard.overall_rank}` : '-'} highlight />
+                <Summary label="Pos Class" value={timecard.class_rank ? `#${timecard.class_rank}` : '-'} highlight />
+              </section>
+            )}
 
             <section className="mb-5 rounded-lg border border-white/10 bg-neutral-900 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -105,13 +118,13 @@ export default function Timecard() {
 
             <section>
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-black uppercase tracking-wide">Rincian SS</h2>
-                <span className="text-xs font-bold text-gray-400">{timecard.stages.length} SS</span>
+                <h2 className="text-lg font-black uppercase tracking-wide">Rincian Stage</h2>
+                <span className="text-xs font-bold text-gray-400">{timecard.total_ss_count} SS resmi</span>
               </div>
 
               <div className="space-y-3 lg:hidden">
                 {timecard.stages.map((stage) => (
-                  <StageCard key={stage.ss_id} stage={stage} />
+                  <StageCard key={stage.record_id || stage.ss_id} stage={stage} timeDecimalPlaces={timeDecimalPlaces} />
                 ))}
               </div>
 
@@ -134,9 +147,9 @@ export default function Timecard() {
                     </thead>
                     <tbody>
                       {timecard.stages.map((stage) => (
-                        <tr key={stage.ss_id} className="border-t border-gray-200">
+                        <tr key={stage.record_id || stage.ss_id} className="border-t border-gray-200">
                           <td className="p-3">
-                            <div className="font-black">SS {stage.ss_order}</div>
+                            <div className="font-black">{stageLabel(stage)}</div>
                             <div className="text-xs font-semibold text-gray-500">{stage.ss_name}</div>
                           </td>
                           <td className="p-3 text-center font-mono">{shortClock(stage.target_tc_time)}</td>
@@ -148,13 +161,13 @@ export default function Timecard() {
                             )}
                           </td>
                           <td className="p-3 text-center font-mono">{stage.start_time || '-'}</td>
-                          <td className="p-3 text-center font-mono">{stage.finish_time || '-'}</td>
-                          <td className="p-3 text-right font-mono">{formatMs(stage.elapsed_time_ms)}</td>
-                          <td className="p-3 text-right font-mono">{formatMs(stage.penalty_time_ms)}</td>
-                          <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms)}</td>
+                          <td className="p-3 text-center font-mono">{formatClockCentiseconds(stage.finish_time, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono">{formatMs(stage.elapsed_time_ms, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono">{formatMs(stage.penalty_time_ms, timeDecimalPlaces)}</td>
+                          <td className="p-3 text-right font-mono font-black">{formatMs(stage.total_time_ms, timeDecimalPlaces)}</td>
                           <td className="p-3">
                             <div className="font-black">{stage.status || '-'}</div>
-                            {stage.remark_penalty && <div className="text-xs text-red-600">{stage.remark_penalty}</div>}
+                            {stage.remark_penalty && <div className="text-xs text-red-600">{compactTCPenaltyRemark(stage.remark_penalty, stage.ss_order)}</div>}
                           </td>
                         </tr>
                       ))}
@@ -198,13 +211,13 @@ function Summary({ label, value, highlight = false }) {
   );
 }
 
-function StageCard({ stage }) {
+function StageCard({ stage, timeDecimalPlaces = 2 }) {
   return (
     <article className="rounded-lg bg-white p-4 text-gray-950 shadow-xl">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Special Stage</p>
-          <h3 className="text-xl font-black">SS {stage.ss_order}</h3>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{stage.is_shakedown ? 'Shakedown' : 'Special Stage'}</p>
+          <h3 className="text-xl font-black">{stageLabel(stage)}</h3>
           <p className="text-sm font-bold text-gray-500">{stage.ss_name}</p>
         </div>
         <span className={`rounded px-2.5 py-1 text-[10px] font-black uppercase ${stageStatusClass(stage.status)}`}>
@@ -216,7 +229,7 @@ function StageCard({ stage }) {
         <MiniMetric label="Target TC" value={shortClock(stage.target_tc_time)} />
         <MiniMetric label="TC" value={shortClock(stage.tc_time)} />
         <MiniMetric label="Start" value={stage.start_time || '-'} />
-        <MiniMetric label="Finish" value={stage.finish_time || '-'} />
+        <MiniMetric label="Finish" value={formatClockCentiseconds(stage.finish_time, timeDecimalPlaces)} />
       </div>
 
       <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -230,13 +243,13 @@ function StageCard({ stage }) {
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniMetric label="Time" value={formatMs(stage.elapsed_time_ms)} />
-        <MiniMetric label="Penalty" value={formatMs(stage.penalty_time_ms)} />
-        <MiniMetric label="Total" value={formatMs(stage.total_time_ms)} strong />
+        <MiniMetric label="Time" value={formatMs(stage.elapsed_time_ms, timeDecimalPlaces)} />
+        <MiniMetric label="Penalty" value={formatMs(stage.penalty_time_ms, timeDecimalPlaces)} />
+        <MiniMetric label="Total" value={formatMs(stage.total_time_ms, timeDecimalPlaces)} strong />
       </div>
 
       {stage.remark_penalty && (
-        <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-bold text-red-700">{stage.remark_penalty}</div>
+        <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-bold text-red-700">{compactTCPenaltyRemark(stage.remark_penalty, stage.ss_order)}</div>
       )}
     </article>
   );
@@ -249,6 +262,34 @@ function MiniMetric({ label, value, strong = false }) {
       <p className={`mt-1 break-words font-mono text-sm ${strong ? 'font-black text-red-700' : 'font-bold text-gray-950'}`}>{value || '-'}</p>
     </div>
   );
+}
+
+function LegalStamp({ value }) {
+  const label = stampLabel(value);
+  const tone = value === 'FINISHER'
+    ? 'border-green-600 text-green-700'
+    : value === 'WITHDRAW'
+      ? 'border-purple-700 text-purple-800'
+      : 'border-red-700 text-red-700';
+
+  return (
+    <div className={`rotate-[-6deg] rounded border-2 bg-white/80 px-3 py-1 text-center text-[11px] font-black uppercase tracking-[0.18em] ${tone}`}>
+      <div className="text-[8px] leading-none tracking-[0.22em]">LEGAL</div>
+      <div className="leading-tight">{label}</div>
+    </div>
+  );
+}
+
+function stampLabel(value) {
+  if (value === 'NON_FINISHER') return 'NON FINISHER';
+  if (value === 'WITHDRAW') return 'WITHDRAW';
+  if (value === 'FINISHER') return 'FINISHER';
+  return value || '';
+}
+
+function stageLabel(stage) {
+  if (stage?.is_shakedown) return stage.attempt_no ? `Shakedown ${stage.attempt_no}` : 'Shakedown';
+  return `SS ${stage.ss_order}`;
 }
 
 function TCBadge({ status }) {
@@ -270,19 +311,6 @@ function formatEventDate(event) {
   return `${start} - ${end}`;
 }
 
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
-}
-
 function shortClock(value) {
   if (!value) return '-';
   return value.slice(0, 5);
@@ -294,36 +322,31 @@ function formatTCDelta(ms) {
   const absMs = Math.abs(value);
   const minutes = Math.floor(absMs / 60000);
   const seconds = Math.floor((absMs % 60000) / 1000);
-  const direction = value < 0 ? 'lebih awal' : 'terlambat';
-  return `${minutes}m ${seconds}s ${direction}`;
+  const direction = value < 0 ? 'Early' : 'Late';
+  return `${direction} ${minutes}m ${seconds}s`;
 }
 
 function statusClass(status) {
   if (status === 'OK') return 'bg-green-100 text-green-700';
   if (status === 'INCOMPLETE') return 'bg-yellow-100 text-yellow-700';
+  if (status === 'BWTM') return 'bg-purple-100 text-purple-700';
   if (status === 'DNF') return 'bg-orange-100 text-orange-700';
   if (status === 'DSQ') return 'bg-red-100 text-red-700';
+  if (status === 'WITHDRAW') return 'bg-purple-100 text-purple-700';
+  if (status === 'NOT_FINISHER') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 function stageStatusClass(status) {
   if (status === 'OK') return 'bg-green-100 text-green-700';
+  if (status === 'BWTM') return 'bg-purple-100 text-purple-700';
   if (status === 'DNF') return 'bg-orange-100 text-orange-700';
   if (status === 'DSQ') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
 }
 
 function tcStatusLabel(status) {
-  const labels = {
-    ON_TIME: 'Sesuai',
-    EARLY: 'Terlalu Awal',
-    LATE: 'Terlambat',
-    WAITING: 'Menunggu',
-    UNSCHEDULED: 'Tanpa Target',
-    NOT_SCHEDULED: 'Belum Ada',
-    INVALID: 'Invalid',
-  };
-  return labels[status] || '-';
+  return displayTCStatusLabel(status);
 }
 
 function tcStatusClass(status) {

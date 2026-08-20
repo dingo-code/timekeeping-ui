@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import Modal from '../../components/Modal';
+import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
 export default function KamarHitung() {
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ export default function KamarHitung() {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [recordSearch, setRecordSearch] = useState('');
 
   // State Modal Penalti
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
@@ -32,9 +35,13 @@ export default function KamarHitung() {
     else setExpandedRow(id);
   };
 
-  // State Modal Edit Waktu
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ start_time: '', finish_time: '' });
+  const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
+  const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
+  const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
+  const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
+
+  const [timeDrafts, setTimeDrafts] = useState({});
+  const [savingTimeCell, setSavingTimeCell] = useState('');
 
   useEffect(() => {
     fetchEvents();
@@ -62,6 +69,7 @@ export default function KamarHitung() {
     const eventId = e.target.value;
     setSelectedEvent(eventId);
     setSelectedSS('');
+    setRecordSearch('');
     setRecords([]);
     setRestartRequests([]);
     
@@ -79,6 +87,7 @@ export default function KamarHitung() {
 
   const handleSSChange = (e) => {
     const ssId = e.target.value;
+    setRecordSearch('');
     setSelectedSS(ssId);
   };
 
@@ -140,13 +149,70 @@ export default function KamarHitung() {
     }
   };
 
-  const handleSetStatus = async (recordId, newStatus) => {
-    if (!window.confirm(`Ubah status peserta ini menjadi ${newStatus}?`)) return;
+  const parseManualPenaltyTimeMs = (value) => {
+    const normalized = String(value || '').trim().replace(',', '.');
+    if (!normalized) return 0;
+
+    const parts = normalized.split(':');
+    const parsePart = (part) => Number(part);
+    let totalSeconds = 0;
+
+    if (parts.length === 1) {
+      const seconds = parsePart(parts[0]);
+      if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+      totalSeconds = seconds;
+    } else if (parts.length === 2) {
+      const minutes = parsePart(parts[0]);
+      const seconds = parsePart(parts[1]);
+      if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0 || seconds >= 60) return 0;
+      totalSeconds = minutes * 60 + seconds;
+    } else if (parts.length === 3) {
+      const hours = parsePart(parts[0]);
+      const minutes = parsePart(parts[1]);
+      const seconds = parsePart(parts[2]);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds) || hours < 0 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) return 0;
+      totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    } else {
+      return 0;
+    }
+
+    return Math.round(totalSeconds * 1000);
+  };
+
+  const requestManualBWTMTime = (status) => {
+    const dnsNote = status === 'DNS' ? '\nUntuk DNS, sistem tetap menambahkan penalti DNS 1 pos otomatis setelah waktu ini.' : '';
+    const value = window.prompt(
+      `BWTM otomatis tidak bisa dihitung karena tidak ada pembanding waktu tercepat di class ini.\n\nMasukkan waktu BWTM manual.\nContoh: 05:30.00 atau 1:05:30.00.${dnsNote}`
+    );
+    if (value === null) return 0;
+
+    const manualMs = parseManualPenaltyTimeMs(value);
+    if (manualMs <= 0) {
+      alert('Format waktu manual tidak valid. Gunakan contoh 05:30.00 atau 1:05:30.00');
+      return 0;
+    }
+    return manualMs;
+  };
+
+  const handleSetStatus = async (recordId, newStatus, manualElapsedTimeMs = 0) => {
+    if (!manualElapsedTimeMs && !window.confirm(`Ubah status peserta ini menjadi ${newStatus}?`)) return;
     try {
-      await api.put(`/timekeeping/ss-records/${recordId}/status`, { status: newStatus });
+      await api.put(`/timekeeping/ss-records/${recordId}/status`, {
+        status: newStatus,
+        manual_elapsed_time_ms: manualElapsedTimeMs,
+      });
       fetchRecords(selectedSS);
     } catch (e) {
-      alert('Gagal merubah status');
+      const errorMessage = e.response?.data?.error || 'Gagal merubah status';
+      const needsManualBWTM = ['DNF', 'BWTM', 'DNS'].includes(newStatus) && errorMessage.toLowerCase().includes('belum ada waktu tercepat');
+      if (!manualElapsedTimeMs && needsManualBWTM) {
+        const manualMs = requestManualBWTMTime(newStatus);
+        if (manualMs > 0) {
+          await handleSetStatus(recordId, newStatus, manualMs);
+        }
+        return;
+      }
+      alert(errorMessage);
     }
   };
 
@@ -199,44 +265,112 @@ export default function KamarHitung() {
     }
   };
 
-  // ==========================================
-  // HANDLER EDIT WAKTU
-  // ==========================================
-  const openEditModal = (record) => {
-    setSelectedRecord(record);
-    setEditForm({
-      start_time: record.start_time || '',
-      finish_time: record.finish_time || ''
-    });
-    setIsEditModalOpen(true);
+  const getJoinedByStartNumbers = (record) => records
+    .filter((item) => Number(item.join_car_with_start_number) === Number(record.start_number))
+    .map((item) => item.start_number)
+    .filter(Boolean)
+    .sort((a, b) => Number(a) - Number(b));
+
+  const getTimeDraftValue = (record, field) => timeDrafts[record.id]?.[field] ?? record[field] ?? '';
+
+  const updateTimeDraft = (recordId, field, value) => {
+    setTimeDrafts((current) => ({
+      ...current,
+      [recordId]: {
+        ...(current[recordId] || {}),
+        [field]: value,
+      },
+    }));
   };
 
-  const submitEditTime = async (e) => {
-    e.preventDefault();
+  const clearTimeDraft = (recordId) => {
+    setTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[recordId];
+      return next;
+    });
+  };
+
+  const saveInlineTime = async (record, field) => {
+    const cellKey = `${record.id}:${field}`;
+    if (savingTimeCell === cellKey) return;
+
+    const draft = timeDrafts[record.id] || {};
+    const payload = {
+      id: record.id,
+      ss_id: record.ss_id,
+      participant_id: record.participant_id,
+      tc_time: draft.tc_time ?? record.tc_time ?? '',
+      start_time: draft.start_time ?? record.start_time ?? '',
+      finish_time: draft.finish_time ?? record.finish_time ?? '',
+      force_update: true,
+    };
+    if (String(payload[field] || '').trim() === String(record[field] || '').trim()) {
+      clearTimeDraft(record.id);
+      return;
+    }
+
+    setSavingTimeCell(cellKey);
     try {
-      // Kita manfaatkan endpoint POST pencatatan waktu yang otomatis melakukan UPDATE jika data sudah ada
-      await api.post('/timekeeping/ss-records', {
-        ss_id: selectedRecord.ss_id,
-        participant_id: selectedRecord.participant_id,
-        start_time: editForm.start_time,
-        finish_time: editForm.finish_time,
-        force_update: true
-      });
-      alert('Waktu berhasil dikoreksi!');
-      setIsEditModalOpen(false);
-      fetchRecords(selectedSS);
+      await api.post('/timekeeping/ss-records', payload);
+      clearTimeDraft(record.id);
+      fetchRecords(selectedSS, true);
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal mengedit waktu');
+    } finally {
+      setSavingTimeCell('');
     }
   };
 
-  // Helper Format Milidetik
-  const formatTime = (ms) => {
-    if (!ms || ms === 0) return "-";
-    const minutes = Math.floor(ms / 60000).toString().padStart(2, '0');
-    const seconds = ((ms % 60000) / 1000).toFixed(3).padStart(6, '0');
-    return `${minutes}:${seconds}`;
+  const handleTimeInputKeyDown = (event, record, field) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      updateTimeDraft(record.id, field, record[field] || '');
+      event.currentTarget.blur();
+    }
   };
+
+  const renderEditableTimeCell = (record, field, displayValue, placeholder) => {
+    const cellKey = `${record.id}:${field}`;
+    const canEdit = record.is_active && record.status === 'OK';
+    return (
+      <input
+        type="text"
+        disabled={!canEdit || savingTimeCell === cellKey}
+        className={`w-28 rounded border px-2 py-1 text-center font-mono text-xs font-semibold outline-none transition ${
+          canEdit
+            ? 'border-transparent bg-transparent hover:border-blue-200 hover:bg-blue-50 focus:border-blue-500 focus:bg-white focus:ring-1 focus:ring-blue-200'
+            : 'border-transparent bg-transparent text-gray-400'
+        } ${savingTimeCell === cellKey ? 'border-amber-300 bg-amber-50 text-amber-700' : ''}`}
+        value={getTimeDraftValue(record, field)}
+        onChange={(event) => updateTimeDraft(record.id, field, event.target.value)}
+        onBlur={() => saveInlineTime(record, field)}
+        onKeyDown={(event) => handleTimeInputKeyDown(event, record, field)}
+        placeholder={displayValue || placeholder}
+        title={canEdit ? 'Klik untuk koreksi waktu' : 'Hanya record aktif OK yang bisa diedit inline'}
+      />
+    );
+  };
+
+  const normalizedRecordSearch = recordSearch.trim().toLowerCase();
+  const filteredRecords = normalizedRecordSearch
+    ? records.filter((record) => [
+        record.start_number,
+        record.driver_name,
+        record.codriver_name,
+        record.team_name,
+        record.class_name,
+        record.status,
+        record.attempt_no ? `attempt ${record.attempt_no}` : '',
+        record.attempt_no ? `#${record.attempt_no}` : '',
+        record.join_car_with_start_number ? `join car with ${record.join_car_with_start_number}` : '',
+        getJoinedByStartNumbers(record).length ? `joined by ${getJoinedByStartNumbers(record).join(' ')}` : '',
+      ].join(' ').toLowerCase().includes(normalizedRecordSearch))
+    : records;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -252,8 +386,8 @@ export default function KamarHitung() {
           </select>
 
           <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
-            <option value="">-- PILIH SS --</option>
-            {stages.map(s => <option key={s.id} value={s.id}>SS {s.ss_order} : {s.ss_name}</option>)}
+            <option value="">-- PILIH STAGE --</option>
+            {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
           </select>
           
           <button onClick={() => { logout(); navigate('/login'); }} className="text-xs font-bold text-gray-500 hover:text-red-600 transition">LOGOUT</button>
@@ -269,42 +403,72 @@ export default function KamarHitung() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live)</h2>
-              <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded font-black uppercase tracking-wide">Live auto-refresh</span>
+            <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live) {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-500">{filteredRecords.length} dari {records.length} record tampil.</p>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                <input
+                  type="search"
+                  value={recordSearch}
+                  onChange={(event) => setRecordSearch(event.target.value)}
+                  placeholder="Cari no start, entrant, driver, class, status..."
+                  className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-700 outline-none transition focus:border-red-500 focus:ring-1 focus:ring-red-500 sm:w-80"
+                />
+                <span className="whitespace-nowrap rounded bg-green-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-green-700">Live auto-refresh</span>
+              </div>
             </div>
             
             <RestartRequestPanel
               requests={restartRequests}
               onApprove={approveRestartRequest}
               onReject={rejectRestartRequest}
+              timeDecimalPlaces={timeDecimalPlaces}
             />
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
+              <table className="w-full min-w-[1280px] text-left border-collapse text-sm">
                 <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="p-3 text-center border-b">No Start</th>
                     <th className="p-3 border-b text-center">Attempt</th>
-                    <th className="p-3 border-b">Peserta</th>
+                    <th className="p-3 border-b">Entrant</th>
+                    <th className="p-3 border-b">Driver / Navigator</th>
+                    <th className="p-3 border-b text-center">Class</th>
+                    <th className="p-3 border-b text-center">TC</th>
                     <th className="p-3 border-b text-center">Waktu Start</th>
                     <th className="p-3 border-b text-center">Waktu Finish</th>
                     <th className="p-3 border-b text-center text-blue-600">Elapsed</th>
                     <th className="p-3 border-b text-center text-red-600">Penalty</th>
                     <th className="p-3 border-b text-center text-green-700 font-black">Total Waktu</th>
                     <th className="p-3 border-b text-center">Status</th>
-                    <th className="p-3 border-b text-right">Aksi Kamar Hitung</th>
+                    <th className="w-44 p-3 border-b text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {isLoading ? <tr><td colSpan="10" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
-                   records.length === 0 ? <tr><td colSpan="10" className="p-10 text-center text-gray-400 italic">Belum ada data masuk dari pos lapangan untuk SS ini.</td></tr> :
-                   records.map((r) => (
+                  {isLoading ? <tr><td colSpan="13" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
+                   filteredRecords.length === 0 ? <tr><td colSpan="13" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
+                   filteredRecords.map((r, rowIndex) => {
+                    const joinedByStartNumbers = getJoinedByStartNumbers(r);
+                    return (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
-                    <tr key={r.id} className={`hover:bg-gray-50 transition ${!r.is_active ? 'bg-gray-50 text-gray-500' : ''}`}>
+                    <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${!r.is_active ? 'text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
-                        <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="bg-black text-white font-black px-2 py-1 rounded">{r.start_number}</span>
+                          {Number(r.join_car_with_start_number) > 0 && (
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                              Join car with #{r.join_car_with_start_number}
+                            </span>
+                          )}
+                          {joinedByStartNumbers.length > 0 && (
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                              Joined by #{joinedByStartNumbers.join(', #')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex flex-col items-center gap-1">
@@ -314,28 +478,44 @@ export default function KamarHitung() {
                           </span>
                         </div>
                       </td>
+                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-500">{r.team_name || '-'}</td>
                       <td className="p-3 font-bold text-gray-800">
-                        {r.driver_name} <br/> <span className="text-xs text-gray-500 font-normal">{r.team_name}</span>
+                        {r.driver_name}
+                        <br />
+                        <span className="text-xs text-gray-500 font-normal">{r.codriver_name || '-'}</span>
                         {!r.is_active && r.restart_reason && (
                           <div className="mt-1 text-[11px] font-semibold text-orange-700 bg-orange-50 inline-block px-2 py-1 rounded">
                             Restart: {r.restart_reason}
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-center font-mono text-gray-600">{r.start_time || '-'}</td>
-                      <td className="p-3 text-center font-mono text-gray-600">{r.finish_time || '-'}</td>
-                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatTime(r.elapsed_time_ms)}</td>
+                      <td className="p-3 text-center text-xs font-black uppercase text-gray-700">{r.class_name || '-'}</td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'tc_time', formatClockHourMinute(r.tc_time), 'HH:MM:SS')}
+                      </td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'start_time', formatClockHourMinute(r.start_time), 'HH:MM:SS.00')}
+                      </td>
+                      <td className="p-3 text-center font-mono text-gray-600">
+                        {renderEditableTimeCell(r, 'finish_time', formatClockCentiseconds(r.finish_time, timeDecimalPlaces), 'HH:MM:SS.00')}
+                      </td>
+                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms, timeDecimalPlaces)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
                           {r.penalty_time_ms > 0 ? (
                             <div className="flex items-center justify-center gap-2 cursor-pointer" onClick={() => toggleRow(r.id)}>
-                              <span>+{formatTime(r.penalty_time_ms)}</span>
+                              <span>+{formatMs(r.penalty_time_ms, timeDecimalPlaces)}</span>
                               <span className="text-[10px] bg-red-200 text-red-800 px-1 rounded hover:bg-red-300">
                                 {expandedRow === r.id ? '▲' : '▼'}
                               </span>
                             </div>
                           ) : '-'}
                         </td>
-                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">{formatTime(r.total_time_ms)}</td>
+                      <td className="p-3 text-center font-mono text-green-700 font-black bg-green-50/30 text-base">
+                        <div>{formatMs(r.total_time_ms, timeDecimalPlaces)}</div>
+                        {(r.status === 'BWTM' || r.status === 'DNS') && Number(r.total_time_ms) > 0 && (
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-gray-500">{r.status === 'DNS' ? 'BWTM + 1 POS' : 'BWTM'}</div>
+                        )}
+                      </td>
                       <td className="p-3 text-center">
                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${r.status === 'OK' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {r.status}
@@ -343,11 +523,9 @@ export default function KamarHitung() {
                       </td>
                       
                       {/* KOLOM AKSI DIPERBARUI */}
-                      <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                      <td className="w-44 p-2 align-top">
                         {r.is_active && r.status === 'OK' && (
-                          <>
-                            <button onClick={() => openEditModal(r)} className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded transition">EDIT ✏️</button>
-                            
+                          <div className="ml-auto grid w-40 grid-cols-2 gap-1 [&_button]:min-h-8 [&_button]:whitespace-normal [&_button]:px-1.5 [&_button]:py-1 [&_button]:text-[10px] [&_button]:font-black [&_button]:leading-tight">
                             {/* 1. TOMBOL + PENALTI SELALU MUNCUL AGAR BISA DITUMPUK */}
                             <button onClick={() => openPenaltyModal(r)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition">+ PENALTI</button>
                             
@@ -357,28 +535,31 @@ export default function KamarHitung() {
                             )}
                             
                             <button onClick={() => handleSetStatus(r.id, 'DNF')} className="text-xs font-bold text-white bg-gray-800 hover:bg-black px-2 py-1 rounded transition">DNF</button>
+                            <button onClick={() => handleSetStatus(r.id, 'BWTM')} className="text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 px-2 py-1 rounded transition">BWTM</button>
                             <button onClick={() => handleSetStatus(r.id, 'DNS')} className="text-xs font-bold text-white bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded transition">DNS</button>
-                            <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
-                          </>
+                            {!r.is_shakedown && (
+                              <button onClick={() => openRestartModal(r)} className="text-xs font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-1 rounded transition">RESTART</button>
+                            )}
+                          </div>
                         )}
                         {r.is_active && r.status !== 'OK' && (
-                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="text-xs font-bold text-gray-500 hover:text-green-600 border border-gray-300 px-2 py-1 rounded transition">BATAL STATUS</button>
+                          <button onClick={() => handleSetStatus(r.id, 'OK')} className="ml-auto block w-40 rounded border border-gray-300 px-2 py-1.5 text-[10px] font-black uppercase text-gray-500 transition hover:text-green-600">Batal Status</button>
                         )}
                         {!r.is_active && (
-                          <span className="text-xs font-bold text-gray-400">Histori attempt</span>
+                          <span className="block text-center text-xs font-bold text-gray-400">Histori attempt</span>
                         )}
                       </td>
                     </tr>
                     {expandedRow === r.id && r.penalty_details && r.penalty_details.length > 0 && (
                         <tr className="bg-red-50/50 border-b border-gray-200">
-                          <td colSpan="10" className="px-6 py-3">
+                          <td colSpan="13" className="px-6 py-3">
                             <div className="bg-white border border-red-200 rounded p-3 shadow-inner">
                               <p className="text-xs font-bold text-red-800 mb-2 border-b border-red-100 pb-1">📜 Rincian Penalti Mobil #{r.start_number}:</p>
                               <ul className="space-y-1">
                                 {r.penalty_details.map((pd, idx) => (
                                   <li key={idx} className="text-xs flex justify-between text-gray-700">
-                                    <span>• {pd.name}</span>
-                                    <span className="font-mono text-red-600 font-bold">+{formatTime(pd.time_ms)}</span>
+                                    <span>• {compactTCPenaltyRemark(pd.name, selectedStage?.ss_order)}</span>
+                                    <span className="font-mono text-red-600 font-bold">+{formatMs(pd.time_ms, timeDecimalPlaces)}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -387,7 +568,7 @@ export default function KamarHitung() {
                         </tr>
                       )}
                     </Fragment>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -436,46 +617,18 @@ export default function KamarHitung() {
         </form>
       </Modal>
 
-      {/* MODAL EDIT WAKTU (BARU) */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Koreksi Waktu Manual">
-        <form onSubmit={submitEditTime} className="p-6 space-y-4">
-          <p className="text-sm text-gray-600 mb-2">Koreksi waktu untuk Mobil <strong>#{selectedRecord?.start_number} ({selectedRecord?.driver_name})</strong></p>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU START (Format: 08:15:30.000)</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
-              value={editForm.start_time}
-              onChange={(e) => setEditForm({...editForm, start_time: e.target.value})}
-              placeholder="00:00:00.000"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">WAKTU FINISH (Format: 08:15:30.000)</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border border-gray-300 rounded outline-none focus:ring-1 focus:ring-blue-600 font-mono"
-              value={editForm.finish_time}
-              onChange={(e) => setEditForm({...editForm, finish_time: e.target.value})}
-              placeholder="00:00:00.000"
-            />
-          </div>
-
-          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
-            <p className="text-xs text-yellow-800">⚠️ Sistem akan menghitung ulang <b>Elapsed Time</b> secara otomatis jika Anda menyimpan perubahan ini.</p>
-          </div>
-
-          <button type="submit" className="w-full py-3 bg-blue-600 text-white font-black uppercase tracking-widest text-xs hover:bg-blue-700 transition">Simpan Koreksi</button>
-        </form>
-      </Modal>
-
     </div>
   );
 }
 
-function RestartRequestPanel({ requests, onApprove, onReject }) {
+function formatClockHourMinute(value) {
+  if (!value) return '-';
+  const match = String(value).match(/^(\d{2}):(\d{2})/);
+  if (!match) return value;
+  return `${match[1]}:${match[2]}`;
+}
+
+function RestartRequestPanel({ requests, onApprove, onReject, timeDecimalPlaces = 2 }) {
   const pendingRequests = (requests || []).filter((request) => request.status === 'PENDING');
   if (pendingRequests.length === 0) return null;
 
@@ -505,7 +658,7 @@ function RestartRequestPanel({ requests, onApprove, onReject }) {
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-gray-500">
                   <span>Attempt #{request.attempt_no || 1}</span>
                   <span>Start {request.start_time || '-'}</span>
-                  <span>Finish {request.finish_time || '-'}</span>
+                  <span>Finish {formatClockCentiseconds(request.finish_time, timeDecimalPlaces)}</span>
                   <span>Pengaju: {request.requested_by || '-'}</span>
                 </div>
               </div>

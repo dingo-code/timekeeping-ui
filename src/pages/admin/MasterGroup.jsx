@@ -73,7 +73,7 @@ export default function MasterGroup() {
               {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">+ Tambah</button>
+          <button onClick={() => openModal()} className="admin-btn-primary">+ Tambah</button>
         </div>
       </div>
 
@@ -94,8 +94,8 @@ export default function MasterGroup() {
                 <td className="p-4 font-mono font-bold text-red-600">{g.code}</td>
                 <td className="p-4 font-medium text-gray-800">{g.name}</td>
                 <td className="p-4 text-right space-x-3">
-                  <button onClick={() => openModal(g)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
-                  <button onClick={() => handleDelete(g.id)} className="text-red-600 hover:underline text-sm font-medium">Hapus</button>
+                  <button onClick={() => openModal(g)} className="admin-btn-edit">Edit</button>
+                  <button onClick={() => handleDelete(g.id)} className="admin-btn-delete">Hapus</button>
                 </td>
               </tr>
             ))}
@@ -118,8 +118,8 @@ export default function MasterGroup() {
             <input type="text" required className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-red-500" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
           </div>
           <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg">Batal</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg">Simpan</button>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="admin-btn-muted">Batal</button>
+            <button type="submit" className="admin-btn-primary">Simpan</button>
           </div>
         </form>
       </Modal>

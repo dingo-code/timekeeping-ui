@@ -75,7 +75,7 @@ export default function MasterRacer() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.is_driver && !formData.is_codriver) {
-      alert("Peserta harus bertindak minimal sebagai Driver atau Co-Driver!");
+      alert("Peserta harus bertindak minimal sebagai Driver atau Navigator!");
       return;
     }
 
@@ -111,7 +111,7 @@ export default function MasterRacer() {
               {[5, 10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
           </div>
-          <button onClick={() => openModal()} className="whitespace-nowrap px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition">+ Tambah</button>
+          <button onClick={() => openModal()} className="admin-btn-primary">+ Tambah</button>
         </div>
       </div>
 
@@ -136,11 +136,11 @@ export default function MasterRacer() {
                 <td className="p-4 text-gray-600">{getRegionName(r.region_id)}</td>
                 <td className="p-4 text-xs font-bold">
                   {r.is_driver && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded mr-1">D</span>}
-                  {r.is_codriver && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Co-D</span>}
+                  {r.is_codriver && <span className="bg-green-100 text-green-700 px-2 py-1 rounded">Navigator</span>}
                 </td>
                 <td className="p-4 text-right space-x-3">
-                  <button onClick={() => openModal(r)} className="text-blue-600 hover:underline text-sm font-medium">Edit</button>
-                  <button onClick={() => handleDelete(r.id)} className="text-red-600 hover:underline text-sm font-medium">Hapus</button>
+                  <button onClick={() => openModal(r)} className="admin-btn-edit">Edit</button>
+                  <button onClick={() => handleDelete(r.id)} className="admin-btn-delete">Hapus</button>
                 </td>
               </tr>
             ))}
@@ -202,14 +202,14 @@ export default function MasterRacer() {
               </label>
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input type="checkbox" className="w-4 h-4 text-red-600 rounded" checked={formData.is_codriver} onChange={e => setFormData({...formData, is_codriver: e.target.checked})} />
-                <span className="text-sm font-medium">Co-Driver (Navigator)</span>
+                <span className="text-sm font-medium">Navigator</span>
               </label>
             </div>
           </div>
 
           <div className="pt-4 flex justify-end space-x-3">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg font-medium">Batal</button>
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium">Simpan Data</button>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="admin-btn-muted">Batal</button>
+            <button type="submit" className="admin-btn-primary font-medium">Simpan Data</button>
           </div>
         </form>
       </Modal>
