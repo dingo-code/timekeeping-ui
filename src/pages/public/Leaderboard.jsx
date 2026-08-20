@@ -296,6 +296,8 @@ export default function Leaderboard() {
           </div>
         )}
 
+        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
+
         <StageTabs
           stages={stages}
           selectedStageId={selectedStageId}
@@ -303,8 +305,6 @@ export default function Leaderboard() {
           isLoading={isLoadingStages}
           onSelect={setSelectedStageId}
         />
-
-        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
 
         <section className="mb-4 grid gap-3 sm:grid-cols-3">
           <Summary label={selectedStage ? `SS ${selectedStage.ss_order}` : 'SS'} value={selectedStage?.ss_name || '-'} />
@@ -368,30 +368,30 @@ export default function Leaderboard() {
 function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect }) {
   if (isLoading) {
     return (
-      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-3">
-        <div className="h-11 animate-pulse rounded bg-white/5" />
+      <section className="mb-4 rounded border border-neutral-200 bg-white p-3">
+        <div className="h-11 animate-pulse rounded bg-neutral-100" />
       </section>
     );
   }
 
   if (stages.length === 0) {
     return (
-      <section className="mb-4 rounded-lg border border-white/10 bg-neutral-900 p-4">
-        <p className="text-sm font-bold text-gray-500">Belum ada SS untuk event ini.</p>
+      <section className="mb-4 rounded border border-neutral-200 bg-white p-4">
+        <p className="text-sm font-bold text-neutral-500">Belum ada SS untuk event ini.</p>
       </section>
     );
   }
 
   return (
-    <section className="mb-4 overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+    <section className="mb-4 overflow-hidden rounded border border-neutral-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-400">Stage Times</p>
-          <h2 className="truncate text-sm font-black uppercase tracking-widest text-white">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Stage</p>
+          <h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">
             {selectedStage ? `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}` : 'Pilih SS'}
           </h2>
         </div>
-        <span className="shrink-0 text-xs font-black text-gray-500">{stages.length} SS</span>
+        <span className="shrink-0 text-xs font-black text-neutral-500">{stages.length} SS</span>
       </div>
       <div className="overflow-x-auto">
         <div className="flex min-w-max gap-1 px-3 py-3">
@@ -404,13 +404,13 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
                 onClick={() => onSelect(stage.id)}
                 className={`relative min-w-20 border px-4 py-3 text-left transition ${
                   active
-                    ? 'border-red-500 bg-white text-neutral-950'
-                    : 'border-white/10 bg-black text-gray-300 hover:border-white/30 hover:bg-neutral-800'
+                    ? 'border-red-600 bg-red-600 text-white'
+                    : 'border-neutral-200 bg-neutral-100 text-neutral-600 hover:border-neutral-400 hover:bg-white'
                 }`}
               >
-                {active && <span className="absolute inset-x-0 top-0 h-1 bg-red-600" />}
+                {active && <span className="absolute inset-x-0 top-0 h-1 bg-neutral-950" />}
                 <span className="block text-xs font-black uppercase tracking-widest">SS {stage.ss_order}</span>
-                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-600' : 'text-gray-500'}`}>
+                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-white/80' : 'text-neutral-500'}`}>
                   {stage.ss_name}
                 </span>
               </button>
@@ -428,12 +428,13 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'stage-times', label: 'Stage Times' },
     { value: 'stage-winners', label: 'Stage Winners' },
     { value: 'starting-list', label: 'Starting List' },
-    { value: 'penalties', label: 'Penalties' },
+    { value: 'penalties', label: 'Penaltie' },
   ];
 
   return (
-    <section className="mb-4 overflow-x-auto border-b border-white/10">
-      <div className="flex min-w-max gap-1">
+    <section className="mb-4 overflow-hidden rounded border border-neutral-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max">
         {tabs.map((tab) => {
           const active = tab.value === value;
           return (
@@ -441,15 +442,16 @@ function ResultCategoryTabs({ value, onChange }) {
               key={tab.value}
               type="button"
               onClick={() => onChange(tab.value)}
-              className={`relative px-5 py-3 text-sm font-black uppercase tracking-widest transition ${
-                active ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+              className={`relative border-r border-neutral-200 px-5 py-4 text-sm font-black uppercase tracking-widest transition ${
+                active ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950'
               }`}
             >
               {tab.label}
-              {active && <span className="absolute inset-x-5 bottom-0 h-1 bg-red-600" />}
+              {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}
             </button>
           );
         })}
+        </div>
       </div>
     </section>
   );
@@ -457,22 +459,22 @@ function ResultCategoryTabs({ value, onChange }) {
 
 function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, selectedStage }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <section className="overflow-hidden rounded border border-neutral-200 bg-white text-neutral-950 shadow-sm">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-white">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
+          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-gray-500">{entries.length}</span>
-          {isLoading && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
+          <span className="text-xs font-black uppercase text-neutral-500">{entries.length}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
         </div>
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
         <table className={`w-full border-collapse text-sm transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
-            <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+            <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
               <th className="p-4 text-center">Pos</th>
               <th className="p-4 text-center">No</th>
               <th className="p-4">Crew</th>
@@ -492,29 +494,29 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</td>
+                <td colSpan="5" className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</td>
               </tr>
             ) : (
               entries.map((entry) => (
-                <tr key={entry.participant_id} className={`border-t border-white/10 ${rowClass(entry.status)}`}>
+                <tr key={entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
                   <td className="p-4 text-center text-2xl font-black">{entry.rank}</td>
                   <td className="p-4 text-center">
-                    <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+                    <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
                   </td>
                   <td className="p-4">
-                    <div className="font-black text-white">{entry.driver_name}</div>
-                    <div className="mt-0.5 text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
-                    <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</div>
+                    <div className="font-black text-neutral-950">{entry.driver_name}</div>
+                    <div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
+                    <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
                   </td>
                   {resultView === 'overall' ? (
                     <>
-                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono font-black text-gray-300">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
                     </>
                   ) : (
                     <>
-                      <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono font-black text-gray-300">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
                     </>
                   )}
                 </tr>
@@ -526,7 +528,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
 
       <div className="space-y-3 p-3 lg:hidden">
         {entries.length === 0 ? (
-          <div className="rounded-lg bg-black p-6 text-center text-sm font-bold text-gray-500">{emptyText}</div>
+          <div className="rounded bg-neutral-100 p-6 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
         ) : (
           entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} />)
         )}
@@ -540,7 +542,7 @@ function StageWinnersSection({ entries, isLoading }) {
     <SimpleSection title="Stage Winners" subtitle="Pemenang tercepat dari setiap SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada stage winner.">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
             <th className="p-4">SS</th>
             <th className="p-4">Crew</th>
             <th className="p-4 text-center">No</th>
@@ -549,19 +551,19 @@ function StageWinnersSection({ entries, isLoading }) {
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.stage_id} className="border-t border-white/10">
+            <tr key={entry.stage_id} className="border-t border-neutral-200">
               <td className="p-4">
-                <div className="font-black text-white">SS {entry.ss_order}</div>
-                <div className="text-xs font-bold text-gray-500">{entry.ss_name}</div>
+                <div className="font-black text-neutral-950">SS {entry.ss_order}</div>
+                <div className="text-xs font-bold text-neutral-500">{entry.ss_name}</div>
               </td>
               <td className="p-4">
-                <div className="font-black text-white">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
+                <div className="font-black text-neutral-950">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
               </td>
               <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
               </td>
-              <td className="p-4 text-right font-mono text-lg font-black text-yellow-300">{formatMs(entry.total_time_ms)}</td>
+              <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -575,7 +577,7 @@ function StartingListSection({ entries, isLoading }) {
     <SimpleSection title="Starting List" subtitle="Daftar peserta berdasarkan nomor start" count={entries.length} isLoading={isLoading} emptyText="Belum ada starting list.">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
             <th className="p-4 text-center">No</th>
             <th className="p-4">Crew</th>
             <th className="p-4">Class</th>
@@ -584,17 +586,17 @@ function StartingListSection({ entries, isLoading }) {
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.participant_id} className="border-t border-white/10">
+            <tr key={entry.participant_id} className="border-t border-neutral-200">
               <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
               </td>
               <td className="p-4">
-                <div className="font-black text-white">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
-                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || entry.entrant_name || '-'}</div>
+                <div className="font-black text-neutral-950">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || entry.entrant_name || '-'}</div>
               </td>
-              <td className="p-4 font-bold text-gray-300">{entry.class_name || '-'}</td>
-              <td className="p-4 font-bold text-gray-300">{entry.regional_name || '-'}</td>
+              <td className="p-4 font-bold text-neutral-600">{entry.class_name || '-'}</td>
+              <td className="p-4 font-bold text-neutral-600">{entry.regional_name || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -608,7 +610,7 @@ function PenaltiesSection({ entries, isLoading }) {
     <SimpleSection title="Penalties" subtitle="Daftar penalti yang tercatat pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
+          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
             <th className="p-4">SS</th>
             <th className="p-4 text-center">No</th>
             <th className="p-4">Crew</th>
@@ -618,20 +620,20 @@ function PenaltiesSection({ entries, isLoading }) {
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.key} className="border-t border-white/10">
+            <tr key={entry.key} className="border-t border-neutral-200">
               <td className="p-4">
-                <div className="font-black text-white">SS {entry.ss_order}</div>
-                <div className="text-xs font-bold text-gray-500">{entry.ss_name}</div>
+                <div className="font-black text-neutral-950">SS {entry.ss_order}</div>
+                <div className="text-xs font-bold text-neutral-500">{entry.ss_name}</div>
               </td>
               <td className="p-4 text-center">
-                <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{entry.start_number}</span>
+                <span className="inline-flex min-w-12 justify-center rounded bg-neutral-950 px-3 py-1 font-black text-white">{entry.start_number}</span>
               </td>
               <td className="p-4">
-                <div className="font-black text-white">{entry.driver_name}</div>
-                <div className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</div>
+                <div className="font-black text-neutral-950">{entry.driver_name}</div>
+                <div className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
               </td>
-              <td className="p-4 font-bold text-gray-300">{entry.penalty_name}</td>
-              <td className="p-4 text-right font-mono font-black text-red-300">+{formatMs(entry.penalty_time_ms)}</td>
+              <td className="p-4 font-bold text-neutral-600">{entry.penalty_name}</td>
+              <td className="p-4 text-right font-mono font-black text-red-600">+{formatMs(entry.penalty_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -642,20 +644,20 @@ function PenaltiesSection({ entries, isLoading }) {
 
 function SimpleSection({ title, subtitle, count, isLoading, emptyText, children }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-white/10 bg-neutral-900 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <section className="overflow-hidden rounded border border-neutral-200 bg-white text-neutral-950 shadow-sm">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-white">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-gray-500">{subtitle}</p>
+          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
+          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-gray-500">{count}</span>
-          {isLoading && <span className="text-xs font-black uppercase text-red-300">Memuat...</span>}
+          <span className="text-xs font-black uppercase text-neutral-500">{count}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
         </div>
       </div>
       <div className={`overflow-x-auto transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
         {count === 0 ? (
-          <div className="p-10 text-center text-sm font-bold text-gray-500">{emptyText}</div>
+          <div className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
         ) : children}
       </div>
     </section>
@@ -875,16 +877,16 @@ function resultStatusWeight(status) {
 
 function LeaderboardCard({ entry, resultView }) {
   return (
-    <article className={`rounded-lg border border-white/10 p-4 ${rowClass(entry.status) || 'bg-neutral-800'}`}>
+    <article className={`rounded border border-neutral-200 p-4 ${rowClass(entry.status) || 'bg-white'}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-black uppercase tracking-widest text-gray-400">Rank #{entry.rank}</div>
-          <h2 className="mt-1 break-words text-xl font-black text-white">{entry.driver_name}</h2>
-          <p className="text-xs font-bold text-gray-300">{entry.codriver_name || '-'}</p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{entry.team_name || '-'}</p>
+          <div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank}</div>
+          <h2 className="mt-1 break-words text-xl font-black text-neutral-950">{entry.driver_name}</h2>
+          <p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</p>
         </div>
-        <div className="rounded bg-black px-3 py-2 text-center">
-          <div className="text-[9px] font-black uppercase text-gray-500">No</div>
+        <div className="rounded bg-neutral-950 px-3 py-2 text-center">
+          <div className="text-[9px] font-black uppercase text-neutral-400">No</div>
           <div className="text-2xl font-black text-white">{entry.start_number}</div>
         </div>
       </div>
@@ -919,9 +921,9 @@ function leaderName(entry) {
 
 function MiniMetric({ label, value, highlight = false }) {
   return (
-    <div className="rounded bg-black/40 p-3">
-      <p className="text-[9px] uppercase tracking-widest text-gray-500">{label}</p>
-      <p className={`mt-1 font-mono text-sm font-black ${highlight ? 'text-yellow-300' : 'text-white'}`}>{value}</p>
+    <div className="rounded bg-neutral-100 p-3">
+      <p className="text-[9px] uppercase tracking-widest text-neutral-500">{label}</p>
+      <p className={`mt-1 font-mono text-sm font-black ${highlight ? 'text-neutral-950' : 'text-neutral-700'}`}>{value}</p>
     </div>
   );
 }
@@ -943,9 +945,9 @@ function ConnectionBadge({ state }) {
 }
 
 function rowClass(status) {
-  if (status === 'DNF') return 'bg-orange-950/60';
-  if (status === 'DNS') return 'bg-yellow-950/60';
-  if (status === 'DSQ') return 'bg-red-950/60';
+  if (status === 'DNF') return 'bg-orange-50';
+  if (status === 'DNS') return 'bg-yellow-50';
+  if (status === 'DSQ') return 'bg-red-50';
   return '';
 }
 
