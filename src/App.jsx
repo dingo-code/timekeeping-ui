@@ -41,7 +41,7 @@ const DummyPage = ({ title }) => (
 
 function AppRoutes() {
   const location = useLocation();
-  const usesEmbeddedFooter = location.pathname.startsWith('/admin');
+  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login';
 
   return (
     <div className={`flex min-h-screen flex-col ${usesEmbeddedFooter ? '' : 'pb-12'}`}>

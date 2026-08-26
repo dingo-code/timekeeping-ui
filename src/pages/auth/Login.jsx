@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
+import AppFooter from '../../components/AppFooter';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -48,7 +49,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gray-900 px-4 pb-12">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-2xl">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">
@@ -108,6 +109,7 @@ export default function Login() {
           </button>
         </form>
       </div>
+      <AppFooter />
     </div>
   );
 }
