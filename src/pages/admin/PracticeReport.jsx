@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
-import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
+import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 
 export default function PracticeReport() {
   const [events, setEvents] = useState([]);
@@ -121,8 +121,6 @@ export default function PracticeReport() {
         </div>
       </div>
 
-      <UnofficialTimingNotice />
-
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <PrintHeader event={selectedEvent} logoUrl={assetUrl(selectedEvent?.logo_url)} practice={result?.practice || selectedPractice} maxRuns={maxRuns} />
         {!selectedPracticeId ? (
@@ -178,7 +176,7 @@ function PrintHeader({ event, logoUrl, practice, maxRuns }) {
   return <div className="print-header mb-5 border-b border-gray-300 pb-4"><div className="grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
     <div className="flex h-28 items-center justify-center bg-white">{logoUrl ? <img src={logoUrl} alt="Logo event" className="max-h-28 w-auto max-w-full object-contain" /> : <span className="text-center text-[10px] font-black uppercase text-gray-400">Logo Event</span>}</div>
     <div className="self-center text-center"><h1 className="text-xl font-black uppercase tracking-wide text-gray-900">{event?.name || 'Practice Result'}</h1><p className="text-sm font-bold capitalize text-gray-700">{formatEventDateRange(event)}</p><p className="text-sm font-semibold text-gray-600">{event?.location || '-'}</p><p className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{practice?.name || 'Practice'} · Best Run · Maksimal {maxRuns} Run</p></div>
-    <div className="flex h-28 flex-col items-center justify-center gap-2"><span className="inline-block border-2 border-gray-900 px-3 py-2 text-center text-xs font-black uppercase leading-tight tracking-wide">Practice Result</span><p className="text-center text-[10px] font-bold text-gray-600">Tanggal Cetak: {formatPrintDate(new Date())}</p></div>
+    <div className="flex h-28 flex-col items-center justify-center gap-1"><span className="inline-block border-2 border-gray-900 px-3 py-1.5 text-center text-xs font-black uppercase leading-tight tracking-wide">Practice Result</span><UnofficialResultMark /><p className="text-center text-[9px] font-bold text-gray-600">Tanggal Cetak: {formatPrintDate(new Date())}</p></div>
   </div></div>;
 }
 

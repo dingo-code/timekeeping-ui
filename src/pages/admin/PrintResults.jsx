@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
-import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
+import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -406,8 +406,6 @@ export default function PrintResults() {
         </div>
       </div>
 
-      <UnofficialTimingNotice />
-
       <div className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
         <PrintHeader
           eventName={selectedEvent?.name || '-'}
@@ -473,6 +471,7 @@ function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultS
           <span className="print-status inline-block border-2 border-gray-900 px-4 py-2 text-sm font-black uppercase tracking-wide text-center leading-tight">
             {resultStatusLabel}
           </span>
+          <UnofficialResultMark />
           <p className="print-date text-[10px] font-bold uppercase tracking-wide text-gray-600">Tanggal Cetak: {printDateText}</p>
         </div>
       </div>

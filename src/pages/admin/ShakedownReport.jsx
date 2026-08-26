@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
-import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
+import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 
 const shakedownReportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -196,8 +196,6 @@ export default function ShakedownReport() {
         </div>
       </div>
 
-      <UnofficialTimingNotice />
-
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <PrintHeader
           eventName={selectedEvent?.name || 'Shakedown Result'}
@@ -301,6 +299,7 @@ function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultS
           <span className="inline-block border-2 border-gray-900 px-3 py-2 text-center text-xs font-black uppercase leading-tight tracking-wide">
             {resultStatusLabel}
           </span>
+          <UnofficialResultMark />
           <p className="text-center text-[10px] font-bold text-gray-600">Tanggal Cetak: {printDateText}</p>
         </div>
       </div>
