@@ -52,7 +52,7 @@ export default function Login() {
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-2xl">
         <div className="mb-8 text-center">
           <h2 className="text-3xl font-extrabold tracking-tight text-gray-900">
-            Cyverra <span className="text-red-600">Studio</span>
+            Compact<span className="text-red-600">indo</span>
           </h2>
           <p className="mt-2 text-sm text-gray-500">Masuk ke sistem operasional balap</p>
         </div>

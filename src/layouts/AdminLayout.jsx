@@ -159,7 +159,7 @@ export default function AdminLayout() {
     <div className="flex min-h-screen bg-gray-150 font-sans">
       <aside className="sticky top-0 h-screen w-64 bg-gray-900 text-white flex flex-col shadow-xl z-20">
         <div className="p-6 text-center border-b border-gray-800">
-          <h1 className="text-2xl font-black text-red-500 tracking-wider">CYVERRA<span className="text-white">STUDIO</span></h1>
+          <h1 className="text-2xl font-black text-white tracking-wider">COMPACT<span className="text-red-500">INDO</span></h1>
           <p className="text-xs text-gray-400 mt-1 font-medium tracking-wide">Race Time Control</p>
         </div>
 

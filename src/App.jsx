@@ -20,6 +20,7 @@ import ShakedownReport from './pages/admin/ShakedownReport';
 import InputMonitoring from './pages/admin/InputMonitoring';
 import Timecard from './pages/public/Timecard';
 import Leaderboard from './pages/public/Leaderboard';
+import AppFooter from './components/AppFooter';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -41,7 +42,9 @@ const DummyPage = ({ title }) => (
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <div className="flex min-h-screen flex-col">
+        <main className="flex-1">
+          <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<DummyPage title="403 - Akses Ditolak" />} />
@@ -94,7 +97,10 @@ export default function App() {
         <Route path="/pos-start" element={<ProtectedRoute allowedRoles={['petugas_start']}><DummyPage title="Pos Start" /></ProtectedRoute>} />
         <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><DummyPage title="Pos Finish" /></ProtectedRoute>} />
         <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
-      </Routes>
+          </Routes>
+        </main>
+        <AppFooter />
+      </div>
     </BrowserRouter>
   );
 }
