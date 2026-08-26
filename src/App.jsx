@@ -21,6 +21,9 @@ import InputMonitoring from './pages/admin/InputMonitoring';
 import Timecard from './pages/public/Timecard';
 import Leaderboard from './pages/public/Leaderboard';
 import AppFooter from './components/AppFooter';
+import PracticeManagement from './pages/admin/PracticeManagement';
+import PracticeTerminal from './pages/marshal/PracticeTerminal';
+import PracticeReport from './pages/admin/PracticeReport';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -74,8 +77,10 @@ function AppRoutes() {
           <Route path="event/series" element={<MasterSeries />} />
           <Route path="event" element={<MasterEvent />} />
           <Route path="event/:id" element={<MasterEventDetail />} />
+          <Route path="event/:id/practice" element={<PracticeManagement />} />
           <Route path="results/print" element={<PrintResults />} />
           <Route path="results/shakedown" element={<ShakedownReport />} />
+          <Route path="results/practice" element={<PracticeReport />} />
           <Route path="monitoring-input" element={<InputMonitoring />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
@@ -85,6 +90,11 @@ function AppRoutes() {
         <Route path="/marshal" element={
           <ProtectedRoute>
             <TimekeepingTerminal />
+          </ProtectedRoute>
+        } />
+        <Route path="/practice-terminal" element={
+          <ProtectedRoute allowedRoles={['petugas_start', 'petugas_finish', 'kamar_hitung', 'admin']}>
+            <PracticeTerminal />
           </ProtectedRoute>
         } />
 

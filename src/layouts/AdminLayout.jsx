@@ -256,6 +256,24 @@ export default function AdminLayout() {
             <Icon name="print" />
             <span>Shakedown Result</span>
           </Link>
+          <Link
+            to="/admin/results/practice"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/results/practice' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="trophy" />
+            <span>Practice Result</span>
+          </Link>
+          <a
+            href="/practice-terminal"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 transition-colors font-semibold hover:bg-gray-800"
+          >
+            <Icon name="flag" />
+            <span>Practice Terminal</span>
+          </a>
           <a
             href="/monitoring-input"
             target="_blank"

@@ -1116,6 +1116,12 @@ export default function MasterEventDetail() {
           >
             Starting List
           </button>
+          <button
+            onClick={() => navigate(`/admin/event/${id}/practice`)}
+            className="flex-1 py-4 text-center font-bold text-sm text-gray-500 transition hover:bg-gray-100 hover:text-red-600"
+          >
+            Practice
+          </button>
         </div>
 
         {/* --- TAB KONTEN: SPECIAL STAGES --- */}

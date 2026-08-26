@@ -443,6 +443,14 @@ export default function TimekeepingTerminal() {
 
             <button
               type="button"
+              onClick={() => navigate('/practice-terminal')}
+              className="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-red-700 transition"
+            >
+              BUKA PRACTICE TERMINAL
+            </button>
+
+            <button
+              type="button"
               onClick={handleLogout}
               className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm font-black uppercase tracking-widest text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 transition"
             >
@@ -467,6 +475,7 @@ export default function TimekeepingTerminal() {
           <div className="text-gray-400 text-sm font-bold uppercase">{displayRole} {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
+          {!isTCOfficer && <button type="button" onClick={() => navigate('/practice-terminal')} className="bg-red-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-red-500 transition">PRACTICE</button>}
           <button type="button" onClick={() => fetchRecords(selectedSS)} className="bg-gray-800 text-white px-3 py-2 rounded font-bold text-xs hover:bg-gray-700 transition">
             REFRESH
           </button>
