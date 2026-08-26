@@ -5,6 +5,7 @@ import api from '../../services/api';
 import Modal from '../../components/Modal';
 import DataTableFooter from '../../components/DataTableFooter';
 import { tcStatusLabel } from '../../utils/tcDisplay';
+import PracticeManagement from './PracticeManagement';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 
@@ -1104,6 +1105,12 @@ export default function MasterEventDetail() {
           >
             🏎️ Entry List
           </button>
+          <button
+            onClick={() => setActiveTab('practice')}
+            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'practice' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Practice
+          </button>
           <button 
             onClick={() => setActiveTab('penalties')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'penalties' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
@@ -1115,12 +1122,6 @@ export default function MasterEventDetail() {
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'tc' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             Starting List
-          </button>
-          <button
-            onClick={() => navigate(`/admin/event/${id}/practice`)}
-            className="flex-1 py-4 text-center font-bold text-sm text-gray-500 transition hover:bg-gray-100 hover:text-red-600"
-          >
-            Practice
           </button>
         </div>
 
@@ -1615,6 +1616,15 @@ export default function MasterEventDetail() {
               </table>
             </div>
             <DataTableFooter totalItems={filteredPenalties.length} currentPage={safePenaltyCurrentPage} totalPages={penaltyTotalPages} pageSize={penaltyItemsPerPage} searchTerm={penaltySearchTerm} onPageChange={setPenaltyCurrentPage} />
+          </div>
+        )}
+        {activeTab === 'practice' && (
+          <div className="p-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-gray-800">Practice</h3>
+              <p className="text-xs text-gray-500">Buat sesi Practice, tentukan jumlah run, lalu pilih peserta dari Entry List dengan nomor Practice tersendiri.</p>
+            </div>
+            <PracticeManagement eventId={id} />
           </div>
         )}
       </div>

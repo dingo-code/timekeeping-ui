@@ -21,7 +21,6 @@ import InputMonitoring from './pages/admin/InputMonitoring';
 import Timecard from './pages/public/Timecard';
 import Leaderboard from './pages/public/Leaderboard';
 import AppFooter from './components/AppFooter';
-import PracticeManagement from './pages/admin/PracticeManagement';
 import PracticeReport from './pages/admin/PracticeReport';
 import MasterPointSystem from './pages/admin/MasterPointSystem';
 
@@ -78,7 +77,6 @@ function AppRoutes() {
           <Route path="event/point-systems" element={<MasterPointSystem />} />
           <Route path="event" element={<MasterEvent />} />
           <Route path="event/:id" element={<MasterEventDetail />} />
-          <Route path="event/:id/practice" element={<PracticeManagement />} />
           <Route path="results/print" element={<PrintResults />} />
           <Route path="results/shakedown" element={<ShakedownReport />} />
           <Route path="results/practice" element={<PracticeReport />} />

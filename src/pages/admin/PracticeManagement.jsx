@@ -1,13 +1,10 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../services/api';
 
 const emptyForm = { name: '', practice_date: '', distance_km: '', max_runs: 3, is_open: true };
 
-export default function PracticeManagement() {
-  const { id: eventId } = useParams();
-  const navigate = useNavigate();
+export default function PracticeManagement({ eventId }) {
   const [practices, setPractices] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -101,13 +98,6 @@ export default function PracticeManagement() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="text-2xl font-black uppercase italic">Practice Control</h2><p className="text-sm text-gray-500">Sesi dinamis, nomor khusus Practice, dan batas run.</p></div>
-          <button className="admin-btn-muted" onClick={() => navigate(`/admin/event/${eventId}`)}>Kembali ke Event</button>
-        </div>
-      </section>
-
       <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <div className="space-y-4">
           <form onSubmit={submitPractice} className="space-y-3 rounded-xl border bg-white p-5 shadow-sm">
