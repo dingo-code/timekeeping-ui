@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
+import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 
 export default function PracticeReport() {
   const [events, setEvents] = useState([]);
@@ -119,6 +120,8 @@ export default function PracticeReport() {
           </div>
         </div>
       </div>
+
+      <UnofficialTimingNotice />
 
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <PrintHeader event={selectedEvent} logoUrl={assetUrl(selectedEvent?.logo_url)} practice={result?.practice || selectedPractice} maxRuns={maxRuns} />

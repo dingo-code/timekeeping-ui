@@ -217,7 +217,7 @@ export default function MasterEvent() {
             <label className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
               <span>
                 <span className="block text-sm font-bold text-gray-700">Status Event</span>
-                <span className="block text-xs text-gray-500">Event aktif muncul di petugas pos, kamar hitung, leaderboard, dan result.</span>
+                <span className="block text-xs text-gray-500">Event aktif muncul di petugas pos, kamar hitung, Live Timing, dan result.</span>
               </span>
               <span className="flex items-center gap-2 text-sm font-bold text-gray-700">
                 <input
@@ -333,7 +333,7 @@ export default function MasterEvent() {
                 <option value={2}>2 digit - contoh 05:12,34</option>
                 <option value={3}>3 digit - contoh 05:12,345</option>
               </select>
-              <p className="mt-1 text-xs text-gray-500">Mengatur tampilan result, leaderboard, monitoring, timecard, dan shakedown result untuk event ini.</p>
+              <p className="mt-1 text-xs text-gray-500">Mengatur tampilan result, Live Timing, monitoring, timecard, dan shakedown result untuk event ini.</p>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700">Logo Event</label>

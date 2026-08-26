@@ -53,7 +53,8 @@ function AppRoutes() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<DummyPage title="403 - Akses Ditolak" />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/live-timing" element={<Leaderboard />} />
+        <Route path="/leaderboard" element={<Navigate to="/live-timing" replace />} />
         <Route path="/timecard/:eventId" element={<Timecard />} />
         <Route path="/timecard/:eventId/:participantId" element={<Timecard />} />
         <Route path="/monitoring-input" element={<InputMonitoring />} />

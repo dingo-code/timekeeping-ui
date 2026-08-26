@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN } from '../../services/api';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 
 const reconnectDelayMs = 3000;
 
@@ -223,6 +224,8 @@ export default function InputMonitoring() {
             </div>
           </div>
         </header>
+
+        <UnofficialTimingNotice />
 
         {error && (
           <div className="rounded-lg border border-red-500/40 bg-red-950/60 p-4 text-sm font-bold text-red-100">

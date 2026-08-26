@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
+import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -404,6 +405,8 @@ export default function PrintResults() {
           </div>
         </div>
       </div>
+
+      <UnofficialTimingNotice />
 
       <div className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
         <PrintHeader

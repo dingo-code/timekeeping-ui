@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
+import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 
 const shakedownReportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -194,6 +195,8 @@ export default function ShakedownReport() {
           </div>
         </div>
       </div>
+
+      <UnofficialTimingNotice />
 
       <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <PrintHeader

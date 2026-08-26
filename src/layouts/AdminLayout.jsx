@@ -308,15 +308,15 @@ export default function AdminLayout() {
             <span>Kamar Hitung</span>
           </a>
           <a
-            href="/leaderboard"
+            href="/live-timing"
             target="_blank"
             rel="noopener noreferrer"
             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
-              location.pathname === '/leaderboard' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+              location.pathname === '/live-timing' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
             }`}
           >
             <Icon name="trophy" />
-            <span>Leaderboard</span>
+            <span>Live Timing</span>
           </a>
         </nav>
 

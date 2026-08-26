@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
+import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
@@ -212,7 +213,7 @@ export default function Leaderboard() {
       setEntries(normalizedEntries);
       setEntriesByStage((current) => ({ ...current, [stageId]: normalizedEntries }));
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal memuat leaderboard.');
+      setError(err.response?.data?.error || 'Gagal memuat Live Timing.');
     } finally {
       setIsLoadingEntries(false);
     }
@@ -316,7 +317,7 @@ export default function Leaderboard() {
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-600">Live Rally Timing</p>
                 <h1 className="mt-1 break-words text-2xl font-black uppercase leading-tight text-neutral-950 sm:text-4xl">
-                  {selectedEvent?.name || 'Leaderboard'}
+                  {selectedEvent?.name || 'Live Timing'}
                 </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-neutral-500 sm:text-sm">
                   <span>{formatEventDate(selectedEvent)}</span>
@@ -346,6 +347,8 @@ export default function Leaderboard() {
           </div>
         </header>
 
+        <UnofficialTimingNotice className="mb-4" />
+
         {error && (
           <div className="mb-4 border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
             {error}
@@ -374,7 +377,7 @@ export default function Leaderboard() {
                 subtitle="Waktu tercepat pada SS yang dipilih"
                 entries={entries}
                 isLoading={isLoadingStages || isLoadingEntries}
-                emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
                 resultView="stage-times"
               />
               <ResultsSection
@@ -382,7 +385,7 @@ export default function Leaderboard() {
                 subtitle="Akumulasi total sampai SS yang dipilih"
                 entries={overallForStage}
                 isLoading={isLoadingStages || isLoadingOverall}
-                emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+                emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
                 resultView="overall"
               />
             </div>
@@ -394,7 +397,7 @@ export default function Leaderboard() {
               subtitle={selectedStageId === FINAL_STAGE_ID ? 'Overall all time' : 'Akumulasi total sampai SS yang dipilih'}
               entries={overallForStage}
               isLoading={isLoadingStages || isLoadingOverall}
-              emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat leaderboard.'}
+              emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
               resultView="overall"
             />
           )}
