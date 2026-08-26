@@ -114,6 +114,12 @@ function Icon({ name, className = 'h-5 w-5', ...props }) {
       </>
     ),
     chevron: <path d="m6 9 6 6 6-6" />,
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </>
+    ),
   };
 
   return (
@@ -241,6 +247,16 @@ export default function AdminLayout() {
               </div>
             )}
           </div>
+
+          <Link
+            to="/admin/users"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/users' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="user" />
+            <span>Manajemen User</span>
+          </Link>
 
           <Link
             to="/admin/results/print"

@@ -8,7 +8,7 @@ import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
 export default function KamarHitung() {
   const navigate = useNavigate();
-  const { user, role, logout } = useAuthStore((state) => state);
+  const { role, logout, eventId: assignedEventId, eventName: assignedEventName } = useAuthStore((state) => state);
 
   const [events, setEvents] = useState([]);
   const [stages, setStages] = useState([]);
@@ -61,12 +61,13 @@ export default function KamarHitung() {
   const fetchEvents = async () => {
     try {
       const res = await api.get('/events');
-      setEvents(res.data.data || []);
+      const nextEvents = res.data.data || [];
+      setEvents(nextEvents);
+      if (role !== 'admin' && assignedEventId) await loadEvent(assignedEventId);
     } catch (e) { console.error('Gagal memuat event'); }
   };
 
-  const handleEventChange = async (e) => {
-    const eventId = e.target.value;
+  const loadEvent = async (eventId) => {
     setSelectedEvent(eventId);
     setSelectedSS('');
     setRecordSearch('');
@@ -84,6 +85,8 @@ export default function KamarHitung() {
       } catch (err) { alert('Gagal memuat SS dan Penalti.'); }
     }
   };
+
+  const handleEventChange = (e) => loadEvent(e.target.value);
 
   const handleSSChange = (e) => {
     const ssId = e.target.value;
@@ -380,10 +383,16 @@ export default function KamarHitung() {
           <p className="text-xs text-gray-500 font-bold uppercase mt-1">Petugas: {role?.replace('_', ' ')}</p>
         </div>
         <div className="flex gap-4 items-center">
-          <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50" value={selectedEvent} onChange={handleEventChange}>
-            <option value="">-- PILIH EVENT --</option>
-            {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          {role === 'admin' ? (
+            <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50" value={selectedEvent} onChange={handleEventChange}>
+              <option value="">-- PILIH EVENT --</option>
+              {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          ) : (
+            <div className={`rounded-lg border px-3 py-2 text-sm font-bold ${assignedEventId ? 'border-gray-300 bg-gray-50 text-gray-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+              {assignedEventName || selectedEventData?.name || 'EVENT BELUM DITETAPKAN'}
+            </div>
+          )}
 
           <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
             <option value="">-- PILIH STAGE --</option>

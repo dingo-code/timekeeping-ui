@@ -9,6 +9,8 @@ export default function TimekeepingTerminal() {
   
   // Mengambil role dari Global State (Zustand)
   const role = useAuthStore((state) => state.role); 
+  const assignedEventId = useAuthStore((state) => state.eventId);
+  const assignedEventName = useAuthStore((state) => state.eventName);
   const logout = useAuthStore((state) => state.logout);
   
   const isStarter = role === 'petugas_start';
@@ -49,12 +51,13 @@ export default function TimekeepingTerminal() {
   const fetchEvents = async () => {
     try {
       const res = await api.get('/events');
-      setEvents(res.data.data || []);
+      const nextEvents = res.data.data || [];
+      setEvents(nextEvents);
+      if (assignedEventId) await loadEvent(assignedEventId);
     } catch (e) { console.error('Gagal memuat event'); }
   };
 
-  const handleEventChange = async (e) => {
-    const eventId = e.target.value;
+  const loadEvent = async (eventId) => {
     setSelectedEvent(eventId);
     setSelectedSS('');
     setRecords([]);
@@ -490,11 +493,10 @@ export default function TimekeepingTerminal() {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Pilih Event</label>
-              <select className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg text-lg font-bold outline-none focus:border-gray-800" value={selectedEvent} onChange={handleEventChange}>
-                <option value="">-- Pilih Event --</option>
-                {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Event Penugasan</label>
+              <div className={`w-full rounded-lg border p-4 text-lg font-bold ${assignedEventId ? 'border-gray-200 bg-gray-50 text-gray-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                {assignedEventName || selectedEventData?.name || 'Event belum ditetapkan oleh admin'}
+              </div>
             </div>
 
             {!isTCOfficer && <div>

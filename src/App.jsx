@@ -23,6 +23,7 @@ import Leaderboard from './pages/public/Leaderboard';
 import AppFooter from './components/AppFooter';
 import PracticeReport from './pages/admin/PracticeReport';
 import MasterPointSystem from './pages/admin/MasterPointSystem';
+import UserManagement from './pages/admin/UserManagement';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -73,6 +74,7 @@ function AppRoutes() {
           <Route path="master/vehicles" element={<MasterVehicle />} />
           <Route path="master/teams" element={<MasterTeam />} />
           <Route path="master/racers" element={<MasterRacer />} />
+          <Route path="users" element={<UserManagement />} />
           <Route path="event/series" element={<MasterSeries />} />
           <Route path="event/point-systems" element={<MasterPointSystem />} />
           <Route path="event" element={<MasterEvent />} />

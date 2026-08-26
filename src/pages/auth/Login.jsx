@@ -21,9 +21,9 @@ export default function Login() {
 
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { token, role } = response.data.data;
+      const { token, role, username: loginUsername, event_id: eventId, event_name: eventName } = response.data.data;
 
-      login(token, role);
+      login(token, role, loginUsername, eventId, eventName);
 
       switch (role) {
         case 'admin':
