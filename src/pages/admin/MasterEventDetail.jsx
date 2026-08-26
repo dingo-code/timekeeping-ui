@@ -880,6 +880,59 @@ export default function MasterEventDetail() {
     }
   };
 
+  const handleDownloadEntryListTemplate = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const headers = [
+        'NO START', 'ENTRANT', 'DRIVER', 'DRIVER KIS', 'DRIVER GENDER', 'DRIVER DOB',
+        'DRIVER BLOOD', 'DRIVER REGION', 'NAVIGATOR', 'NAVIGATOR KIS', 'NAVIGATOR GENDER',
+        'NAVIGATOR DOB', 'NAVIGATOR BLOOD', 'NAVIGATOR REGION', 'TEAM', 'VEHICLE',
+        'BRAND', 'TYPE', 'CC', 'CLASS', 'CLASS NAME', 'GROUP', 'CATEGORY', 'JOIN CAR WITH',
+      ];
+      const example = [
+        1, 'Compactindo Team', 'Nama Driver', 'KIS-001', 'L', '1990-01-31',
+        'O', 'DKI Jakarta', 'Nama Navigator', 'KIS-002', 'L', '1992-02-28',
+        'A', 'Jawa Barat', 'Compactindo Team', 'Toyota GR Yaris', 'Toyota', 'GR Yaris',
+        1600, 'M1', 'M1', 'M', categories[0]?.code || '', '',
+      ];
+      const instructions = [
+        ['PETUNJUK IMPORT ENTRY LIST'],
+        ['1', 'Isi data pada sheet ENTRY LIST. Jangan mengubah nama header.'],
+        ['2', 'Kolom wajib: NO START, DRIVER, NAVIGATOR, kendaraan, CLASS, dan CATEGORY.'],
+        ['3', 'Kendaraan dapat diisi melalui VEHICLE atau kombinasi BRAND dan TYPE.'],
+        ['4', 'CATEGORY harus cocok dengan master category pada sistem. Lihat sheet MASTER CATEGORY.'],
+        ['5', 'Format tanggal yang disarankan: YYYY-MM-DD. Gender: L/P. Golongan darah: A/B/AB/O.'],
+        ['6', 'JOIN CAR WITH bersifat opsional dan diisi dengan nomor start peserta sumber.'],
+        ['7', 'Nomor start yang sudah ada akan diperbarui ketika file diimport kembali.'],
+        ['8', 'Sheet CONTOH hanya sebagai referensi dan tidak ikut diimport.'],
+      ];
+      const categoryRows = [
+        ['CODE', 'DESCRIPTION'],
+        ...categories.map((item) => [item.code || '', item.description || '']),
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      const entrySheet = XLSX.utils.aoa_to_sheet([headers]);
+      const exampleSheet = XLSX.utils.aoa_to_sheet([headers, example]);
+      const instructionSheet = XLSX.utils.aoa_to_sheet(instructions);
+      const categorySheet = XLSX.utils.aoa_to_sheet(categoryRows);
+      const columnWidths = headers.map((header) => ({ wch: Math.max(12, Math.min(24, header.length + 2)) }));
+      entrySheet['!cols'] = columnWidths;
+      exampleSheet['!cols'] = columnWidths;
+      instructionSheet['!cols'] = [{ wch: 5 }, { wch: 105 }];
+      categorySheet['!cols'] = [{ wch: 18 }, { wch: 48 }];
+      entrySheet['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(headers.length - 1)}1` };
+
+      XLSX.utils.book_append_sheet(workbook, entrySheet, 'ENTRY LIST');
+      XLSX.utils.book_append_sheet(workbook, exampleSheet, 'CONTOH');
+      XLSX.utils.book_append_sheet(workbook, instructionSheet, 'PETUNJUK');
+      XLSX.utils.book_append_sheet(workbook, categorySheet, 'MASTER CATEGORY');
+      XLSX.writeFile(workbook, 'template-entry-list.xlsx');
+    } catch (err) {
+      alert(err.message || 'Gagal membuat template Entry List.');
+    }
+  };
+
   const handleDeleteParticipant = async (participantId) => {
     if (!window.confirm('Cabut pendaftaran peserta ini dari event?')) return;
     try {
@@ -1244,6 +1297,13 @@ export default function MasterEventDetail() {
                     onChange={handleImportEntryListExcel}
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={handleDownloadEntryListTemplate}
+                  className="admin-btn-muted whitespace-nowrap"
+                >
+                  Download Template
+                </button>
                 <button
                   type="button"
                   onClick={handleDeleteSelectedParticipants}
