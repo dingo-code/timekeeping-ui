@@ -330,6 +330,39 @@ export default function MasterEventDetail() {
     }
   };
 
+  const handleDownloadStartingListTemplate = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const headers = ['CAR NO', 'START KE', 'TC TIME'];
+      const sortedParticipants = [...participants].sort((a, b) => Number(a.start_number) - Number(b.start_number));
+      const rows = sortedParticipants.map((participant, index) => [
+        participant.start_number,
+        startOrderDrafts[participant.id] || index + 1,
+        tcTargetDrafts[participant.id] || '',
+      ]);
+      const instructions = [
+        ['PETUNJUK TEMPLATE STARTING LIST'],
+        ['1', 'CAR NO diambil dari Entry List dan tidak boleh diganti dengan nomor yang belum terdaftar.'],
+        ['2', 'START KE wajib berupa angka bulat positif dan harus menunjukkan urutan start.'],
+        ['3', 'TC TIME opsional. Format yang disarankan HH:MM:SS, contoh 08:01:00.'],
+        ['4', 'Import hanya mengisi draft. Tekan Simpan Starting List untuk menyimpan urutan.'],
+        ['5', 'Pilih SS yang benar sebelum mengunduh dan mengimport template.'],
+      ];
+      const workbook = XLSX.utils.book_new();
+      const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const instructionSheet = XLSX.utils.aoa_to_sheet(instructions);
+      templateSheet['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 18 }];
+      templateSheet['!autofilter'] = { ref: 'A1:C1' };
+      instructionSheet['!cols'] = [{ wch: 5 }, { wch: 100 }];
+      XLSX.utils.book_append_sheet(workbook, templateSheet, 'STARTING LIST');
+      XLSX.utils.book_append_sheet(workbook, instructionSheet, 'PETUNJUK');
+      const stageLabel = selectedTCStage?.ss_order ? `-ss-${selectedTCStage.ss_order}` : '';
+      XLSX.writeFile(workbook, `template-starting-list${stageLabel}.xlsx`);
+    } catch (err) {
+      alert(err.message || 'Gagal membuat template Starting List.');
+    }
+  };
+
   // --- LOGIKA FILTER & PAGINASI PESERTA ---
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredParticipants = participants.filter((p) => {
@@ -1262,12 +1295,12 @@ export default function MasterEventDetail() {
         {/* --- TAB KONTEN: PESERTA --- */}
         {activeTab === 'participants' && (
           <div className="p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-              <div>
+            <div className="mb-6 flex flex-col items-start justify-between gap-4 lg:flex-row">
+              <div className="shrink-0">
                 <h3 className="text-lg font-bold text-gray-800">Entry List / Daftar Peserta</h3>
                 <p className="text-xs text-gray-500">Total {participants.length} peserta terdaftar.</p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+              <div className="flex w-full flex-wrap items-center gap-2 lg:flex-1 lg:justify-end">
                 <input 
                   type="text" 
                   placeholder="Cari entrant, driver, navigator, mobil, atau no start..."
@@ -1445,21 +1478,31 @@ export default function MasterEventDetail() {
               </div>
             </div>
 
-            <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_auto_170px_130px_auto_auto] lg:items-end">
-              <div>
+            <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
+              <div className="md:col-span-2 xl:col-span-4">
                 <p className="text-sm font-black text-gray-800 uppercase">Generate Jadwal TC</p>
                 <p className="mt-1 text-xs text-gray-500">Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.</p>
                 {startingListImportSummary && <p className="mt-2 text-xs font-bold text-green-700">{startingListImportSummary}</p>}
               </div>
-              <label className="admin-btn-muted cursor-pointer text-center">
-                Import Excel
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={handleImportStartingListExcel}
-                />
-              </label>
+              <div className="flex flex-wrap gap-2">
+                <label className="admin-btn-muted flex-1 cursor-pointer whitespace-nowrap text-center">
+                  Import Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={handleImportStartingListExcel}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDownloadStartingListTemplate}
+                  disabled={participants.length === 0}
+                  className="admin-btn-muted flex-1 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Download Template
+                </button>
+              </div>
               <label>
                 <span className="mb-1 block text-xs font-bold text-gray-500">TC peserta pertama</span>
                 <input
@@ -1480,22 +1523,24 @@ export default function MasterEventDetail() {
                   onChange={(e) => setTcGenerateForm({ ...tcGenerateForm, interval_minutes: e.target.value })}
                 />
               </label>
-              <button
-                type="button"
-                onClick={handleSaveStartingList}
-                disabled={!selectedTCStageId || isSavingStartingList || isGeneratingTC}
-                className="admin-btn-dark"
-              >
-                {isSavingStartingList ? 'Menyimpan...' : 'Simpan Starting List'}
-              </button>
-              <button
-                type="button"
-                onClick={handleGenerateTCTargets}
-                disabled={!selectedTCStageId || isGeneratingTC}
-                className="admin-btn-primary"
-              >
-                {isGeneratingTC ? 'Generate...' : 'Generate TC'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveStartingList}
+                  disabled={!selectedTCStageId || isSavingStartingList || isGeneratingTC}
+                  className="admin-btn-dark flex-1 whitespace-nowrap"
+                >
+                  {isSavingStartingList ? 'Menyimpan...' : 'Simpan Starting List'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateTCTargets}
+                  disabled={!selectedTCStageId || isGeneratingTC}
+                  className="admin-btn-primary flex-1 whitespace-nowrap"
+                >
+                  {isGeneratingTC ? 'Generate...' : 'Generate TC'}
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
