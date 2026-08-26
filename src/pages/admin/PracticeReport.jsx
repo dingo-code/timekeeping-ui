@@ -149,7 +149,7 @@ export default function PracticeReport() {
                   <td className="border border-gray-300 p-2"><div className="font-bold text-gray-900">{entry.driver_name || '-'}</div><div className="text-xs text-gray-500">{entry.codriver_name || '-'}</div><div className="text-[11px] text-gray-400">{entry.vehicle_name || '-'}</div></td>
                   <td className="border border-gray-300 p-2">{entry.class_name || '-'}</td>
                   {runColumns.map((runNo) => {
-                    const run = entry.runs.find((item) => item.run_no === runNo);
+                    const run = (entry.runs || []).find((item) => item.run_no === runNo);
                     return <td key={runNo} className={`border border-gray-300 p-2 text-right font-mono font-bold ${entry.best_run_no === runNo ? 'bg-green-50 text-green-800' : ''}`}>{run?.finish_time ? formatMs(run.elapsed_time_ms, timeDecimalPlaces) : run?.start_time ? 'OPEN' : '-'}</td>;
                   })}
                   <td className="border border-gray-300 bg-green-50 p-2 text-right font-mono text-base font-black text-green-800">{entry.best_time_ms ? formatMs(entry.best_time_ms, timeDecimalPlaces) : 'NO TIME'}</td>
