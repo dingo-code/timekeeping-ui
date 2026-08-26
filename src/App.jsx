@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import Login from './pages/auth/Login';
 import AdminLayout from './layouts/AdminLayout';
@@ -39,12 +39,14 @@ const DummyPage = ({ title }) => (
   </div>
 );
 
-export default function App() {
+function AppRoutes() {
+  const location = useLocation();
+  const usesEmbeddedFooter = location.pathname.startsWith('/admin');
+
   return (
-    <BrowserRouter>
-      <div className="flex min-h-screen flex-col">
-        <main className="flex-1">
-          <Routes>
+    <div className="flex min-h-screen flex-col">
+      <main className="flex-1">
+        <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<DummyPage title="403 - Akses Ditolak" />} />
@@ -97,10 +99,17 @@ export default function App() {
         <Route path="/pos-start" element={<ProtectedRoute allowedRoles={['petugas_start']}><DummyPage title="Pos Start" /></ProtectedRoute>} />
         <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><DummyPage title="Pos Finish" /></ProtectedRoute>} />
         <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
-          </Routes>
-        </main>
-        <AppFooter />
-      </div>
+        </Routes>
+      </main>
+      {!usesEmbeddedFooter && <AppFooter />}
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import AppFooter from '../components/AppFooter';
 
 function Icon({ name, className = 'h-5 w-5', ...props }) {
   const paths = {
@@ -313,6 +314,7 @@ export default function AdminLayout() {
         <div className="flex-1 bg-gray-50 p-6">
           <Outlet />
         </div>
+        <AppFooter />
       </main>
     </div>
   );
