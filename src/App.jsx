@@ -44,7 +44,7 @@ function AppRoutes() {
   const usesEmbeddedFooter = location.pathname.startsWith('/admin');
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className={`flex min-h-screen flex-col ${usesEmbeddedFooter ? '' : 'pb-12'}`}>
       <main className="flex-1">
         <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />

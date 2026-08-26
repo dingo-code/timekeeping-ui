@@ -302,7 +302,7 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 flex flex-col">
+      <main className="min-w-0 flex-1 flex flex-col pb-12">
         <header className="sticky top-0 bg-white shadow-sm z-10 p-4 flex justify-between items-center border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-800">Panel Operasional</h2>
           <div className="flex items-center space-x-3">
@@ -314,7 +314,7 @@ export default function AdminLayout() {
         <div className="flex-1 bg-gray-50 p-6">
           <Outlet />
         </div>
-        <AppFooter />
+        <AppFooter admin />
       </main>
     </div>
   );
