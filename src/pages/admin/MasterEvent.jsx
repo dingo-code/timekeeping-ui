@@ -114,6 +114,9 @@ export default function MasterEvent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.name.trim()) return alert('Nama event wajib diisi.');
+    if (!formData.start_date || !formData.end_date) return alert('Tanggal mulai dan selesai wajib diisi.');
+    if (formData.end_date < formData.start_date) return alert('Tanggal selesai tidak boleh sebelum tanggal mulai.');
     try {
       const payload = new FormData();
       Object.entries(formData).forEach(([key, value]) => payload.append(key, value ?? ''));
@@ -191,18 +194,26 @@ export default function MasterEvent() {
         {/* Form Modal tetap sama dengan input formData yang sudah di-bind */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {/* ... isi form sama seperti sebelumnya, pastikan field terikat dengan formData ... */}
-             <div className="grid grid-cols-2 gap-4">
-                <select className="p-2 border rounded" value={formData.series_id} onChange={e => setFormData({...formData, series_id: e.target.value})}>
+             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Kejuaraan / Series <span className="font-normal text-gray-400">(opsional)</span></label>
+                <select className="w-full p-2 border rounded" value={formData.series_id} onChange={e => setFormData({...formData, series_id: e.target.value})}>
+                    <option value="">Tanpa Series</option>
                     {series.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <select className="p-2 border rounded" value={formData.point_system_id} onChange={e => setFormData({...formData, point_system_id: e.target.value})}>
+                {!series.length && <p className="mt-1 text-xs text-amber-700">Belum ada Series. Event tetap dapat dibuat, atau tambahkan melalui menu Series Kejuaraan.</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-bold text-gray-700">Sistem Poin <span className="font-normal text-gray-400">(opsional)</span></label>
+                <select className="w-full p-2 border rounded" value={formData.point_system_id} onChange={e => setFormData({...formData, point_system_id: e.target.value})}>
+                    <option value="">Tanpa Sistem Poin</option>
                     {pointSystems.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
+              </div>
             </div>
-            <input type="text" className="w-full p-2 border rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nama Event"/>
-            <input type="date" className="w-full p-2 border rounded" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}/>
-            <input type="date" className="w-full p-2 border rounded" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})}/>
-            <input type="text" className="w-full p-2 border rounded" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Lokasi"/>
+            <div><label className="mb-1 block text-sm font-bold text-gray-700">Nama Event *</label><input required type="text" className="w-full p-2 border rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: Compactindo Rally 2026"/></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><label className="mb-1 block text-sm font-bold text-gray-700">Tanggal Mulai *</label><input required type="date" className="w-full p-2 border rounded" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}/></div><div><label className="mb-1 block text-sm font-bold text-gray-700">Tanggal Selesai *</label><input required type="date" min={formData.start_date || undefined} className="w-full p-2 border rounded" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})}/></div></div>
+            <div><label className="mb-1 block text-sm font-bold text-gray-700">Lokasi <span className="font-normal text-gray-400">(opsional)</span></label><input type="text" className="w-full p-2 border rounded" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Lokasi event"/></div>
             <label className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
               <span>
                 <span className="block text-sm font-bold text-gray-700">Status Event</span>

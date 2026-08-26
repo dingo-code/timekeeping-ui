@@ -230,6 +230,10 @@ export default function AdminLayout() {
                   <Icon name="trophy" className="h-4 w-4 shrink-0" />
                   <span>Series Kejuaraan</span>
                 </Link>
+                <Link to="/admin/event/point-systems" className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${location.pathname === '/admin/event/point-systems' ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
+                  <Icon name="trophy" className="h-4 w-4 shrink-0" />
+                  <span>Point System</span>
+                </Link>
                 <Link to="/admin/event" className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm ${location.pathname === '/admin/event' ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
                   <Icon name="flag" className="h-4 w-4 shrink-0" />
                   <span>Daftar Event</span>

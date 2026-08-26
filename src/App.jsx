@@ -24,6 +24,7 @@ import AppFooter from './components/AppFooter';
 import PracticeManagement from './pages/admin/PracticeManagement';
 import PracticeTerminal from './pages/marshal/PracticeTerminal';
 import PracticeReport from './pages/admin/PracticeReport';
+import MasterPointSystem from './pages/admin/MasterPointSystem';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -75,6 +76,7 @@ function AppRoutes() {
           <Route path="master/teams" element={<MasterTeam />} />
           <Route path="master/racers" element={<MasterRacer />} />
           <Route path="event/series" element={<MasterSeries />} />
+          <Route path="event/point-systems" element={<MasterPointSystem />} />
           <Route path="event" element={<MasterEvent />} />
           <Route path="event/:id" element={<MasterEventDetail />} />
           <Route path="event/:id/practice" element={<PracticeManagement />} />
