@@ -7,8 +7,11 @@ const FINAL_STAGE_ID = 'final';
 export default function Leaderboard() {
   const [events, setEvents] = useState([]);
   const [stages, setStages] = useState([]);
+  const [practices, setPractices] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedStageId, setSelectedStageId] = useState('');
+  const [selectedPracticeId, setSelectedPracticeId] = useState('');
+  const [practiceResult, setPracticeResult] = useState(null);
   const [entries, setEntries] = useState([]);
   const [entriesByStage, setEntriesByStage] = useState({});
   const [stageRecordsById, setStageRecordsById] = useState({});
@@ -20,6 +23,7 @@ export default function Leaderboard() {
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [isLoadingOverall, setIsLoadingOverall] = useState(false);
   const [isLoadingAllStages, setIsLoadingAllStages] = useState(false);
+  const [isLoadingPractice, setIsLoadingPractice] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
   const reconnectTimerRef = useRef(null);
@@ -39,6 +43,10 @@ export default function Leaderboard() {
     }
     return stages.find((stage) => stage.id === selectedStageId);
   }, [stages, selectedStageId]);
+  const selectedPractice = useMemo(
+    () => practices.find((practice) => practice.id === selectedPracticeId),
+    [practices, selectedPracticeId]
+  );
 
   const overallForStage = useMemo(
     () => buildOverallEntries(overallEntries, selectedStage),
@@ -87,7 +95,10 @@ export default function Leaderboard() {
     setStageRecordsById({});
     setOverallEntries([]);
     setStages([]);
+    setPractices([]);
     setSelectedStageId('');
+    setSelectedPracticeId('');
+    setPracticeResult(null);
     setResultCategory('stage-times');
 
     if (!selectedEventId) {
@@ -98,6 +109,7 @@ export default function Leaderboard() {
 
     shouldReconnectRef.current = true;
     fetchStages(selectedEventId);
+    fetchPractices(selectedEventId);
     fetchOverallResults(selectedEventId);
     connectWebsocket(selectedEventId);
 
@@ -141,6 +153,13 @@ export default function Leaderboard() {
     stagesRef.current = stages;
   }, [stages]);
 
+  useEffect(() => {
+    if (resultCategory !== 'practice' || !selectedPracticeId) return undefined;
+    fetchPracticeResult(selectedPracticeId);
+    const timer = window.setInterval(() => fetchPracticeResult(selectedPracticeId, true), 3000);
+    return () => window.clearInterval(timer);
+  }, [resultCategory, selectedPracticeId]);
+
   const fetchStages = async (eventId) => {
     setIsLoadingStages(true);
     setError('');
@@ -156,6 +175,31 @@ export default function Leaderboard() {
       setError(err.response?.data?.error || 'Gagal memuat daftar SS.');
     } finally {
       setIsLoadingStages(false);
+    }
+  };
+
+  const fetchPractices = async (eventId) => {
+    try {
+      const res = await api.get(`/public/events/${eventId}/practices`);
+      const nextPractices = res.data.data || [];
+      setPractices(nextPractices);
+      setSelectedPracticeId(nextPractices[0]?.id || '');
+    } catch (err) {
+      setPractices([]);
+      setSelectedPracticeId('');
+      setError(err.response?.data?.error || 'Gagal memuat daftar Practice.');
+    }
+  };
+
+  const fetchPracticeResult = async (practiceId, silent = false) => {
+    if (!silent) setIsLoadingPractice(true);
+    try {
+      const res = await api.get(`/public/practice-results/${practiceId}`);
+      setPracticeResult(res.data.data || null);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Gagal memuat Practice Result.');
+    } finally {
+      if (!silent) setIsLoadingPractice(false);
     }
   };
 
@@ -310,13 +354,17 @@ export default function Leaderboard() {
 
         <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
 
-        <StageTabs
-          stages={stages}
-          selectedStageId={selectedStageId}
-          selectedStage={selectedStage}
-          isLoading={isLoadingStages}
-          onSelect={setSelectedStageId}
-        />
+        {resultCategory === 'practice' ? (
+          <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
+        ) : (
+          <StageTabs
+            stages={stages}
+            selectedStageId={selectedStageId}
+            selectedStage={selectedStage}
+            isLoading={isLoadingStages}
+            onSelect={setSelectedStageId}
+          />
+        )}
 
         <main className="min-h-0 flex-1">
           {resultCategory === 'stage-times' && (
@@ -368,6 +416,14 @@ export default function Leaderboard() {
 
           {resultCategory === 'penalties' && (
             <PenaltiesSection entries={penalties} isLoading={isLoadingAllStages} />
+          )}
+
+          {resultCategory === 'practice' && (
+            <PracticeLeaderboardSection
+              result={practiceResult}
+              practice={selectedPractice}
+              isLoading={isLoadingPractice}
+            />
           )}
         </main>
       </div>
@@ -433,6 +489,26 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
   );
 }
 
+function PracticeTabs({ practices, selectedPracticeId, selectedPractice, onSelect }) {
+  if (practices.length === 0) {
+    return <section className="mb-4 border border-neutral-200 bg-white p-4"><p className="text-sm font-bold text-neutral-500">Belum ada sesi Practice untuk event ini.</p></section>;
+  }
+  return (
+    <section className="mb-4 overflow-hidden border border-neutral-200 bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
+        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Practice</p><h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">{selectedPractice?.name || 'Pilih Practice'}</h2></div>
+        <span className="shrink-0 text-xs font-black text-neutral-500">{practices.length} sesi</span>
+      </div>
+      <div className="overflow-x-auto"><div className="flex min-w-max px-3 py-3">
+        {practices.map((practice) => {
+          const active = practice.id === selectedPracticeId;
+          return <button key={practice.id} type="button" onClick={() => onSelect(practice.id)} className={`relative min-w-36 border px-4 py-3 text-left transition ${active ? 'border-neutral-200 text-neutral-950' : 'border-neutral-200 text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'}`}>{active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}<span className="block text-xs font-black uppercase tracking-widest">{practice.name}</span><span className="mt-1 block text-[11px] font-bold text-neutral-500">Best of {practice.max_runs} run</span></button>;
+        })}
+      </div></div>
+    </section>
+  );
+}
+
 function ResultCategoryTabs({ value, onChange }) {
   const tabs = [
     { value: 'overall', label: 'Overall' },
@@ -440,6 +516,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'stage-winners', label: 'Stage Winners' },
     { value: 'starting-list', label: 'Starting List' },
     { value: 'penalties', label: 'Penaltie' },
+    { value: 'practice', label: 'Practice' },
   ];
 
   return (
@@ -563,6 +640,32 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
           entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} />)
         )}
       </div>
+    </section>
+  );
+}
+
+function PracticeLeaderboardSection({ result, practice, isLoading }) {
+  const entries = result?.entries || [];
+  const bestTime = entries.find((entry) => Number(entry.best_time_ms) > 0)?.best_time_ms || 0;
+  return (
+    <section className="overflow-hidden border border-neutral-200 bg-white">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+        <div><h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Practice Result</h2><p className="mt-0.5 text-xs font-semibold text-neutral-500">{practice?.name || 'Practice'} · Ranking berdasarkan best run</p></div>
+        <div className="flex items-center gap-3"><span className="text-xs font-black uppercase text-neutral-500">{entries.length}</span>{isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}</div>
+      </div>
+      <div className="hidden overflow-x-auto lg:block">
+        <table className={`w-full border-collapse text-sm ${isLoading ? 'opacity-70' : ''}`}>
+          <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Pos</th><th className="p-4 text-center">Practice No</th><th className="p-4 text-center">Race No</th><th className="p-4">Crew</th><th className="p-4">Car / Class</th><th className="p-4 text-center">Best Run</th><th className="p-4 text-right">Best Time</th><th className="p-4 text-right">Diff 1st</th></tr></thead>
+          <tbody>{entries.length === 0 ? <tr><td colSpan="8" className="p-10 text-center font-bold text-neutral-500">Belum ada hasil Practice.</td></tr> : entries.map((entry) => {
+            const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
+            return <tr key={entry.id} className="border-t border-neutral-200"><td className="p-4 text-center text-2xl font-black">{entry.rank || '-'}</td><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 px-3 py-1 font-black">{entry.practice_start_number}</span></td><td className="p-4 text-center font-bold text-neutral-600">{entry.race_start_number}</td><td className="p-4"><div className="font-black">{entry.driver_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div><div className="mt-1 text-[11px] font-bold uppercase text-neutral-400">{entry.entrant_name || '-'}</div></td><td className="p-4"><div className="font-bold text-neutral-700">{entry.vehicle_name || '-'}</div><div className="text-xs font-bold text-neutral-500">{entry.class_name || '-'}</div></td><td className="p-4 text-center font-black">{entry.best_run_no ? `Run ${entry.best_run_no}` : '-'}</td><td className="p-4 text-right font-mono text-lg font-black">{formatMs(entry.best_time_ms)}</td><td className="p-4 text-right font-mono font-black text-neutral-500">{diff > 0 ? `+${formatMs(diff)}` : '-'}</td></tr>;
+          })}</tbody>
+        </table>
+      </div>
+      <div className="space-y-3 p-3 lg:hidden">{entries.length === 0 ? <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">Belum ada hasil Practice.</div> : entries.map((entry) => {
+        const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
+        return <article key={entry.id} className="border border-neutral-200 bg-white p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank || '-'}</div><h2 className="mt-1 text-xl font-black">{entry.driver_name || '-'}</h2><p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p><p className="mt-1 text-[11px] font-bold uppercase text-neutral-500">{entry.vehicle_name || '-'}</p></div><div className="border border-neutral-300 px-3 py-2 text-center"><div className="text-[9px] font-black uppercase text-neutral-500">Practice</div><div className="text-2xl font-black">{entry.practice_start_number}</div></div></div><div className="grid grid-cols-3 gap-2"><MiniMetric label="Best Run" value={entry.best_run_no ? `Run ${entry.best_run_no}` : '-'} /><MiniMetric label="Best Time" value={formatMs(entry.best_time_ms)} highlight /><MiniMetric label="Diff 1st" value={diff > 0 ? `+${formatMs(diff)}` : '-'} /></div></article>;
+      })}</div>
     </section>
   );
 }
