@@ -17,11 +17,13 @@ export default function TimekeepingTerminal() {
   
   const [events, setEvents] = useState([]);
   const [stages, setStages] = useState([]);
+  const [practices, setPractices] = useState([]);
   const [participants, setParticipants] = useState([]); 
   const [records, setRecords] = useState([]);
   
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
+  const [terminalMode, setTerminalMode] = useState('stage');
   const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
   const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
   
@@ -61,12 +63,15 @@ export default function TimekeepingTerminal() {
     
     if (eventId) {
       try {
-        const [resStages, resParticipants] = await Promise.all([
+        const requests = [
           api.get(`/events/${eventId}/stages`),
-          api.get(`/events/${eventId}/participants`)
-        ]);
+          api.get(`/events/${eventId}/participants`),
+        ];
+        if (!isTCOfficer) requests.push(api.get(`/practices/events/${eventId}`));
+        const [resStages, resParticipants, resPractices] = await Promise.all(requests);
         setStages(resStages.data.data || []);
         setParticipants(resParticipants.data.data || []);
+        setPractices(resPractices?.data?.data || []);
       } catch (err) { alert('Gagal memuat data pendukung event ini.'); }
     }
   };
@@ -74,6 +79,28 @@ export default function TimekeepingTerminal() {
   const fetchRecords = async (ssId) => {
     if (!ssId) return [];
     try {
+      if (terminalMode === 'practice') {
+        const [entryRes, runRes] = await Promise.all([
+          api.get(`/practices/${ssId}/entries`),
+          api.get(`/practices/${ssId}/runs`),
+        ]);
+        const practiceEntries = entryRes.data.data || [];
+        const nextRecords = (runRes.data.data || []).map((run) => ({
+          ...run,
+          start_number: run.practice_start_number,
+          attempt_no: run.run_no,
+          is_active: true,
+          is_shakedown: true,
+        }));
+        setParticipants(practiceEntries.map((entry) => ({
+          ...entry,
+          id: entry.participant_id,
+          start_number: entry.practice_start_number,
+        })));
+        setRecords(nextRecords);
+        setLastSyncedAt(new Date().toLocaleTimeString('id-ID', { hour12: false }));
+        return nextRecords;
+      }
       const res = await api.get(`/timekeeping/stages/${ssId}/records`);
       const nextRecords = res.data.data || [];
       setRecords(nextRecords);
@@ -111,6 +138,23 @@ export default function TimekeepingTerminal() {
     await fetchRecords(ssId);
   };
 
+  const handleTerminalModeChange = async (mode) => {
+    setTerminalMode(mode);
+    setSelectedSS('');
+    setStartNumber('');
+    setManualTime('');
+    setRecords([]);
+    setStatusMessage('');
+    if (mode === 'stage' && selectedEvent) {
+      try {
+        const res = await api.get(`/events/${selectedEvent}/participants`);
+        setParticipants(res.data.data || []);
+      } catch {
+        setParticipants([]);
+      }
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
@@ -139,10 +183,13 @@ export default function TimekeepingTerminal() {
     return getRecordsByStartNumber(number, sourceRecords).find(r => r.start_time && !r.finish_time) || null;
   };
 
-  const selectedStage = stages.find(stage => stage.id === selectedSS) || null;
+  const selectedStage = terminalMode === 'practice'
+    ? practices.find((practice) => practice.id === selectedSS) || null
+    : stages.find(stage => stage.id === selectedSS) || null;
+  const isPracticeStage = terminalMode === 'practice';
   const isShakedownStage = Boolean(selectedStage?.is_shakedown);
   const isStageClosed = selectedStage?.is_open === false;
-  const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
+  const stageLabel = (stage) => `${stage?.max_runs ? `Practice : ${stage.name} (${stage.max_runs} run)` : stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
   const selectedParticipant = startNumber ? getParticipantByStartNumber(startNumber) : null;
   const activeRecord = startNumber ? getActiveRecordByStartNumber(startNumber) : null;
   const openShakedownRecord = startNumber ? getOpenShakedownRecordByStartNumber(startNumber) : null;
@@ -152,8 +199,8 @@ export default function TimekeepingTerminal() {
   const finishAlreadyRecorded = Boolean(displayRecord?.finish_time);
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
   const canCorrectStart = isStarter && !isShakedownStage && startAlreadyRecorded && !finishAlreadyRecorded && activeRecord?.id && activeRecord.status === 'OK';
-  const canSubmitStart = isStarter && hasKnownStartNumber && (isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
-  const canSubmitFinish = isFinisher && hasKnownStartNumber && (isShakedownStage ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
+  const canSubmitStart = isStarter && hasKnownStartNumber && (isPracticeStage || isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
+  const canSubmitFinish = isFinisher && hasKnownStartNumber && ((isPracticeStage || isShakedownStage) ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
   const timeDigits = manualTime.replace(/\D/g, '');
@@ -225,8 +272,10 @@ export default function TimekeepingTerminal() {
 
   const getInputStatus = () => {
     if (isStageClosed) return { tone: 'danger', text: 'SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.' };
-    if (!startNumber) return { tone: 'neutral', text: 'Masukkan No Start untuk melihat status attempt aktif.' };
-    if (!selectedParticipant) return { tone: 'danger', text: `Mobil #${startNumber} tidak terdaftar di event ini.` };
+    if (!startNumber) return { tone: 'neutral', text: `Masukkan ${isPracticeStage ? 'Nomor Practice' : 'No Start'} untuk melihat status attempt aktif.` };
+    if (!selectedParticipant) return { tone: 'danger', text: `${isPracticeStage ? 'Nomor Practice' : 'Mobil'} #${startNumber} tidak terdaftar pada sesi ini.` };
+    if (isStarter && isPracticeStage) return { tone: 'ready', text: `Siap input Practice run #${(activeRecord?.attempt_no || 0) + 1} dari ${selectedStage?.max_runs || 0}.` };
+    if (isFinisher && isPracticeStage && !openShakedownRecord) return { tone: 'warning', text: `Nomor Practice #${startNumber} belum punya start yang menunggu finish.` };
     if (isStarter && isShakedownStage) return { tone: 'ready', text: `Siap input shakedown run #${(activeRecord?.attempt_no || 0) + 1}.` };
     if (isStarter && canCorrectStart) return { tone: 'warning', text: `Start mobil #${startNumber} sudah tercatat. Petugas start bisa ubah waktu atau cancel selama finish belum tercatat.` };
     if (isStarter && startAlreadyRecorded) return { tone: 'danger', text: `Start mobil #${startNumber} sudah terkunci karena finish/status sudah tercatat. Koreksi lewat Kamar Hitung.` };
@@ -251,19 +300,19 @@ export default function TimekeepingTerminal() {
     e.preventDefault();
 
     if (isStageClosed) return alert('SS sudah close. Petugas pos tidak bisa input atau edit data pada stage ini.');
-    if (!startNumber || !manualTime) return alert('Lengkapi No Start dan Waktu!');
+    if (!startNumber || !manualTime) return alert(`Lengkapi ${isPracticeStage ? 'Nomor Practice' : 'No Start'} dan Waktu!`);
     if (!manualTimeValidation.isValid) return alert(manualTimeValidation.message);
     
     const participantId = getParticipantIdByStartNumber(startNumber);
-    if (!participantId) return alert(`Mobil dengan No Start #${startNumber} tidak terdaftar di event ini!`);
+    if (!participantId) return alert(`${isPracticeStage ? 'Nomor Practice' : 'Mobil dengan No Start'} #${startNumber} tidak terdaftar pada sesi ini!`);
 
     const submittedTime = normalizeManualTimeForSubmit();
 
-    const isStartCorrection = isStarter && !isShakedownStage && startAlreadyRecorded;
+    const isStartCorrection = isStarter && !isPracticeStage && !isShakedownStage && startAlreadyRecorded;
     const confirmMsg = isStarter 
-      ? `${isStartCorrection ? 'Konfirmasi UBAH START' : 'Konfirmasi START'} Mobil #${startNumber} pada ${manualTime}?`
+      ? `${isStartCorrection ? 'Konfirmasi UBAH START' : 'Konfirmasi START'} ${isPracticeStage ? 'Practice' : 'Mobil'} #${startNumber} pada ${manualTime}?`
       : isFinisher
-        ? `Konfirmasi FINISH Mobil #${startNumber} pada ${submittedTime}?`
+        ? `Konfirmasi FINISH ${isPracticeStage ? 'Practice' : 'Mobil'} #${startNumber} pada ${submittedTime}?`
         : `Konfirmasi TC Mobil #${startNumber} pada ${manualTime}?`;
 
     if (!window.confirm(confirmMsg)) return;
@@ -274,10 +323,25 @@ export default function TimekeepingTerminal() {
       const latestActiveRecord = getActiveRecordByStartNumber(startNumber, latestRecords);
       const latestOpenShakedownRecord = getOpenShakedownRecordByStartNumber(startNumber, latestRecords);
       const latestCanCorrectStart = isStarter
+        && !isPracticeStage
         && !isShakedownStage
         && Boolean(latestActiveRecord?.start_time)
         && !latestActiveRecord?.finish_time
         && latestActiveRecord?.status === 'OK';
+
+      if (isPracticeStage) {
+        const endpoint = isStarter ? '/timekeeping/practice-runs/start' : '/timekeeping/practice-runs/finish';
+        await api.post(endpoint, {
+          practice_id: selectedSS,
+          practice_start_number: Number(startNumber),
+          time: submittedTime,
+        });
+        setStatusMessage(`${isStarter ? 'START' : 'FINISH'} Practice #${startNumber} berhasil disimpan.`);
+        await fetchRecords(selectedSS);
+        setStartNumber('');
+        setManualTime('');
+        return;
+      }
 
       if (isStarter && !isShakedownStage && latestActiveRecord?.start_time && !latestCanCorrectStart) {
         return alert(`Start mobil #${startNumber} sudah terkunci karena finish/status sudah tercatat. Koreksi lewat Kamar Hitung.`);
@@ -433,21 +497,21 @@ export default function TimekeepingTerminal() {
               </select>
             </div>
 
+            {!isTCOfficer && <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">Jenis Sesi</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => handleTerminalModeChange('stage')} className={`rounded-lg border px-3 py-3 text-sm font-black ${terminalMode === 'stage' ? 'border-red-600 bg-red-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>SS / SHAKEDOWN</button>
+                <button type="button" onClick={() => handleTerminalModeChange('practice')} className={`rounded-lg border px-3 py-3 text-sm font-black ${terminalMode === 'practice' ? 'border-red-600 bg-red-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>PRACTICE</button>
+              </div>
+            </div>}
+
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Pilih Stage</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1">{terminalMode === 'practice' ? 'Pilih Practice' : 'Pilih Stage'}</label>
               <select className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg text-lg font-bold disabled:opacity-50 outline-none focus:border-gray-800" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
-                <option value="">-- Pilih Stage --</option>
-                {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
+                <option value="">-- Pilih {terminalMode === 'practice' ? 'Practice' : 'Stage'} --</option>
+                {(terminalMode === 'practice' ? practices : stages).map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
               </select>
             </div>
-
-            <button
-              type="button"
-              onClick={() => navigate('/practice-terminal')}
-              className="w-full rounded-lg bg-red-600 px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-red-700 transition"
-            >
-              BUKA PRACTICE TERMINAL
-            </button>
 
             <button
               type="button"
@@ -475,7 +539,6 @@ export default function TimekeepingTerminal() {
           <div className="text-gray-400 text-sm font-bold uppercase">{displayRole} {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
-          {!isTCOfficer && <button type="button" onClick={() => navigate('/practice-terminal')} className="bg-red-600 text-white px-3 py-2 rounded font-bold text-xs hover:bg-red-500 transition">PRACTICE</button>}
           <button type="button" onClick={() => fetchRecords(selectedSS)} className="bg-gray-800 text-white px-3 py-2 rounded font-bold text-xs hover:bg-gray-700 transition">
             REFRESH
           </button>
@@ -497,7 +560,7 @@ export default function TimekeepingTerminal() {
           )}
           
           <div className="text-center">
-            <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">No Start</label>
+            <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">{isPracticeStage ? 'Nomor Practice' : 'No Start'}</label>
             <input 
               type="number" 
               required
