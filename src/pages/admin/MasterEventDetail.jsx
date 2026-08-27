@@ -6,6 +6,7 @@ import Modal from '../../components/Modal';
 import DataTableFooter from '../../components/DataTableFooter';
 import { tcStatusLabel } from '../../utils/tcDisplay';
 import PracticeManagement from './PracticeManagement';
+import SmartEntryListUpdate from './SmartEntryListUpdate';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 
@@ -1249,11 +1250,17 @@ export default function MasterEventDetail() {
           >
             🚩 Special Stages (SS)
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('participants')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'participants' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             🏎️ Entry List
+          </button>
+          <button
+            onClick={() => setActiveTab('entry-update')}
+            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'entry-update' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            🔄 Update Entry
           </button>
           <button
             onClick={() => setActiveTab('practice')}
@@ -1502,6 +1509,22 @@ export default function MasterEventDetail() {
 
             {/* Pagination Controls */}
             <DataTableFooter totalItems={filteredParticipants.length} currentPage={safeCurrentPage} totalPages={totalPages} pageSize={itemsPerPage} searchTerm={searchTerm} onPageChange={setCurrentPage} />
+          </div>
+        )}
+
+        {activeTab === 'entry-update' && (
+          <div className="p-6">
+            <SmartEntryListUpdate
+              eventId={id}
+              participants={participants}
+              racers={racers}
+              teams={teams}
+              vehicles={vehicles}
+              classes={classes}
+              categories={categories}
+              regions={regions}
+              onApplied={async () => { await Promise.all([fetchEventData(), fetchMasterData()]); }}
+            />
           </div>
         )}
 
