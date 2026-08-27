@@ -15,6 +15,7 @@ export default function InputMonitoring() {
   const [selectedPracticeId, setSelectedPracticeId] = useState('all');
   const [records, setRecords] = useState([]);
   const [practiceRuns, setPracticeRuns] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
@@ -43,7 +44,15 @@ export default function InputMonitoring() {
     [practiceRuns]
   );
 
-  const activeFeed = monitorMode === 'practice' ? visiblePracticeRuns : visibleRecords;
+  const filteredRecords = useMemo(
+    () => visibleRecords.filter((record) => matchesInputSearch(record, searchQuery, false)),
+    [visibleRecords, searchQuery]
+  );
+  const filteredPracticeRuns = useMemo(
+    () => visiblePracticeRuns.filter((run) => matchesInputSearch(run, searchQuery, true)),
+    [visiblePracticeRuns, searchQuery]
+  );
+  const activeFeed = monitorMode === 'practice' ? filteredPracticeRuns : filteredRecords;
   const latestRecord = activeFeed[0];
   const startedOnlyCount = activeFeed.filter((record) => record.start_time && !record.finish_time).length;
   const finishedCount = activeFeed.filter((record) => record.finish_time).length;
@@ -154,6 +163,7 @@ export default function InputMonitoring() {
           race_start_number: run.race_start_number || entry.race_start_number,
           practice_start_number: run.practice_start_number || entry.practice_start_number,
           driver_name: run.driver_name || entry.driver_name,
+          codriver_name: run.codriver_name || entry.codriver_name,
         })));
       });
       setPracticeRuns(merged);
@@ -351,10 +361,27 @@ export default function InputMonitoring() {
               <h2 className="text-sm font-black uppercase tracking-widest text-white">Feed Input</h2>
               <p className="mt-1 text-xs font-bold text-gray-500">{monitorMode === 'practice' ? (selectedPracticeId === 'all' ? 'Semua Practice' : practices.find((practice) => practice.id === selectedPracticeId)?.name) : (selectedStageId === 'all' ? 'Semua SS' : stageLabel(stages.find((stage) => stage.id === selectedStageId)))}</p>
             </div>
-            {isLoading && <span className="rounded bg-red-500/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-red-300">Memuat...</span>}
+            <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+              <label className="w-full sm:w-80">
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Pencarian</span>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">⌕</span>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={monitorMode === 'practice' ? 'Race No, Practice No, atau nama' : 'Race No atau nama'}
+                    className="h-10 w-full rounded border border-white/10 bg-black pl-9 pr-9 text-sm font-bold text-white outline-none placeholder:text-gray-600 focus:border-red-400 focus:ring-2 focus:ring-red-500/20"
+                  />
+                  {searchQuery && <button type="button" onClick={() => setSearchQuery('')} aria-label="Hapus pencarian" className="absolute inset-y-0 right-3 text-lg font-bold text-gray-500 hover:text-white">×</button>}
+                </div>
+              </label>
+              {searchQuery && <span className="mb-2 text-xs font-bold text-gray-400">{activeFeed.length} ditemukan</span>}
+              {isLoading && <span className="mb-1 rounded bg-red-500/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-red-300">Memuat...</span>}
+            </div>
           </div>
 
-          {monitorMode === 'practice' ? <PracticeFeed runs={visiblePracticeRuns} timeDecimalPlaces={timeDecimalPlaces} /> : <><div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
+          {monitorMode === 'practice' ? <PracticeFeed runs={filteredPracticeRuns} timeDecimalPlaces={timeDecimalPlaces} searchQuery={searchQuery} /> : <><div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
@@ -372,14 +399,14 @@ export default function InputMonitoring() {
                 </tr>
               </thead>
               <tbody>
-                {visibleRecords.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <tr>
                     <td colSpan="11" className="h-[360px] p-10 text-center">
-                      <EmptyState />
+                      <EmptyState searchQuery={searchQuery} />
                     </td>
                   </tr>
                 ) : (
-                  visibleRecords.map((record) => (
+                  filteredRecords.map((record) => (
                     <tr key={record.id} className={`border-t border-white/10 ${rowClass(record)}`}>
                       <td className="p-3">
                         <div className="font-black text-white">{inputKind(record)}</div>
@@ -411,12 +438,12 @@ export default function InputMonitoring() {
           </div>
 
           <div className="flex-1 space-y-3 p-3 xl:hidden">
-            {visibleRecords.length === 0 ? (
+            {filteredRecords.length === 0 ? (
               <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black">
-                <EmptyState />
+                <EmptyState searchQuery={searchQuery} />
               </div>
             ) : (
-              visibleRecords.map((record) => <RecordCard key={record.id} record={record} timeDecimalPlaces={timeDecimalPlaces} />)
+              filteredRecords.map((record) => <RecordCard key={record.id} record={record} timeDecimalPlaces={timeDecimalPlaces} />)
             )}
           </div></>}
         </main>
@@ -425,17 +452,17 @@ export default function InputMonitoring() {
   );
 }
 
-function PracticeFeed({ runs, timeDecimalPlaces }) {
+function PracticeFeed({ runs, timeDecimalPlaces, searchQuery }) {
   return <>
     <div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
       <table className="w-full border-collapse text-sm">
         <thead><tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500"><th className="p-3">Input</th><th className="p-3">Practice</th><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3">Driver</th><th className="p-3 text-center">Run</th><th className="p-3 text-center">Start</th><th className="p-3 text-center">Finish</th><th className="p-3 text-right">Elapsed</th><th className="p-3">Status</th></tr></thead>
-        <tbody>{runs.length === 0 ? <tr><td colSpan="10" className="h-[360px] p-10 text-center"><EmptyState /></td></tr> : runs.map((run) => <tr key={run.id} className={`border-t border-white/10 ${rowClass(run)}`}>
+        <tbody>{runs.length === 0 ? <tr><td colSpan="10" className="h-[360px] p-10 text-center"><EmptyState searchQuery={searchQuery} /></td></tr> : runs.map((run) => <tr key={run.id} className={`border-t border-white/10 ${rowClass(run)}`}>
           <td className="p-3"><div className="font-black text-white">{practiceInputKind(run)}</div><div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{practiceInputTime(run, timeDecimalPlaces)}</div></td>
           <td className="p-3"><div className="font-black text-white">{run.practice_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-gray-500">Maks. {run.max_runs || '-'} run</div></td>
           <td className="p-3 text-center"><span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{run.practice_start_number}</span></td>
           <td className="p-3 text-center font-black text-gray-300">{run.race_start_number || '-'}</td>
-          <td className="p-3 font-black text-white">{run.driver_name || '-'}</td>
+          <td className="p-3"><div className="font-black text-white">{run.driver_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-gray-400">{run.codriver_name || '-'}</div></td>
           <td className="p-3 text-center font-black text-yellow-300">Run {run.run_no}</td>
           <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(run.start_time)}</td>
           <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(run.finish_time, timeDecimalPlaces)}</td>
@@ -444,7 +471,7 @@ function PracticeFeed({ runs, timeDecimalPlaces }) {
         </tr>)}</tbody>
       </table>
     </div>
-    <div className="flex-1 space-y-3 p-3 xl:hidden">{runs.length === 0 ? <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black"><EmptyState /></div> : runs.map((run) => <PracticeRunCard key={run.id} run={run} timeDecimalPlaces={timeDecimalPlaces} />)}</div>
+    <div className="flex-1 space-y-3 p-3 xl:hidden">{runs.length === 0 ? <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black"><EmptyState searchQuery={searchQuery} /></div> : runs.map((run) => <PracticeRunCard key={run.id} run={run} timeDecimalPlaces={timeDecimalPlaces} />)}</div>
   </>;
 }
 
@@ -506,14 +533,14 @@ function Summary({ label, value, accent = 'red' }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ searchQuery = '' }) {
   return (
     <div className="mx-auto flex max-w-sm flex-col items-center justify-center text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
         <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_28px_rgba(239,68,68,0.75)]" />
       </span>
-      <p className="mt-4 text-lg font-black uppercase tracking-wide text-white">Menunggu Input</p>
-      <p className="mt-1 text-sm font-bold text-gray-500">Belum ada input pada pilihan ini.</p>
+      <p className="mt-4 text-lg font-black uppercase tracking-wide text-white">{searchQuery ? 'Data Tidak Ditemukan' : 'Menunggu Input'}</p>
+      <p className="mt-1 text-sm font-bold text-gray-500">{searchQuery ? `Tidak ada hasil untuk “${searchQuery}”.` : 'Belum ada input pada pilihan ini.'}</p>
     </div>
   );
 }
@@ -563,6 +590,29 @@ function stageShortLabel(record) {
 function runDriverName(record) {
   if (record.is_shakedown && record.attempt_no) return `${record.driver_name} (Run ${record.attempt_no})`;
   return record.driver_name || '-';
+}
+
+function matchesInputSearch(record, query, isPractice) {
+  const keyword = normalizeSearchValue(query);
+  if (!keyword) return true;
+  const values = [
+    record.start_number,
+    record.race_start_number,
+    record.driver_name,
+    record.codriver_name,
+    record.team_name,
+    record.entrant_name,
+  ];
+  if (isPractice) values.push(record.practice_start_number);
+  return values.some((value) => normalizeSearchValue(value).includes(keyword));
+}
+
+function normalizeSearchValue(value) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function inputKind(record) {
