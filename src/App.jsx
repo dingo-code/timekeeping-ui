@@ -25,6 +25,7 @@ import PracticeReport from './pages/admin/PracticeReport';
 import MasterPointSystem from './pages/admin/MasterPointSystem';
 import UserManagement from './pages/admin/UserManagement';
 import Dashboard from './pages/admin/Dashboard';
+import FinishStopwatch from './pages/petugas-finish/FinishStopwatch';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -42,6 +43,11 @@ const DummyPage = ({ title }) => (
     {title}
   </div>
 );
+
+const MarshalPage = () => {
+  const role = useAuthStore((state) => state.role);
+  return role === 'petugas_finish' ? <FinishStopwatch /> : <TimekeepingTerminal />;
+};
 
 function AppRoutes() {
   const location = useLocation();
@@ -92,7 +98,7 @@ function AppRoutes() {
 
         <Route path="/marshal" element={
           <ProtectedRoute>
-            <TimekeepingTerminal />
+            <MarshalPage />
           </ProtectedRoute>
         } />
 
@@ -105,7 +111,7 @@ function AppRoutes() {
         
         {/* Rute Pos Start & Finish yang lama bisa dihapus atau dibiarkan saja sebagai cadangan */}
         <Route path="/pos-start" element={<ProtectedRoute allowedRoles={['petugas_start']}><DummyPage title="Pos Start" /></ProtectedRoute>} />
-        <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><DummyPage title="Pos Finish" /></ProtectedRoute>} />
+        <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><FinishStopwatch /></ProtectedRoute>} />
         <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
         </Routes>
       </main>
