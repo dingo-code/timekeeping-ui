@@ -68,9 +68,11 @@ export default function BackupReconciliation() {
   async function exportReport() {
     if (!rows.length) return;
     const XLSX = await import('xlsx'), wb = XLSX.utils.book_new();
-    const data = rows.map((r) => ({ HASIL: r.result, 'NO START': r.number, RUN: mode === 'practice' ? r.runNo : '', DRIVER: r.driver, 'START SPREADSHEET': r.sheetStart || '', 'START WEB': r.webStart || '', 'FINISH SPREADSHEET': r.sheetFinish || '', 'FINISH WEB': r.webFinish || '', 'ELAPSED SPREADSHEET': displayElapsed(r.sheetElapsedMs, decimalPlaces), 'ELAPSED WEB': displayElapsed(r.webElapsedMs, decimalPlaces), SELISIH: r.differenceMs == null ? '' : displayElapsed(Math.abs(r.differenceMs), decimalPlaces), CATATAN: r.note }));
+    const reportRows = showOnlyIssues ? rows.filter((row) => row.result !== 'SAMA') : rows;
+    if (!reportRows.length) return window.alert('Tidak ada data bermasalah untuk didownload.');
+    const data = reportRows.map((r) => ({ HASIL: r.result, 'NO START': r.number, RUN: mode === 'practice' ? r.runNo : '', DRIVER: r.driver, 'START SPREADSHEET': r.sheetStart || '', 'START WEB': r.webStart || '', 'FINISH SPREADSHEET': r.sheetFinish || '', 'FINISH WEB': r.webFinish || '', 'ELAPSED SPREADSHEET': displayElapsed(r.sheetElapsedMs, decimalPlaces), 'ELAPSED WEB': displayElapsed(r.webElapsedMs, decimalPlaces), SELISIH: r.differenceMs == null ? '' : displayElapsed(Math.abs(r.differenceMs), decimalPlaces), CATATAN: r.note }));
     const ws = XLSX.utils.json_to_sheet(data); ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 8 }, { wch: 28 }, ...Array(7).fill({ wch: 22 }), { wch: 45 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'REKONSILIASI'); XLSX.writeFile(wb, `rekonsiliasi-${mode}-${sheetName.replace(/[^a-z0-9]+/gi, '-')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'REKONSILIASI'); XLSX.writeFile(wb, `rekonsiliasi-${showOnlyIssues ? 'bermasalah-' : ''}${mode}-${sheetName.replace(/[^a-z0-9]+/gi, '-')}.xlsx`);
   }
 
   return <div className="space-y-5">
