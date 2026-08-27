@@ -619,6 +619,13 @@ export default function MasterEventDetail() {
       let nextClasses = [...classes];
       let nextGroups = [...groups];
       const participantsByStartNumber = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
+      const participantsById = new Map(participants.map((participant) => [participant.id, participant]));
+      const claimedParticipantIds = new Set();
+      const importedParticipantIds = new Set(rows.map((row) => cleanExcelText(readExcelValue(row, ['PARTICIPANT ID', 'ENTRY ID', 'PESERTA ID']))).filter(Boolean));
+      const importedStartNumbers = rows.map((row) => parseStartNumber(readExcelValue(row, ['NO START', 'START NO', 'CAR NO', 'CARNO', 'NO', 'NOMOR START']))).filter(Boolean);
+      if (new Set(importedStartNumbers).size !== importedStartNumbers.length) {
+        throw new Error('NO START tidak boleh duplikat di dalam file import.');
+      }
       const stats = {
         createdParticipants: 0,
         updatedParticipants: 0,
@@ -844,14 +851,48 @@ export default function MasterEventDetail() {
           };
           const joinStartNumber = parseStartNumber(readExcelValue(row, ['JOIN', 'JOIN CAR', 'JOIN WITH', 'JOIN CAR WITH']));
 
-          const existingParticipant = participantsByStartNumber.get(String(startNumber));
+          const importedParticipantId = cleanExcelText(readExcelValue(row, ['PARTICIPANT ID', 'ENTRY ID', 'PESERTA ID']));
+          let existingParticipant = importedParticipantId ? participantsById.get(importedParticipantId) : null;
+          if (importedParticipantId && !existingParticipant) {
+            throw new Error('PARTICIPANT ID tidak ditemukan pada event ini. Download template terbaru.');
+          }
+          if (!existingParticipant) {
+            const exactCrewMatches = participants.filter((participant) => (
+              participant.driver_id === driver.id &&
+              participant.codriver_id === navigator.id &&
+              !claimedParticipantIds.has(participant.id)
+            ));
+            if (exactCrewMatches.length === 1) [existingParticipant] = exactCrewMatches;
+          }
+          if (!existingParticipant) {
+            const driverMatches = participants.filter((participant) => (
+              participant.driver_id === driver.id && !claimedParticipantIds.has(participant.id)
+            ));
+            if (driverMatches.length === 1) [existingParticipant] = driverMatches;
+          }
+          if (!existingParticipant) existingParticipant = participantsByStartNumber.get(String(startNumber));
+          if (existingParticipant && claimedParticipantIds.has(existingParticipant.id)) {
+            throw new Error(`Peserta ${driver.full_name} muncul lebih dari satu kali. Gunakan PARTICIPANT ID yang benar.`);
+          }
           if (existingParticipant) {
+            const numberOccupant = participants.find((participant) => participant.start_number === startNumber && participant.id !== existingParticipant.id);
+            if (numberOccupant && !importedParticipantIds.has(numberOccupant.id)) {
+              throw new Error(`No Start ${startNumber} masih digunakan peserta lain yang tidak ada di file. Gunakan template terbaru dan sertakan peserta tersebut.`);
+            }
             await api.put(`/admin/events/${id}/participants/${existingParticipant.id}`, payload);
+            claimedParticipantIds.add(existingParticipant.id);
+            participantsByStartNumber.delete(String(existingParticipant.start_number));
             participantsByStartNumber.set(String(startNumber), { ...existingParticipant, ...payload });
+            participantsById.set(existingParticipant.id, { ...existingParticipant, ...payload });
             stats.updatedParticipants += 1;
           } else {
             const response = await api.post(`/admin/events/${id}/participants`, payload);
-            participantsByStartNumber.set(String(startNumber), response.data.data || payload);
+            const createdParticipant = response.data.data || payload;
+            participantsByStartNumber.set(String(startNumber), createdParticipant);
+            if (createdParticipant.id) {
+              participantsById.set(createdParticipant.id, createdParticipant);
+              claimedParticipantIds.add(createdParticipant.id);
+            }
             stats.createdParticipants += 1;
           }
           if (joinStartNumber) joinUpdates.push({ rowNumber, startNumber, joinStartNumber });
@@ -917,13 +958,13 @@ export default function MasterEventDetail() {
     try {
       const XLSX = await import('xlsx');
       const headers = [
-        'NO START', 'ENTRANT', 'DRIVER', 'DRIVER KIS', 'DRIVER GENDER', 'DRIVER DOB',
+        'PARTICIPANT ID', 'NO START', 'ENTRANT', 'DRIVER', 'DRIVER KIS', 'DRIVER GENDER', 'DRIVER DOB',
         'DRIVER BLOOD', 'DRIVER REGION', 'NAVIGATOR', 'NAVIGATOR KIS', 'NAVIGATOR GENDER',
         'NAVIGATOR DOB', 'NAVIGATOR BLOOD', 'NAVIGATOR REGION', 'TEAM', 'VEHICLE',
         'BRAND', 'TYPE', 'CC', 'CLASS', 'CLASS NAME', 'GROUP', 'CATEGORY', 'JOIN CAR WITH',
       ];
       const example = [
-        1, 'Compactindo Team', 'Nama Driver', 'KIS-001', 'L', '1990-01-31',
+        '', 1, 'Compactindo Team', 'Nama Driver', 'KIS-001', 'L', '1990-01-31',
         'O', 'DKI Jakarta', 'Nama Navigator', 'KIS-002', 'L', '1992-02-28',
         'A', 'Jawa Barat', 'Compactindo Team', 'Toyota GR Yaris', 'Toyota', 'GR Yaris',
         1600, 'M1', 'M1', 'M', categories[0]?.code || '', '',
@@ -936,8 +977,10 @@ export default function MasterEventDetail() {
         ['4', 'CATEGORY harus cocok dengan master category pada sistem. Lihat sheet MASTER CATEGORY.'],
         ['5', 'Format tanggal yang disarankan: YYYY-MM-DD. Gender: L/P. Golongan darah: A/B/AB/O.'],
         ['6', 'JOIN CAR WITH bersifat opsional dan diisi dengan nomor start peserta sumber.'],
-        ['7', 'Nomor start yang sudah ada akan diperbarui ketika file diimport kembali.'],
-        ['8', 'Sheet CONTOH hanya sebagai referensi dan tidak ikut diimport.'],
+        ['7', 'PARTICIPANT ID menjaga relasi peserta saat nomor start atau nama diubah. Jangan mengubah ID dari template.'],
+        ['8', 'Jika ID kosong, sistem mencocokkan KIS/Driver-Navigator, lalu nomor start sebagai fallback.'],
+        ['9', 'Racer yang belum ada otomatis ditambahkan ke master racer.'],
+        ['10', 'Sheet CONTOH hanya sebagai referensi dan tidak ikut diimport.'],
       ];
       const categoryRows = [
         ['CODE', 'DESCRIPTION'],
@@ -945,7 +988,27 @@ export default function MasterEventDetail() {
       ];
 
       const workbook = XLSX.utils.book_new();
-      const entrySheet = XLSX.utils.aoa_to_sheet([headers]);
+      const currentRows = participants.map((participant) => {
+        const driver = racers.find((item) => item.id === participant.driver_id) || {};
+        const navigator = racers.find((item) => item.id === participant.codriver_id) || {};
+        const team = teams.find((item) => item.id === participant.team_id) || {};
+        const vehicle = vehicles.find((item) => item.id === participant.vehicle_id) || {};
+        const classItem = classes.find((item) => item.id === participant.class_id) || {};
+        const group = groups.find((item) => item.id === classItem.group_id) || {};
+        const category = categories.find((item) => item.id === participant.category_id) || {};
+        const driverRegion = regions.find((item) => item.id === driver.region_id) || {};
+        const navigatorRegion = regions.find((item) => item.id === navigator.region_id) || {};
+        const joinParticipant = participants.find((item) => item.id === participant.join_car_with_participant_id);
+        return [
+          participant.id, participant.start_number, participant.entrant_name, driver.full_name, driver.kis_number,
+          driver.gender, formatExistingRacerDate(driver.dob), driver.blood_type, driverRegion.name,
+          navigator.full_name, navigator.kis_number, navigator.gender, formatExistingRacerDate(navigator.dob),
+          navigator.blood_type, navigatorRegion.name, team.name,
+          [vehicle.brand, vehicle.type].filter(Boolean).join(' '), vehicle.brand, vehicle.type, vehicle.engine_capacity,
+          classItem.code, classItem.name, group.code || group.name, category.code, joinParticipant?.start_number || '',
+        ];
+      });
+      const entrySheet = XLSX.utils.aoa_to_sheet([headers, ...currentRows]);
       const exampleSheet = XLSX.utils.aoa_to_sheet([headers, example]);
       const instructionSheet = XLSX.utils.aoa_to_sheet(instructions);
       const categorySheet = XLSX.utils.aoa_to_sheet(categoryRows);
