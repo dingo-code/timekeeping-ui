@@ -719,7 +719,7 @@ export default function MasterEventDetail() {
 
       const ensureTeam = async (name) => {
         const teamName = cleanExcelText(name);
-        if (!teamName) return '';
+        if (!teamName || teamName === '-' || teamName === '–') return '';
         const existing = findMasterByText(nextTeams, teamName, (team) => [team.name]);
         if (existing) return existing.id;
 
@@ -830,7 +830,7 @@ export default function MasterEventDetail() {
           const categoryItem = findMasterByText(categories, categoryValue, (item) => [item.code, item.description, `${item.code} ${item.description || ''}`]);
           if (!categoryItem) throw new Error(`Kategori "${categoryValue || '-'}" tidak ditemukan di master category.`);
 
-          const teamId = await ensureTeam(readExcelValue(row, ['TEAM', 'TIM', 'NAMA TEAM']) || entrantName);
+          const teamId = await ensureTeam(readExcelValue(row, ['TEAM', 'TIM', 'NAMA TEAM']));
           const vehicleId = await ensureVehicle({
             brand: readExcelValue(row, ['BRAND', 'MERK', 'MEREK']),
             type: readExcelValue(row, ['TYPE', 'TIPE', 'MODEL']),
@@ -1003,7 +1003,8 @@ export default function MasterEventDetail() {
           participant.id, participant.start_number, participant.entrant_name, driver.full_name, driver.kis_number,
           driver.gender, formatExistingRacerDate(driver.dob), driver.blood_type, driverRegion.name,
           navigator.full_name, navigator.kis_number, navigator.gender, formatExistingRacerDate(navigator.dob),
-          navigator.blood_type, navigatorRegion.name, team.name,
+          navigator.blood_type, navigatorRegion.name,
+          normalizeLookupText(team.name) === normalizeLookupText(driver.full_name) && normalizeLookupText(participant.entrant_name) === normalizeLookupText(driver.full_name) ? '' : team.name,
           [vehicle.brand, vehicle.type].filter(Boolean).join(' '), vehicle.brand, vehicle.type, vehicle.engine_capacity,
           classItem.code, classItem.name, group.code || group.name, category.code, joinParticipant?.start_number || '',
         ];
