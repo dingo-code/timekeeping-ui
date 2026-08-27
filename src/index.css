@@ -41,3 +41,9 @@
     @apply w-full bg-red-600 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-black disabled:opacity-50;
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
