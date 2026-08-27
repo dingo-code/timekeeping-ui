@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
 
 const emptyForm = { name: '', practice_date: '', distance_km: '', max_runs: 3, is_open: true };
@@ -13,6 +13,8 @@ export default function PracticeManagement({ eventId }) {
   const [drafts, setDrafts] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
+  const [autoSaveState, setAutoSaveState] = useState({ type: '', text: '' });
+  const autoSaveTimers = useRef(new Map());
 
   const selected = useMemo(() => practices.find((item) => item.id === selectedId), [practices, selectedId]);
   const alphabeticalCandidates = useMemo(() => [...candidates].sort((a, b) => (
@@ -53,6 +55,7 @@ export default function PracticeManagement({ eventId }) {
   useEffect(() => { loadBase().catch((err) => alert(err.response?.data?.error || 'Gagal memuat Practice.')); }, [eventId]);
   useEffect(() => { loadEntries(selectedId).catch((err) => alert(err.response?.data?.error || 'Gagal memuat peserta Practice.')); }, [selectedId]);
   useEffect(() => { if (selected) setEditForm({ ...selected }); }, [selected]);
+  useEffect(() => () => autoSaveTimers.current.forEach((timer) => window.clearTimeout(timer)), []);
 
   const submitPractice = async (e) => {
     e.preventDefault();
@@ -88,10 +91,33 @@ export default function PracticeManagement({ eventId }) {
     catch (err) { alert(err.response?.data?.error || 'Gagal menghapus Practice.'); }
   };
 
-  const updateDraft = (participantId, values) => setDrafts((current) => ({
-    ...current,
-    [participantId]: { selected: false, practice_start_number: '', start_order: '', ...current[participantId], ...values },
-  }));
+  const persistEntry = async (participantId, draft) => {
+    if (!selectedId || !draft.selected || Number(draft.practice_start_number) < 1 || Number(draft.start_order) < 1) return;
+    setAutoSaveState({ type: 'saving', text: 'Menyimpan perubahan...' });
+    try {
+      await api.put(`/admin/practices/${selectedId}/entries/${participantId}`, {
+        practice_start_number: Number(draft.practice_start_number),
+        start_order: Number(draft.start_order),
+      });
+      setAutoSaveState({ type: 'success', text: 'Nomor Practice tersimpan otomatis.' });
+    } catch (err) {
+      setAutoSaveState({ type: 'error', text: err.response?.data?.error || 'Gagal menyimpan otomatis. Periksa nomor atau urutan yang duplikat.' });
+    }
+  };
+
+  const updateDraft = (participantId, values) => {
+    const nextDraft = { selected: false, practice_start_number: '', start_order: '', ...drafts[participantId], ...values };
+    setDrafts((current) => ({ ...current, [participantId]: nextDraft }));
+    const currentTimer = autoSaveTimers.current.get(participantId);
+    if (currentTimer) window.clearTimeout(currentTimer);
+    if (nextDraft.selected && Number(nextDraft.practice_start_number) > 0 && Number(nextDraft.start_order) > 0) {
+      const timer = window.setTimeout(() => {
+        autoSaveTimers.current.delete(participantId);
+        persistEntry(participantId, nextDraft);
+      }, 700);
+      autoSaveTimers.current.set(participantId, timer);
+    }
+  };
 
   const saveEntries = async () => {
     if (isLoadingEntries) return;
@@ -134,7 +160,7 @@ export default function PracticeManagement({ eventId }) {
               <div className="grid gap-3 md:grid-cols-4"><input required className="rounded border p-2" value={editForm.name || ''} onChange={(e)=>setEditForm({...editForm,name:e.target.value})}/><input type="date" className="rounded border p-2" value={editForm.practice_date || ''} onChange={(e)=>setEditForm({...editForm,practice_date:e.target.value})}/><input type="number" min="0" step="0.01" className="rounded border p-2" value={editForm.distance_km ?? ''} onChange={(e)=>setEditForm({...editForm,distance_km:e.target.value})}/><div className="flex gap-2"><input type="number" min="1" className="min-w-0 flex-1 rounded border p-2" value={editForm.max_runs || 1} onChange={(e)=>setEditForm({...editForm,max_runs:e.target.value})}/><button disabled={isSaving} className="admin-btn-primary">Simpan</button></div></div>
             </form>
             <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b p-5"><div><h3 className="font-black uppercase">Peserta Practice</h3><p className="text-xs text-gray-500">Diurutkan alfabetis berdasarkan nama driver. Pilih dari Entry List dan berikan nomor Practice yang unik.</p></div><button disabled={isSaving || isLoadingEntries} className="admin-btn-primary" onClick={saveEntries}>{isLoadingEntries ? 'Memuat...' : 'Simpan Peserta'}</button></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5"><div><h3 className="font-black uppercase">Peserta Practice</h3><p className="text-xs text-gray-500">Diurutkan alfabetis berdasarkan nama driver. Nomor dan urutan tersimpan otomatis setelah diisi.</p>{autoSaveState.text && <p className={`mt-1 text-xs font-bold ${autoSaveState.type === 'error' ? 'text-red-600' : autoSaveState.type === 'success' ? 'text-green-600' : 'text-amber-600'}`}>{autoSaveState.text}</p>}</div><button disabled={isSaving || isLoadingEntries} className="admin-btn-primary" onClick={saveEntries}>{isLoadingEntries ? 'Memuat...' : 'Simpan Keikutsertaan'}</button></div>
               <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-900 text-xs uppercase text-white"><tr><th className="p-3">Ikut</th><th className="p-3">Race No</th><th className="p-3 text-left">Driver</th><th className="p-3">Practice No</th><th className="p-3">Urutan</th></tr></thead><tbody>
                 {alphabeticalCandidates.map((item, index) => { const draft = drafts[item.participant_id] || {}; return <tr key={item.participant_id} className="border-b"><td className="p-3 text-center"><input disabled={isLoadingEntries} type="checkbox" checked={Boolean(draft.selected)} onChange={(e) => updateDraft(item.participant_id, { selected: e.target.checked, start_order: draft.start_order || index + 1 })} /></td><td className="p-3 text-center font-black">#{item.race_start_number}</td><td className="p-3"><span className="font-bold">{item.driver_name}</span><span className="block text-xs text-gray-500">{item.vehicle_name} · {item.class_name}</span></td><td className="p-3"><input disabled={isLoadingEntries || !draft.selected} type="number" min="1" className="w-24 rounded border p-2 text-center" value={draft.practice_start_number || ''} onChange={(e) => updateDraft(item.participant_id, { practice_start_number: e.target.value })} /></td><td className="p-3"><input disabled={isLoadingEntries || !draft.selected} type="number" min="1" className="w-20 rounded border p-2 text-center" value={draft.start_order || ''} onChange={(e) => updateDraft(item.participant_id, { start_order: e.target.value })} /></td></tr>; })}
               </tbody></table></div>
