@@ -26,6 +26,7 @@ import MasterPointSystem from './pages/admin/MasterPointSystem';
 import UserManagement from './pages/admin/UserManagement';
 import Dashboard from './pages/admin/Dashboard';
 import FinishStopwatch from './pages/petugas-finish/FinishStopwatch';
+import BackupReconciliation from './pages/admin/BackupReconciliation';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -91,6 +92,7 @@ function AppRoutes() {
           <Route path="results/shakedown" element={<ShakedownReport />} />
           <Route path="results/practice" element={<PracticeReport />} />
           <Route path="monitoring-input" element={<InputMonitoring />} />
+          <Route path="backup-reconciliation" element={<BackupReconciliation />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
           <Route path="penalty" element={<DummyPage title="Halaman Setup Master Penalti" />} />

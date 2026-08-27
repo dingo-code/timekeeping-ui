@@ -285,6 +285,15 @@ export default function AdminLayout() {
             <Icon name="trophy" />
             <span>Practice Result</span>
           </Link>
+          <Link
+            to="/admin/backup-reconciliation"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/backup-reconciliation' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Verifikasi Backup</span>
+          </Link>
           <a
             href="/monitoring-input"
             target="_blank"
