@@ -398,6 +398,60 @@ export default function KamarHitung() {
     );
   };
 
+  const saveGivenTime = async (record) => {
+    const cellKey = `${record.id}:elapsed_time_ms`;
+    if (savingTimeCell === cellKey) return;
+    const value = timeDrafts[record.id]?.given_elapsed ?? formatMs(record.elapsed_time_ms, timeDecimalPlaces);
+    const elapsedTimeMs = parseManualPenaltyTimeMs(value);
+    if (elapsedTimeMs === Number(record.elapsed_time_ms)) return;
+    if (elapsedTimeMs <= 0) {
+      alert('Format Given Time tidak valid. Gunakan contoh 05:30.0 atau 1:05:30.0');
+      updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces));
+      return;
+    }
+    const reason = window.prompt('Masukkan alasan atau dasar keputusan official untuk Given Time:');
+    if (reason === null) {
+      updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces));
+      return;
+    }
+    if (!reason.trim()) {
+      alert('Alasan atau dasar keputusan official wajib diisi.');
+      updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces));
+      return;
+    }
+    setSavingTimeCell(cellKey);
+    try {
+      await api.put(`/timekeeping/ss-records/${record.id}/given-time`, { elapsed_time_ms: elapsedTimeMs, reason: reason.trim() });
+      clearTimeDraft(record.id);
+      await fetchRecords(selectedSS, true);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menyimpan Given Time.');
+    } finally {
+      setSavingTimeCell('');
+    }
+  };
+
+  const renderGivenTimeCell = (record) => {
+    const cellKey = `${record.id}:elapsed_time_ms`;
+    const canEdit = record.is_active && record.status === 'OK';
+    return <div className="flex min-w-32 flex-col items-center gap-1">
+      <input
+        type="text"
+        disabled={!canEdit || savingTimeCell === cellKey}
+        value={timeDrafts[record.id]?.given_elapsed ?? formatMs(record.elapsed_time_ms, timeDecimalPlaces)}
+        onChange={(event) => updateTimeDraft(record.id, 'given_elapsed', event.target.value)}
+        onBlur={() => saveGivenTime(record)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+          if (event.key === 'Escape') { event.preventDefault(); updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces)); event.currentTarget.blur(); }
+        }}
+        className="w-28 rounded border border-transparent bg-transparent px-2 py-1 text-center font-mono text-xs font-bold text-blue-700 outline-none hover:border-blue-200 hover:bg-white focus:border-blue-500 focus:bg-white disabled:text-gray-400"
+        title={canEdit ? 'Edit langsung untuk memberikan Given Time official' : 'Hanya record aktif OK yang dapat diberi Given Time'}
+      />
+      {record.is_given_time && <span title={record.given_time_reason} className="cursor-help rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-orange-700">Given Time</span>}
+    </div>;
+  };
+
   const normalizedRecordSearch = recordSearch.trim().toLowerCase();
   const filteredRecords = normalizedRecordSearch
     ? records.filter((record) => [
@@ -439,6 +493,34 @@ export default function KamarHitung() {
       await fetchPracticeRuns(selectedPractice, true);
     } catch (err) {
       alert(err.response?.data?.error || 'Gagal memperbarui run Practice.');
+    } finally {
+      setSavingPracticeRun('');
+    }
+  };
+
+  const savePracticeGivenTime = async (run) => {
+    if (savingPracticeRun) return;
+    const value = practiceDrafts[run.id]?.given_elapsed ?? formatMs(run.elapsed_time_ms, timeDecimalPlaces);
+    const elapsedTimeMs = parseManualPenaltyTimeMs(value);
+    if (elapsedTimeMs === Number(run.elapsed_time_ms)) return;
+    if (elapsedTimeMs <= 0) {
+      alert('Format Given Time tidak valid. Gunakan contoh 05:30.0 atau 1:05:30.0');
+      updatePracticeDraft(run.id, 'given_elapsed', formatMs(run.elapsed_time_ms, timeDecimalPlaces));
+      return;
+    }
+    const reason = window.prompt('Masukkan alasan atau dasar keputusan official untuk Given Time Practice:');
+    if (reason === null || !reason.trim()) {
+      if (reason !== null) alert('Alasan atau dasar keputusan official wajib diisi.');
+      updatePracticeDraft(run.id, 'given_elapsed', formatMs(run.elapsed_time_ms, timeDecimalPlaces));
+      return;
+    }
+    setSavingPracticeRun(run.id);
+    try {
+      await api.put(`/practices/${selectedPractice}/runs/${run.id}/given-time`, { elapsed_time_ms: elapsedTimeMs, reason: reason.trim() });
+      setPracticeDrafts((current) => { const next = { ...current }; delete next[run.id]; return next; });
+      await fetchPracticeRuns(selectedPractice, true);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menyimpan Given Time Practice.');
     } finally {
       setSavingPracticeRun('');
     }
@@ -503,6 +585,7 @@ export default function KamarHitung() {
               draftValue={practiceDraftValue}
               onDraftChange={updatePracticeDraft}
               onSave={savePracticeRun}
+              onSaveGivenTime={savePracticeGivenTime}
               onDelete={deletePracticeRun}
               savingRun={savingPracticeRun}
               timeDecimalPlaces={timeDecimalPlaces}
@@ -612,7 +695,7 @@ export default function KamarHitung() {
                       <td className="p-3 text-center font-mono text-gray-600">
                         {renderEditableTimeCell(r, 'finish_time', formatClockCentiseconds(r.finish_time, timeDecimalPlaces), 'HH:MM:SS.00')}
                       </td>
-                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{formatMs(r.elapsed_time_ms, timeDecimalPlaces)}</td>
+                      <td className="p-3 text-center font-mono text-blue-600 font-bold bg-blue-50/30">{renderGivenTimeCell(r)}</td>
                       <td className="p-3 text-center font-mono text-red-600 font-bold bg-red-50/30">
                           {r.penalty_time_ms > 0 ? (
                             <div className="flex items-center justify-center gap-2 cursor-pointer" onClick={() => toggleRow(r.id)}>
@@ -734,7 +817,7 @@ export default function KamarHitung() {
   );
 }
 
-function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draftValue, onDraftChange, onSave, onDelete, savingRun, timeDecimalPlaces }) {
+function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draftValue, onDraftChange, onSave, onSaveGivenTime, onDelete, savingRun, timeDecimalPlaces }) {
   return <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
     <div className="flex flex-col gap-3 border-b bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-black text-gray-800">Pengolahan Waktu Practice</h2><p className="mt-1 text-xs font-semibold text-gray-500">{runs.length} dari {totalRuns} run tampil. Elapsed dihitung ulang otomatis saat disimpan.</p></div><div className="flex items-center gap-2"><input type="search" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Cari nomor, driver, run, status..." className="h-9 w-72 rounded-lg border border-gray-300 px-3 text-sm font-semibold outline-none focus:border-red-500"/><span className="rounded bg-green-100 px-3 py-2 text-xs font-black uppercase text-green-700">Live auto-refresh</span></div></div>
     <div className="overflow-x-auto"><table className="w-full min-w-[1100px] border-collapse text-sm"><thead className="bg-gray-100 text-xs uppercase tracking-wider text-gray-600"><tr><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3 text-left">Driver</th><th className="p-3 text-center">Run</th><th className="p-3 text-center">Waktu Start</th><th className="p-3 text-center">Waktu Finish</th><th className="p-3 text-center text-blue-600">Elapsed</th><th className="p-3 text-center">Status</th><th className="p-3">Catatan</th><th className="p-3 text-center">Aksi</th></tr></thead>
@@ -742,7 +825,7 @@ function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draf
         <td className="p-3 text-center"><span className="rounded bg-red-600 px-3 py-1 font-black text-white">{run.practice_start_number}</span></td><td className="p-3 text-center font-black text-gray-700">{run.race_start_number}</td><td className="p-3 font-bold text-gray-800">{run.driver_name || '-'}</td><td className="p-3 text-center font-black">Run {run.run_no}</td>
         <td className="p-3 text-center"><input value={draftValue(run, 'start_time')} onChange={(event) => onDraftChange(run.id, 'start_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
         <td className="p-3 text-center"><input value={draftValue(run, 'finish_time')} onChange={(event) => onDraftChange(run.id, 'finish_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
-        <td className="bg-blue-50/40 p-3 text-center font-mono font-bold text-blue-700">{formatMs(run.elapsed_time_ms, timeDecimalPlaces)}</td>
+        <td className="bg-blue-50/40 p-3 text-center"><div className="flex flex-col items-center gap-1"><input type="text" disabled={savingRun === run.id} value={draftValue(run, 'given_elapsed') || formatMs(run.elapsed_time_ms, timeDecimalPlaces)} onChange={(event) => onDraftChange(run.id, 'given_elapsed', event.target.value)} onBlur={() => onSaveGivenTime(run)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} className="w-28 rounded border border-transparent bg-transparent px-2 py-1.5 text-center font-mono text-xs font-bold text-blue-700 outline-none hover:border-blue-200 hover:bg-white focus:border-blue-500 focus:bg-white" title="Edit langsung untuk memberikan Given Time official" />{run.is_given_time && <span title={run.given_time_reason} className="cursor-help rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-orange-700">Given Time</span>}</div></td>
         <td className="p-3 text-center"><select value={draftValue(run, 'status') || 'OK'} onChange={(event) => onDraftChange(run.id, 'status', event.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-xs font-black"><option value="OK">OK</option><option value="DNF">DNF</option><option value="DNS">DNS</option><option value="DSQ">DSQ</option></select></td>
         <td className="p-3"><input value={draftValue(run, 'notes')} onChange={(event) => onDraftChange(run.id, 'notes', event.target.value)} placeholder="Catatan opsional" className="w-44 rounded border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-blue-500" /></td>
         <td className="p-3"><div className="flex justify-center gap-1"><button type="button" disabled={savingRun === run.id} onClick={() => onSave(run)} className="rounded bg-blue-600 px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-blue-700 disabled:opacity-50">{savingRun === run.id ? 'Menyimpan' : 'Update'}</button><button type="button" disabled={Boolean(savingRun)} onClick={() => onDelete(run)} className="rounded bg-red-100 px-3 py-2 text-[10px] font-black uppercase text-red-700 hover:bg-red-200 disabled:opacity-50">Hapus</button></div></td>
