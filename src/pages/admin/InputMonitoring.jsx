@@ -7,10 +7,14 @@ const reconnectDelayMs = 3000;
 
 export default function InputMonitoring() {
   const [events, setEvents] = useState([]);
+  const [monitorMode, setMonitorMode] = useState('ss');
   const [stages, setStages] = useState([]);
+  const [practices, setPractices] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedStageId, setSelectedStageId] = useState('all');
+  const [selectedPracticeId, setSelectedPracticeId] = useState('all');
   const [records, setRecords] = useState([]);
+  const [practiceRuns, setPracticeRuns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
@@ -19,6 +23,9 @@ export default function InputMonitoring() {
   const shouldReconnectRef = useRef(false);
   const stagesRef = useRef([]);
   const selectedStageIdRef = useRef('all');
+  const practicesRef = useRef([]);
+  const selectedPracticeIdRef = useRef('all');
+  const monitorModeRef = useRef('ss');
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId),
@@ -31,9 +38,15 @@ export default function InputMonitoring() {
     return activeRecords.sort((a, b) => inputTimestamp(b) - inputTimestamp(a));
   }, [records]);
 
-  const latestRecord = visibleRecords[0];
-  const startedOnlyCount = visibleRecords.filter((record) => record.start_time && !record.finish_time).length;
-  const finishedCount = visibleRecords.filter((record) => record.finish_time).length;
+  const visiblePracticeRuns = useMemo(
+    () => [...practiceRuns].sort((a, b) => inputTimestamp(b) - inputTimestamp(a)),
+    [practiceRuns]
+  );
+
+  const activeFeed = monitorMode === 'practice' ? visiblePracticeRuns : visibleRecords;
+  const latestRecord = activeFeed[0];
+  const startedOnlyCount = activeFeed.filter((record) => record.start_time && !record.finish_time).length;
+  const finishedCount = activeFeed.filter((record) => record.finish_time).length;
 
   useEffect(() => {
     fetchEvents();
@@ -41,33 +54,42 @@ export default function InputMonitoring() {
   }, []);
 
   useEffect(() => {
-    selectedStageIdRef.current = selectedStageId;
-    if (stages.length > 0) fetchRecords(stages, selectedStageId);
-  }, [selectedStageId]);
+    monitorModeRef.current = monitorMode;
+    if (monitorMode === 'practice') fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current);
+    else fetchRecords(stagesRef.current, selectedStageIdRef.current);
+  }, [monitorMode]);
 
   useEffect(() => {
     stagesRef.current = stages;
   }, [stages]);
 
   useEffect(() => {
+    practicesRef.current = practices;
+  }, [practices]);
+
+  useEffect(() => {
+    if (monitorMode !== 'practice' || !selectedEventId) return undefined;
+    const timer = window.setInterval(() => fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current, true), 4000);
+    return () => window.clearInterval(timer);
+  }, [monitorMode, selectedEventId]);
+
+  useEffect(() => {
     closeSocket();
-    setStages([]);
-    setRecords([]);
-    setSelectedStageId('all');
 
     if (!selectedEventId) {
-      setConnectionState('idle');
       return undefined;
     }
 
     shouldReconnectRef.current = true;
-    fetchStages(selectedEventId);
+    fetchEventSessions(selectedEventId);
     connectWebsocket(selectedEventId);
 
     return () => closeSocket();
+    // Fungsi menggunakan refs terbaru; koneksi hanya boleh dibuat ulang ketika event berubah.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId]);
 
-  const fetchEvents = async () => {
+  async function fetchEvents() {
     setIsLoading(true);
     setError('');
     try {
@@ -80,27 +102,69 @@ export default function InputMonitoring() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const fetchStages = async (eventId) => {
+  async function fetchEventSessions(eventId) {
     setIsLoading(true);
     setError('');
     try {
-      const res = await api.get(`/public/events/${eventId}/stages`);
-      const nextStages = res.data.data || [];
+      const [stageResponse, practiceResponse] = await Promise.all([
+        api.get(`/public/events/${eventId}/stages`),
+        api.get(`/public/events/${eventId}/practices`),
+      ]);
+      const nextStages = stageResponse.data.data || [];
+      const nextPractices = practiceResponse.data.data || [];
       setStages(nextStages);
+      setPractices(nextPractices);
       stagesRef.current = nextStages;
-      await fetchRecords(nextStages, selectedStageIdRef.current);
+      practicesRef.current = nextPractices;
+      if (monitorModeRef.current === 'practice') await fetchPracticeRuns(nextPractices, selectedPracticeIdRef.current);
+      else await fetchRecords(nextStages, selectedStageIdRef.current);
     } catch (err) {
       setStages([]);
+      setPractices([]);
       setRecords([]);
-      setError(err.response?.data?.error || 'Gagal memuat daftar SS.');
+      setPracticeRuns([]);
+      setError(err.response?.data?.error || 'Gagal memuat sesi event.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const fetchRecords = async (stageList = stagesRef.current, stageId = selectedStageIdRef.current) => {
+  async function fetchPracticeRuns(practiceList = practicesRef.current, practiceId = selectedPracticeIdRef.current, silent = false) {
+    if (!practiceList.length) {
+      setPracticeRuns([]);
+      return;
+    }
+    if (!silent) {
+      setIsLoading(true);
+      setError('');
+    }
+    try {
+      const targets = practiceId === 'all' ? practiceList : practiceList.filter((practice) => practice.id === practiceId);
+      const responses = await Promise.all(targets.map((practice) => api.get(`/public/practice-results/${practice.id}`)));
+      const merged = responses.flatMap((response, index) => {
+        const result = response.data.data || {};
+        const practice = result.practice || targets[index];
+        return (result.entries || []).flatMap((entry) => (entry.runs || []).map((run) => ({
+          ...run,
+          practice_name: practice.name,
+          practice_date: practice.practice_date,
+          max_runs: practice.max_runs,
+          race_start_number: run.race_start_number || entry.race_start_number,
+          practice_start_number: run.practice_start_number || entry.practice_start_number,
+          driver_name: run.driver_name || entry.driver_name,
+        })));
+      });
+      setPracticeRuns(merged);
+    } catch (err) {
+      if (!silent) setError(err.response?.data?.error || 'Gagal memuat input Practice.');
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }
+
+  async function fetchRecords(stageList = stagesRef.current, stageId = selectedStageIdRef.current) {
     if (!stageList.length) {
       setRecords([]);
       return;
@@ -131,20 +195,22 @@ export default function InputMonitoring() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const connectWebsocket = (eventId) => {
+  function connectWebsocket(eventId) {
     setConnectionState('connecting');
     const socket = new WebSocket(`${websocketOrigin()}/ws/leaderboard/${eventId}`);
     wsRef.current = socket;
 
     socket.onopen = () => {
       setConnectionState('connected');
-      fetchRecords(stagesRef.current, selectedStageIdRef.current);
+      if (monitorModeRef.current === 'practice') fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current, true);
+      else fetchRecords(stagesRef.current, selectedStageIdRef.current);
     };
 
     socket.onmessage = () => {
-      fetchRecords(stagesRef.current, selectedStageIdRef.current);
+      if (monitorModeRef.current === 'practice') fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current, true);
+      else fetchRecords(stagesRef.current, selectedStageIdRef.current);
     };
 
     socket.onerror = () => {
@@ -156,9 +222,9 @@ export default function InputMonitoring() {
       setConnectionState('disconnected');
       reconnectTimerRef.current = window.setTimeout(() => connectWebsocket(eventId), reconnectDelayMs);
     };
-  };
+  }
 
-  const closeSocket = () => {
+  function closeSocket() {
     shouldReconnectRef.current = false;
     if (reconnectTimerRef.current) {
       window.clearTimeout(reconnectTimerRef.current);
@@ -169,7 +235,31 @@ export default function InputMonitoring() {
       wsRef.current = null;
       socket.close();
     }
-  };
+  }
+
+  function changeEvent(nextEventId) {
+    setStages([]);
+    setPractices([]);
+    setRecords([]);
+    setPracticeRuns([]);
+    setSelectedStageId('all');
+    setSelectedPracticeId('all');
+    selectedStageIdRef.current = 'all';
+    selectedPracticeIdRef.current = 'all';
+    setSelectedEventId(nextEventId);
+  }
+
+  function changeStage(nextStageId) {
+    setSelectedStageId(nextStageId);
+    selectedStageIdRef.current = nextStageId;
+    fetchRecords(stagesRef.current, nextStageId);
+  }
+
+  function changePractice(nextPracticeId) {
+    setSelectedPracticeId(nextPracticeId);
+    selectedPracticeIdRef.current = nextPracticeId;
+    fetchPracticeRuns(practicesRef.current, nextPracticeId);
+  }
 
   return (
     <div className="min-h-screen bg-[#070707] text-white">
@@ -182,12 +272,20 @@ export default function InputMonitoring() {
               <p className="mt-2 text-sm font-semibold text-gray-400">{selectedEvent?.name || '-'}</p>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_minmax(220px,0.82fr)_auto_auto] xl:items-end">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[160px_minmax(240px,1fr)_minmax(210px,0.82fr)_auto_auto] xl:items-end">
+              <label>
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Mode</span>
+                <select value={monitorMode} onChange={(event) => setMonitorMode(event.target.value)} className="h-11 w-full rounded border border-red-500/60 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20">
+                  <option value="ss">Special Stage</option>
+                  <option value="practice">Practice</option>
+                </select>
+              </label>
+
               <label>
                 <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">Event</span>
                 <select
                   value={selectedEventId}
-                  onChange={(event) => setSelectedEventId(event.target.value)}
+                  onChange={(event) => changeEvent(event.target.value)}
                   className="h-11 w-full rounded border border-red-500/60 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20"
                 >
                   {events.length === 0 ? (
@@ -199,10 +297,16 @@ export default function InputMonitoring() {
               </label>
 
               <label>
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">SS</span>
+                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">{monitorMode === 'practice' ? 'Practice' : 'SS'}</span>
+                {monitorMode === 'practice' ? (
+                  <select value={selectedPracticeId} onChange={(event) => changePractice(event.target.value)} className="h-11 w-full rounded border border-white/10 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20">
+                    <option value="all">Semua Practice</option>
+                    {practices.map((practice) => <option key={practice.id} value={practice.id}>{practice.name}</option>)}
+                  </select>
+                ) : (
                 <select
                   value={selectedStageId}
-                  onChange={(event) => setSelectedStageId(event.target.value)}
+                  onChange={(event) => changeStage(event.target.value)}
                   className="h-11 w-full rounded border border-white/10 bg-black px-3 text-sm font-bold text-white outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-500/20"
                 >
                   <option value="all">Semua SS</option>
@@ -210,11 +314,12 @@ export default function InputMonitoring() {
                     <option key={stage.id} value={stage.id}>{stageLabel(stage)}</option>
                   ))}
                 </select>
+                )}
               </label>
 
               <button
                 type="button"
-                onClick={() => fetchRecords(stagesRef.current, selectedStageIdRef.current)}
+                onClick={() => monitorMode === 'practice' ? fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current) : fetchRecords(stagesRef.current, selectedStageIdRef.current)}
                 className="admin-btn-primary h-11 px-5 sm:col-span-1"
               >
                 Refresh
@@ -234,22 +339,22 @@ export default function InputMonitoring() {
         )}
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Summary label="Total Input" value={visibleRecords.length} accent="red" />
-          <Summary label="Start Only" value={startedOnlyCount} accent="blue" />
+          <Summary label={monitorMode === 'practice' ? 'Total Run' : 'Total Input'} value={activeFeed.length} accent="red" />
+          <Summary label="Sedang Berjalan" value={startedOnlyCount} accent="blue" />
           <Summary label="Finish" value={finishedCount} accent="green" />
-          <Summary label="Input Terbaru" value={latestRecord ? `${latestRecord.start_number} - ${inputKind(latestRecord)}` : '-'} accent="yellow" />
+          <Summary label="Input Terbaru" value={latestRecord ? (monitorMode === 'practice' ? `P${latestRecord.practice_start_number} - ${practiceInputKind(latestRecord)}` : `${latestRecord.start_number} - ${inputKind(latestRecord)}`) : '-'} accent="yellow" />
         </section>
 
         <main className="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-[#151515] shadow-[0_30px_100px_rgba(0,0,0,0.38)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
               <h2 className="text-sm font-black uppercase tracking-widest text-white">Feed Input</h2>
-              <p className="mt-1 text-xs font-bold text-gray-500">{selectedStageId === 'all' ? 'Semua SS' : stageLabel(stages.find((stage) => stage.id === selectedStageId))}</p>
+              <p className="mt-1 text-xs font-bold text-gray-500">{monitorMode === 'practice' ? (selectedPracticeId === 'all' ? 'Semua Practice' : practices.find((practice) => practice.id === selectedPracticeId)?.name) : (selectedStageId === 'all' ? 'Semua SS' : stageLabel(stages.find((stage) => stage.id === selectedStageId)))}</p>
             </div>
             {isLoading && <span className="rounded bg-red-500/10 px-3 py-1 text-xs font-black uppercase tracking-widest text-red-300">Memuat...</span>}
           </div>
 
-          <div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
+          {monitorMode === 'practice' ? <PracticeFeed runs={visiblePracticeRuns} timeDecimalPlaces={timeDecimalPlaces} /> : <><div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
@@ -313,11 +418,42 @@ export default function InputMonitoring() {
             ) : (
               visibleRecords.map((record) => <RecordCard key={record.id} record={record} timeDecimalPlaces={timeDecimalPlaces} />)
             )}
-          </div>
+          </div></>}
         </main>
       </div>
     </div>
   );
+}
+
+function PracticeFeed({ runs, timeDecimalPlaces }) {
+  return <>
+    <div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
+      <table className="w-full border-collapse text-sm">
+        <thead><tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500"><th className="p-3">Input</th><th className="p-3">Practice</th><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3">Driver</th><th className="p-3 text-center">Run</th><th className="p-3 text-center">Start</th><th className="p-3 text-center">Finish</th><th className="p-3 text-right">Elapsed</th><th className="p-3">Status</th></tr></thead>
+        <tbody>{runs.length === 0 ? <tr><td colSpan="10" className="h-[360px] p-10 text-center"><EmptyState /></td></tr> : runs.map((run) => <tr key={run.id} className={`border-t border-white/10 ${rowClass(run)}`}>
+          <td className="p-3"><div className="font-black text-white">{practiceInputKind(run)}</div><div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{practiceInputTime(run, timeDecimalPlaces)}</div></td>
+          <td className="p-3"><div className="font-black text-white">{run.practice_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-gray-500">Maks. {run.max_runs || '-'} run</div></td>
+          <td className="p-3 text-center"><span className="inline-flex min-w-12 justify-center rounded bg-red-600 px-3 py-1 font-black text-white">{run.practice_start_number}</span></td>
+          <td className="p-3 text-center font-black text-gray-300">{run.race_start_number || '-'}</td>
+          <td className="p-3 font-black text-white">{run.driver_name || '-'}</td>
+          <td className="p-3 text-center font-black text-yellow-300">Run {run.run_no}</td>
+          <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(run.start_time)}</td>
+          <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(run.finish_time, timeDecimalPlaces)}</td>
+          <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(run.elapsed_time_ms, timeDecimalPlaces)}</td>
+          <td className="p-3"><StatusPill status={practiceDisplayStatus(run)} /></td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <div className="flex-1 space-y-3 p-3 xl:hidden">{runs.length === 0 ? <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black"><EmptyState /></div> : runs.map((run) => <PracticeRunCard key={run.id} run={run} timeDecimalPlaces={timeDecimalPlaces} />)}</div>
+  </>;
+}
+
+function PracticeRunCard({ run, timeDecimalPlaces }) {
+  return <article className={`rounded-lg border border-white/10 p-4 ${rowClass(run) || 'bg-neutral-800'}`}>
+    <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-widest text-red-300">{practiceInputKind(run)} · Run {run.run_no}</div><h2 className="mt-1 text-xl font-black text-white">{run.driver_name || '-'}</h2><p className="mt-1 text-xs font-bold text-gray-400">{run.practice_name || '-'}</p></div><div className="rounded bg-red-600 px-3 py-2 text-center"><div className="text-[9px] font-black uppercase text-red-100">Practice No</div><div className="text-2xl font-black text-white">{run.practice_start_number}</div></div></div>
+    <div className="mt-3 grid grid-cols-2 gap-2"><MiniMetric label="Race No" value={run.race_start_number || '-'} /><MiniMetric label="Run" value={run.run_no || '-'} /><MiniMetric label="Start" value={formatClockSeconds(run.start_time)} /><MiniMetric label="Finish" value={formatClockCentiseconds(run.finish_time, timeDecimalPlaces)} /><MiniMetric label="Elapsed" value={formatMs(run.elapsed_time_ms, timeDecimalPlaces)} highlight /><MiniMetric label="Input" value={practiceInputTime(run, timeDecimalPlaces)} /></div>
+    <div className="mt-3"><StatusPill status={practiceDisplayStatus(run)} /></div>
+  </article>;
 }
 
 function RecordCard({ record, timeDecimalPlaces = 2 }) {
@@ -436,6 +572,23 @@ function inputKind(record) {
   if (record.tc_time) return 'TC';
   if (record.target_tc_time) return 'TARGET TC';
   return 'INPUT';
+}
+
+function practiceInputKind(run) {
+  if (run.status && run.status !== 'OK') return run.status;
+  if (run.finish_time) return 'FINISH';
+  if (run.start_time) return 'START';
+  return 'INPUT';
+}
+
+function practiceDisplayStatus(run) {
+  if (run.status && run.status !== 'OK') return run.status;
+  return run.finish_time ? 'FINISH' : run.start_time ? 'STARTED' : 'OK';
+}
+
+function practiceInputTime(run, decimalPlaces = 2) {
+  if (run.finish_time) return formatClockCentiseconds(run.finish_time, decimalPlaces);
+  return formatClockSeconds(run.start_time);
 }
 
 function displayStatus(record) {

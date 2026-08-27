@@ -24,6 +24,7 @@ import AppFooter from './components/AppFooter';
 import PracticeReport from './pages/admin/PracticeReport';
 import MasterPointSystem from './pages/admin/MasterPointSystem';
 import UserManagement from './pages/admin/UserManagement';
+import Dashboard from './pages/admin/Dashboard';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -65,7 +66,7 @@ function AppRoutes() {
             <AdminLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<DummyPage title="Selamat Datang di Dashboard Admin" />} />
+          <Route index element={<Dashboard />} />
           
           {/* Sub-menu Master Data */}
           <Route path="master/regions" element={<MasterRegion />} />

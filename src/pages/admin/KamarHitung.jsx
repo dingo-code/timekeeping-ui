@@ -11,13 +11,17 @@ export default function KamarHitung() {
   const { role, logout, eventId: assignedEventId, eventName: assignedEventName } = useAuthStore((state) => state);
 
   const [events, setEvents] = useState([]);
+  const [controlMode, setControlMode] = useState('ss');
   const [stages, setStages] = useState([]);
+  const [practices, setPractices] = useState([]);
+  const [practiceRuns, setPracticeRuns] = useState([]);
   const [penalties, setPenalties] = useState([]); 
   const [records, setRecords] = useState([]); 
   const [restartRequests, setRestartRequests] = useState([]);
   
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
+  const [selectedPractice, setSelectedPractice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [recordSearch, setRecordSearch] = useState('');
 
@@ -42,9 +46,13 @@ export default function KamarHitung() {
 
   const [timeDrafts, setTimeDrafts] = useState({});
   const [savingTimeCell, setSavingTimeCell] = useState('');
+  const [practiceDrafts, setPracticeDrafts] = useState({});
+  const [savingPracticeRun, setSavingPracticeRun] = useState('');
 
   useEffect(() => {
     fetchEvents();
+    // Data awal hanya dimuat satu kali; event petugas berasal dari sesi login.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -58,33 +66,46 @@ export default function KamarHitung() {
     return () => clearInterval(timer);
   }, [selectedSS]);
 
-  const fetchEvents = async () => {
+  useEffect(() => {
+    if (!selectedPractice) return;
+    fetchPracticeRuns(selectedPractice);
+    const timer = setInterval(() => fetchPracticeRuns(selectedPractice, true), 3000);
+    return () => clearInterval(timer);
+  }, [selectedPractice]);
+
+  async function fetchEvents() {
     try {
       const res = await api.get('/events');
       const nextEvents = res.data.data || [];
       setEvents(nextEvents);
       if (role !== 'admin' && assignedEventId) await loadEvent(assignedEventId);
-    } catch (e) { console.error('Gagal memuat event'); }
-  };
+    } catch { console.error('Gagal memuat event'); }
+  }
 
-  const loadEvent = async (eventId) => {
+  async function loadEvent(eventId) {
     setSelectedEvent(eventId);
     setSelectedSS('');
+    setSelectedPractice('');
     setRecordSearch('');
     setRecords([]);
     setRestartRequests([]);
+    setPractices([]);
+    setPracticeRuns([]);
+    setPracticeDrafts({});
     
     if (eventId) {
       try {
-        const [resStages, resPenalties] = await Promise.all([
+        const [resStages, resPenalties, resPractices] = await Promise.all([
           api.get(`/events/${eventId}/stages`),
-          api.get(`/timekeeping/events/${eventId}/penalties`)
+          api.get(`/timekeeping/events/${eventId}/penalties`),
+          api.get(`/practices/events/${eventId}`)
         ]);
         setStages(resStages.data.data || []);
         setPenalties(resPenalties.data.data || []);
-      } catch (err) { alert('Gagal memuat SS dan Penalti.'); }
+        setPractices(resPractices.data.data || []);
+      } catch { alert('Gagal memuat SS, Practice, dan Penalti.'); }
     }
-  };
+  }
 
   const handleEventChange = (e) => loadEvent(e.target.value);
 
@@ -94,27 +115,45 @@ export default function KamarHitung() {
     setSelectedSS(ssId);
   };
 
-  const fetchRecords = async (ssId, silent = false) => {
+  const handlePracticeChange = (e) => {
+    setRecordSearch('');
+    setPracticeDrafts({});
+    setSelectedPractice(e.target.value);
+  };
+
+  async function fetchPracticeRuns(practiceId, silent = false) {
+    if (!silent) setIsLoading(true);
+    try {
+      const res = await api.get(`/practices/${practiceId}/runs`);
+      setPracticeRuns(res.data.data || []);
+    } catch (err) {
+      if (!silent) alert(err.response?.data?.error || 'Gagal memuat run Practice.');
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }
+
+  async function fetchRecords(ssId, silent = false) {
     if (!silent) setIsLoading(true);
     try {
       const res = await api.get(`/timekeeping/stages/${ssId}/records`);
       setRecords(res.data.data || []);
-    } catch (e) {
+    } catch {
       console.error('Gagal memuat data record timekeeping');
     } finally {
       if (!silent) setIsLoading(false);
     }
-  };
+  }
 
-  const fetchRestartRequests = async (ssId) => {
+  async function fetchRestartRequests(ssId) {
     if (!ssId) return;
     try {
       const res = await api.get(`/timekeeping/stages/${ssId}/restart-requests`);
       setRestartRequests(res.data.data || []);
-    } catch (e) {
+    } catch {
       console.error('Gagal memuat permintaan restart');
     }
-  };
+  }
 
   // ==========================================
   // HANDLER PENALTI & STATUS
@@ -147,7 +186,7 @@ export default function KamarHitung() {
       await api.delete(`/timekeeping/ss-records/${recordId}/penalties`);
       alert('Penalti berhasil dibatalkan!');
       fetchRecords(selectedSS);
-    } catch (err) {
+    } catch {
       alert('Gagal membatalkan penalti');
     }
   };
@@ -158,7 +197,7 @@ export default function KamarHitung() {
 
     const parts = normalized.split(':');
     const parsePart = (part) => Number(part);
-    let totalSeconds = 0;
+    let totalSeconds;
 
     if (parts.length === 1) {
       const seconds = parsePart(parts[0]);
@@ -375,6 +414,46 @@ export default function KamarHitung() {
       ].join(' ').toLowerCase().includes(normalizedRecordSearch))
     : records;
 
+  const filteredPracticeRuns = normalizedRecordSearch
+    ? practiceRuns.filter((run) => [run.practice_start_number, run.race_start_number, run.driver_name, run.run_no, run.status].join(' ').toLowerCase().includes(normalizedRecordSearch))
+    : practiceRuns;
+
+  const practiceDraftValue = (run, field) => practiceDrafts[run.id]?.[field] ?? run[field] ?? '';
+
+  const updatePracticeDraft = (runId, field, value) => {
+    setPracticeDrafts((current) => ({ ...current, [runId]: { ...(current[runId] || {}), [field]: value } }));
+  };
+
+  const savePracticeRun = async (run) => {
+    if (savingPracticeRun) return;
+    const draft = practiceDrafts[run.id] || {};
+    setSavingPracticeRun(run.id);
+    try {
+      await api.put(`/practices/${selectedPractice}/runs/${run.id}`, {
+        start_time: draft.start_time ?? run.start_time ?? '',
+        finish_time: draft.finish_time ?? run.finish_time ?? '',
+        status: draft.status ?? run.status ?? 'OK',
+        notes: draft.notes ?? run.notes ?? '',
+      });
+      setPracticeDrafts((current) => { const next = { ...current }; delete next[run.id]; return next; });
+      await fetchPracticeRuns(selectedPractice, true);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal memperbarui run Practice.');
+    } finally {
+      setSavingPracticeRun('');
+    }
+  };
+
+  const deletePracticeRun = async (run) => {
+    if (!window.confirm(`Hapus Practice No ${run.practice_start_number}, Run ${run.run_no} milik ${run.driver_name}? Data ini tidak dapat dikembalikan.`)) return;
+    try {
+      await api.delete(`/practices/${selectedPractice}/runs/${run.id}`);
+      await fetchPracticeRuns(selectedPractice, true);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menghapus run Practice.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 p-4 shadow-sm flex justify-between items-center">
@@ -383,6 +462,10 @@ export default function KamarHitung() {
           <p className="text-xs text-gray-500 font-bold uppercase mt-1">Petugas: {role?.replace('_', ' ')}</p>
         </div>
         <div className="flex gap-4 items-center">
+          <select className="p-2 border border-red-300 rounded-lg text-sm font-black outline-none focus:ring-1 focus:ring-red-500 bg-red-50 text-red-700" value={controlMode} onChange={(event) => { setControlMode(event.target.value); setRecordSearch(''); }}>
+            <option value="ss">SPECIAL STAGE</option>
+            <option value="practice">PRACTICE</option>
+          </select>
           {role === 'admin' ? (
             <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50" value={selectedEvent} onChange={handleEventChange}>
               <option value="">-- PILIH EVENT --</option>
@@ -394,17 +477,38 @@ export default function KamarHitung() {
             </div>
           )}
 
-          <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
+          {controlMode === 'practice' ? <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedPractice} onChange={handlePracticeChange} disabled={!selectedEvent}>
+            <option value="">-- PILIH PRACTICE --</option>
+            {practices.map((practice) => <option key={practice.id} value={practice.id}>{practice.name}{practice.is_open ? ' (OPEN)' : ' (CLOSE)'}</option>)}
+          </select> : <select className="p-2 border border-gray-300 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 bg-gray-50 disabled:opacity-50" value={selectedSS} onChange={handleSSChange} disabled={!selectedEvent}>
             <option value="">-- PILIH STAGE --</option>
             {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
-          </select>
+          </select>}
           
           <button onClick={() => { logout(); navigate('/login'); }} className="text-xs font-bold text-gray-500 hover:text-red-600 transition">LOGOUT</button>
         </div>
       </header>
 
       <main className="flex-1 p-6">
-        {!selectedSS ? (
+        {controlMode === 'practice' ? (
+          !selectedPractice ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20"><span className="text-6xl mb-4">🏁</span><h2 className="text-xl font-bold">Menunggu Pilihan Practice</h2><p className="text-sm">Pilih Event dan sesi Practice untuk mengolah waktu peserta.</p></div>
+          ) : (
+            <PracticeRunManager
+              runs={filteredPracticeRuns}
+              totalRuns={practiceRuns.length}
+              search={recordSearch}
+              onSearch={setRecordSearch}
+              isLoading={isLoading}
+              draftValue={practiceDraftValue}
+              onDraftChange={updatePracticeDraft}
+              onSave={savePracticeRun}
+              onDelete={deletePracticeRun}
+              savingRun={savingPracticeRun}
+              timeDecimalPlaces={timeDecimalPlaces}
+            />
+          )
+        ) : !selectedSS ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20">
             <span className="text-6xl mb-4">⏱️</span>
             <h2 className="text-xl font-bold">Menunggu Pilihan SS</h2>
@@ -628,6 +732,23 @@ export default function KamarHitung() {
 
     </div>
   );
+}
+
+function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draftValue, onDraftChange, onSave, onDelete, savingRun, timeDecimalPlaces }) {
+  return <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="flex flex-col gap-3 border-b bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-black text-gray-800">Pengolahan Waktu Practice</h2><p className="mt-1 text-xs font-semibold text-gray-500">{runs.length} dari {totalRuns} run tampil. Elapsed dihitung ulang otomatis saat disimpan.</p></div><div className="flex items-center gap-2"><input type="search" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Cari nomor, driver, run, status..." className="h-9 w-72 rounded-lg border border-gray-300 px-3 text-sm font-semibold outline-none focus:border-red-500"/><span className="rounded bg-green-100 px-3 py-2 text-xs font-black uppercase text-green-700">Live auto-refresh</span></div></div>
+    <div className="overflow-x-auto"><table className="w-full min-w-[1100px] border-collapse text-sm"><thead className="bg-gray-100 text-xs uppercase tracking-wider text-gray-600"><tr><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3 text-left">Driver</th><th className="p-3 text-center">Run</th><th className="p-3 text-center">Waktu Start</th><th className="p-3 text-center">Waktu Finish</th><th className="p-3 text-center text-blue-600">Elapsed</th><th className="p-3 text-center">Status</th><th className="p-3">Catatan</th><th className="p-3 text-center">Aksi</th></tr></thead>
+      <tbody className="divide-y divide-gray-100">{isLoading ? <tr><td colSpan="10" className="p-10 text-center font-bold text-gray-500">Memuat data...</td></tr> : runs.length === 0 ? <tr><td colSpan="10" className="p-10 text-center italic text-gray-400">Belum ada run Practice pada sesi ini.</td></tr> : runs.map((run, index) => <tr key={run.id} className={index % 2 ? 'bg-gray-50' : 'bg-white'}>
+        <td className="p-3 text-center"><span className="rounded bg-red-600 px-3 py-1 font-black text-white">{run.practice_start_number}</span></td><td className="p-3 text-center font-black text-gray-700">{run.race_start_number}</td><td className="p-3 font-bold text-gray-800">{run.driver_name || '-'}</td><td className="p-3 text-center font-black">Run {run.run_no}</td>
+        <td className="p-3 text-center"><input value={draftValue(run, 'start_time')} onChange={(event) => onDraftChange(run.id, 'start_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
+        <td className="p-3 text-center"><input value={draftValue(run, 'finish_time')} onChange={(event) => onDraftChange(run.id, 'finish_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
+        <td className="bg-blue-50/40 p-3 text-center font-mono font-bold text-blue-700">{formatMs(run.elapsed_time_ms, timeDecimalPlaces)}</td>
+        <td className="p-3 text-center"><select value={draftValue(run, 'status') || 'OK'} onChange={(event) => onDraftChange(run.id, 'status', event.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-xs font-black"><option value="OK">OK</option><option value="DNF">DNF</option><option value="DNS">DNS</option><option value="DSQ">DSQ</option></select></td>
+        <td className="p-3"><input value={draftValue(run, 'notes')} onChange={(event) => onDraftChange(run.id, 'notes', event.target.value)} placeholder="Catatan opsional" className="w-44 rounded border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-blue-500" /></td>
+        <td className="p-3"><div className="flex justify-center gap-1"><button type="button" disabled={savingRun === run.id} onClick={() => onSave(run)} className="rounded bg-blue-600 px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-blue-700 disabled:opacity-50">{savingRun === run.id ? 'Menyimpan' : 'Update'}</button><button type="button" disabled={Boolean(savingRun)} onClick={() => onDelete(run)} className="rounded bg-red-100 px-3 py-2 text-[10px] font-black uppercase text-red-700 hover:bg-red-200 disabled:opacity-50">Hapus</button></div></td>
+      </tr>)}</tbody>
+    </table></div>
+  </div>;
 }
 
 function formatClockHourMinute(value) {
