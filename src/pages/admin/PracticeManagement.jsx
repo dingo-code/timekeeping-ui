@@ -146,7 +146,7 @@ export default function PracticeManagement({ eventId }) {
         ['PETUNJUK IMPORT NOMOR PRACTICE'],
         ['1', 'Isi PRACTICE NO untuk peserta yang mengikuti Practice.'],
         ['2', 'PRACTICE NO dan START ORDER harus berupa angka bulat positif dan tidak boleh duplikat.'],
-        ['3', 'RACE NO digunakan untuk mencocokkan peserta dengan Entry List dan tidak boleh diubah.'],
+        ['3', 'Peserta dicocokkan berdasarkan RACE NO. Jika kosong/tidak ditemukan, sistem mencocokkan nama DRIVER.'],
         ['4', 'Baris dengan PRACTICE NO kosong akan diabaikan dan tidak menghapus data yang sudah tersimpan.'],
         ['5', 'Import file pada sesi Practice yang benar.'],
       ];
@@ -178,16 +178,32 @@ export default function PracticeManagement({ eventId }) {
       if (!rows.length) throw new Error('File Excel kosong.');
 
       const byRaceNumber = new Map(alphabeticalCandidates.map((item) => [String(item.race_start_number).trim(), item]));
+      const candidatesByDriver = new Map();
+      alphabeticalCandidates.forEach((item) => {
+        const driverKey = normalizePracticeDriverName(item.driver_name);
+        if (!driverKey) return;
+        const matches = candidatesByDriver.get(driverKey) || [];
+        matches.push(item);
+        candidatesByDriver.set(driverKey, matches);
+      });
       const nextDrafts = { ...drafts };
       const unmatched = [];
       let importedCount = 0;
       rows.forEach((row, index) => {
         const raceNumber = practiceExcelValue(row, ['RACE NO', 'CAR NO', 'NO START', 'START NO']);
+        const driverName = practiceExcelValue(row, ['DRIVER', 'DRIVER NAME', 'NAMA DRIVER', 'NAMA PESERTA']);
         const practiceNumber = Number(practiceExcelValue(row, ['PRACTICE NO', 'NO PRACTICE', 'PRACTICE NUMBER']));
         if (!practiceNumber) return;
-        const candidate = byRaceNumber.get(String(raceNumber).trim());
+        let candidate = byRaceNumber.get(String(raceNumber).trim());
+        if (!candidate && driverName) {
+          const driverMatches = candidatesByDriver.get(normalizePracticeDriverName(driverName)) || [];
+          if (driverMatches.length > 1) {
+            throw new Error(`Nama driver "${driverName}" ditemukan lebih dari satu kali pada Entry List (baris ${index + 2}). Isi RACE NO agar tidak ambigu.`);
+          }
+          [candidate] = driverMatches;
+        }
         if (!candidate) {
-          unmatched.push(raceNumber || `baris ${index + 2}`);
+          unmatched.push(raceNumber || driverName || `baris ${index + 2}`);
           return;
         }
         const startOrder = Number(practiceExcelValue(row, ['START ORDER', 'START KE', 'ORDER'])) || index + 1;
@@ -213,7 +229,7 @@ export default function PracticeManagement({ eventId }) {
       await api.put(`/admin/practices/${selectedId}/entries`, { entries });
       setDrafts(nextDrafts);
       await loadEntries(selectedId);
-      setAutoSaveState({ type: 'success', text: `${importedCount} nomor Practice berhasil diimport${unmatched.length ? `; ${unmatched.length} Race No tidak ditemukan` : ''}.` });
+      setAutoSaveState({ type: 'success', text: `${importedCount} nomor Practice berhasil diimport${unmatched.length ? `; ${unmatched.length} peserta tidak ditemukan` : ''}.` });
     } catch (err) {
       setAutoSaveState({ type: 'error', text: err.response?.data?.error || err.message || 'Gagal mengimport nomor Practice.' });
     } finally {
@@ -275,4 +291,14 @@ function normalizePracticeExcelHeader(value) {
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizePracticeDriverName(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ');
 }
