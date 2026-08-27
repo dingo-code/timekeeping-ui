@@ -51,7 +51,7 @@ export default function SmartEntryListUpdate({ eventId, participants, racers, te
         const categoryItem = categories.find((c) => norm(c.code) === norm(item.data.categoryCode) || norm(c.description) === norm(item.data.categoryCode));
         if (!classItem) throw new Error(`Class ${item.data.classCode} untuk No ${item.data.startNumber} belum ada di master.`);
         if (!categoryItem) throw new Error(`Category ${item.data.categoryCode} untuk No ${item.data.startNumber} belum ada di master.`);
-        const payload = { start_number: item.data.startNumber, entrant_name: item.data.entrant || driver.full_name, driver_id: driver.id, codriver_id: navigator.id, team_id: teamId, vehicle_id: vehicleId, join_car_with_participant_id: oldParticipant?.join_car_with_participant_id || '', class_id: classItem.id, category_id: categoryItem.id };
+        const payload = { start_number: item.data.startNumber, entrant_name: item.data.entrant === '-' || item.data.entrant === '–' ? '' : item.data.entrant, driver_id: driver.id, codriver_id: navigator.id, team_id: teamId, vehicle_id: vehicleId, join_car_with_participant_id: oldParticipant?.join_car_with_participant_id || '', class_id: classItem.id, category_id: categoryItem.id };
         if (oldParticipant) { await api.put(`/admin/events/${eventId}/participants/${oldParticipant.id}`, payload); updated++; }
         else { await api.post(`/admin/events/${eventId}/participants`, payload); created++; }
       }

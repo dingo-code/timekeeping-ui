@@ -841,7 +841,7 @@ export default function MasterEventDetail() {
 
           const payload = {
             start_number: startNumber,
-            entrant_name: entrantName || cleanExcelText(readExcelValue(row, ['TEAM', 'TIM', 'NAMA TEAM'])) || driver.full_name,
+            entrant_name: entrantName === '-' || entrantName === '–' ? '' : entrantName,
             driver_id: driver.id,
             codriver_id: navigator.id,
             team_id: teamId,
@@ -1001,7 +1001,9 @@ export default function MasterEventDetail() {
         const navigatorRegion = regions.find((item) => item.id === navigator.region_id) || {};
         const joinParticipant = participants.find((item) => item.id === participant.join_car_with_participant_id);
         return [
-          participant.id, participant.start_number, participant.entrant_name, driver.full_name, driver.kis_number,
+          participant.id, participant.start_number,
+          normalizeLookupText(participant.entrant_name) === normalizeLookupText(driver.full_name) ? '' : participant.entrant_name,
+          driver.full_name, driver.kis_number,
           driver.gender, formatExistingRacerDate(driver.dob), driver.blood_type, driverRegion.name,
           navigator.full_name, navigator.kis_number, navigator.gender, formatExistingRacerDate(navigator.dob),
           navigator.blood_type, navigatorRegion.name,
@@ -1473,7 +1475,7 @@ export default function MasterEventDetail() {
                         <td className="p-3 text-center">
                           <span className="bg-black text-white font-black text-xl px-3 py-1 rounded">{p.start_number}</span>
                         </td>
-                        <td className="p-3 font-bold">{p.entrant_name}</td>
+                        <td className="p-3 font-bold">{p.entrant_name || '-'}</td>
                         <td className="p-3 text-sm">
                           <div className="font-semibold text-gray-800">{getRacerName(p.driver_id)}</div>
                           <div className="text-gray-500">Navigator: {getRacerName(p.codriver_id)}</div>
