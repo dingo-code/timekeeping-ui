@@ -37,6 +37,9 @@ export default function Login() {
         case 'petugas_tc':
           navigate('/marshal', { replace: true });
           break;
+        case 'flying_finish':
+          navigate('/flying-finish', { replace: true });
+          break;
         default:
           setErrorMsg('Role tidak dikenali oleh sistem.');
           useAuthStore.getState().logout();

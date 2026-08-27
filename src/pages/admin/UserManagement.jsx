@@ -7,6 +7,7 @@ const ROLES = [
   { value: 'kamar_hitung', label: 'Kamar Hitung' },
   { value: 'petugas_start', label: 'Petugas Start' },
   { value: 'petugas_finish', label: 'Petugas Finish' },
+  { value: 'flying_finish', label: 'Flying Finish' },
   { value: 'petugas_tc', label: 'Petugas TC' },
 ];
 

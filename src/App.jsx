@@ -46,7 +46,7 @@ const DummyPage = ({ title }) => (
 
 const MarshalPage = () => {
   const role = useAuthStore((state) => state.role);
-  return role === 'petugas_finish' ? <FinishStopwatch /> : <TimekeepingTerminal />;
+  return role === 'flying_finish' ? <FinishStopwatch /> : <TimekeepingTerminal />;
 };
 
 function AppRoutes() {
@@ -111,7 +111,8 @@ function AppRoutes() {
         
         {/* Rute Pos Start & Finish yang lama bisa dihapus atau dibiarkan saja sebagai cadangan */}
         <Route path="/pos-start" element={<ProtectedRoute allowedRoles={['petugas_start']}><DummyPage title="Pos Start" /></ProtectedRoute>} />
-        <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><FinishStopwatch /></ProtectedRoute>} />
+        <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><TimekeepingTerminal /></ProtectedRoute>} />
+        <Route path="/flying-finish" element={<ProtectedRoute allowedRoles={['flying_finish']}><FinishStopwatch /></ProtectedRoute>} />
         <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
         </Routes>
       </main>
