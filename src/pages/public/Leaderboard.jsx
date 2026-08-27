@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
 import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
+import { formatMs as formatDurationMs } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
@@ -48,6 +49,7 @@ export default function Leaderboard() {
     () => practices.find((practice) => practice.id === selectedPracticeId),
     [practices, selectedPracticeId]
   );
+  const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
 
   const overallForStage = useMemo(
     () => buildOverallEntries(overallEntries, selectedStage),
@@ -379,6 +381,7 @@ export default function Leaderboard() {
                 isLoading={isLoadingStages || isLoadingEntries}
                 emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
                 resultView="stage-times"
+                timeDecimalPlaces={timeDecimalPlaces}
               />
               <ResultsSection
                 title="Overall"
@@ -387,6 +390,7 @@ export default function Leaderboard() {
                 isLoading={isLoadingStages || isLoadingOverall}
                 emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
                 resultView="overall"
+                timeDecimalPlaces={timeDecimalPlaces}
               />
             </div>
           )}
@@ -399,11 +403,12 @@ export default function Leaderboard() {
               isLoading={isLoadingStages || isLoadingOverall}
               emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
               resultView="overall"
+              timeDecimalPlaces={timeDecimalPlaces}
             />
           )}
 
           {resultCategory === 'stage-winners' && (
-            <StageWinnersSection entries={stageWinners} isLoading={isLoadingAllStages} />
+            <StageWinnersSection entries={stageWinners} isLoading={isLoadingAllStages} timeDecimalPlaces={timeDecimalPlaces} />
           )}
 
           {resultCategory === 'starting-list' && (
@@ -418,7 +423,7 @@ export default function Leaderboard() {
           )}
 
           {resultCategory === 'penalties' && (
-            <PenaltiesSection entries={penalties} isLoading={isLoadingAllStages} />
+            <PenaltiesSection entries={penalties} isLoading={isLoadingAllStages} timeDecimalPlaces={timeDecimalPlaces} />
           )}
 
           {resultCategory === 'practice' && (
@@ -426,6 +431,7 @@ export default function Leaderboard() {
               result={practiceResult}
               practice={selectedPractice}
               isLoading={isLoadingPractice}
+              timeDecimalPlaces={timeDecimalPlaces}
             />
           )}
         </main>
@@ -548,9 +554,10 @@ function ResultCategoryTabs({ value, onChange }) {
   );
 }
 
-function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView }) {
+function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, timeDecimalPlaces }) {
   const isOverall = resultView === 'overall';
   const colSpan = isOverall ? 9 : 5;
+  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
 
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
@@ -640,18 +647,19 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         {entries.length === 0 ? (
           <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
         ) : (
-          entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} />)
+          entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
         )}
       </div>
     </section>
   );
 }
 
-function PracticeLeaderboardSection({ result, practice, isLoading }) {
+function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPlaces }) {
   const entries = result?.entries || [];
   const bestTime = entries.find((entry) => Number(entry.best_time_ms) > 0)?.best_time_ms || 0;
   const maxRuns = Number(result?.practice?.max_runs || practice?.max_runs || 0);
   const runColumns = Array.from({ length: maxRuns }, (_, index) => index + 1);
+  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
@@ -675,7 +683,8 @@ function PracticeLeaderboardSection({ result, practice, isLoading }) {
   );
 }
 
-function StageWinnersSection({ entries, isLoading }) {
+function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
+  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <SimpleSection title="Stage Winners" subtitle="Pemenang tercepat dari setiap SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada stage winner.">
       <table className="w-full border-collapse text-sm">
@@ -777,7 +786,8 @@ function StartingListSection({ entries, stageEntries, selectedStage, mode, onMod
   );
 }
 
-function PenaltiesSection({ entries, isLoading }) {
+function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
+  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <SimpleSection title="Penalties" subtitle="Daftar penalti yang tercatat pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
       <table className="w-full border-collapse text-sm">
@@ -1065,8 +1075,9 @@ function formatClock(value) {
   return String(value).slice(0, 8);
 }
 
-function LeaderboardCard({ entry, resultView }) {
+function LeaderboardCard({ entry, resultView, timeDecimalPlaces }) {
   const isOverall = resultView === 'overall';
+  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
 
   return (
     <article className={`border border-neutral-200 p-4 ${rowClass(entry.status) || 'bg-white'}`}>
@@ -1127,21 +1138,6 @@ function rowClass(status) {
   if (status === 'DNS') return 'bg-yellow-50';
   if (status === 'DSQ') return 'bg-red-50';
   return '';
-}
-
-function formatMs(ms) {
-  const value = Number(ms);
-  if (!Number.isFinite(value) || value <= 0) return '-';
-
-  const totalCentiseconds = Math.round(value / 10);
-  const centiseconds = (totalCentiseconds % 100).toString().padStart(2, '0');
-  const totalSeconds = Math.floor(totalCentiseconds / 100);
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = (totalMinutes % 60).toString().padStart(2, '0');
-  const hours = Math.floor(totalMinutes / 60);
-
-  return hours > 0 ? `${hours}:${minutes}:${seconds},${centiseconds}` : `${minutes}:${seconds},${centiseconds}`;
 }
 
 function formatEventDate(event) {
