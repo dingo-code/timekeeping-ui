@@ -206,13 +206,17 @@ export default function TimekeepingTerminal() {
   const canSubmitFinish = isFinisher && hasKnownStartNumber && ((isPracticeStage || isShakedownStage) ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
+  const finishFractionDigits = Math.max(1, Math.min(3, Number(timeDecimalPlaces) || 2));
   const timeDigits = manualTime.replace(/\D/g, '');
-  const maxTimeDigits = usesMinuteOnlyInput ? 4 : 8;
-  const expectedTimeDigits = usesMinuteOnlyInput ? '4 digit, contoh 0815' : '6 atau 8 digit, contoh 081530 atau 08153045';
+  const maxTimeDigits = usesMinuteOnlyInput ? 4 : 6 + finishFractionDigits;
+  const finishExampleFraction = '456'.slice(0, finishFractionDigits);
+  const expectedTimeDigits = usesMinuteOnlyInput
+    ? '4 digit, contoh 0815'
+    : `${maxTimeDigits} digit, contoh 081530${finishExampleFraction}`;
   const timeInputLabel = isStarter ? 'Waktu Start' : isFinisher ? 'Waktu Finish' : 'Waktu TC';
   const quickExamples = usesMinuteOnlyInput
     ? ['0815 = 08:15', '1340 = 13:40', 'Kirim sebagai HH:mm']
-    : ['081530 = 08:15:30', '08153045 = 08:15:30.45', 'Kirim sebagai HH:mm:ss.SS'];
+    : [`081530${finishExampleFraction} = 08:15:30.${finishExampleFraction}`, `Wajib ${finishFractionDigits} digit di belakang detik`, `Kirim sebagai HH:mm:ss.${'S'.repeat(finishFractionDigits)}`];
 
   const formatQuickTimeInput = (value) => {
     const digits = value.replace(/\D/g, '').slice(0, maxTimeDigits);
@@ -242,10 +246,9 @@ export default function TimekeepingTerminal() {
       return { isValid: true, message: 'Format siap dikirim sebagai HH:mm.' };
     }
 
-    if (timeDigits.length < 6) return { isValid: false, message: `Format belum lengkap. Ketik ${expectedTimeDigits}.` };
-    if (timeDigits.length === 7) return { isValid: false, message: 'Lengkapi centisecond jadi 8 digit, atau hapus satu digit agar memakai .00.' };
+    if (timeDigits.length !== maxTimeDigits) return { isValid: false, message: `Format harus ${expectedTimeDigits}, sesuai pengaturan decimal event.` };
     if (!isValidTimeParts(timeDigits.slice(0, 2), timeDigits.slice(2, 4), timeDigits.slice(4, 6))) return { isValid: false, message: 'Jam, menit, atau detik tidak valid.' };
-    return { isValid: true, message: timeDigits.length >= 8 ? 'Format siap dikirim sebagai HH:mm:ss.SS.' : 'Format siap dikirim sebagai HH:mm:ss.00.' };
+    return { isValid: true, message: `Format siap dikirim dengan ${finishFractionDigits} digit decimal.` };
   };
 
   const manualTimeValidation = getManualTimeValidation();
@@ -255,8 +258,8 @@ export default function TimekeepingTerminal() {
     if (usesMinuteOnlyInput) {
       return `${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}:00`;
     }
-    const centiseconds = timeDigits.slice(6, 8).padEnd(2, '0') || '00';
-    return `${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}:${timeDigits.slice(4, 6)}.${centiseconds}`;
+    const fraction = timeDigits.slice(6, 6 + finishFractionDigits);
+    return `${timeDigits.slice(0, 2)}:${timeDigits.slice(2, 4)}:${timeDigits.slice(4, 6)}.${fraction}`;
   };
 
   const handleManualTimeChange = (e) => {
@@ -266,10 +269,10 @@ export default function TimekeepingTerminal() {
   const handleUseCurrentTime = () => {
     const now = new Date();
     const pad2 = (value) => String(value).padStart(2, '0');
-    const centiseconds = pad2(Math.floor(now.getMilliseconds() / 10));
+    const fraction = String(now.getMilliseconds()).padStart(3, '0').slice(0, finishFractionDigits);
     const raw = usesMinuteOnlyInput
       ? `${pad2(now.getHours())}${pad2(now.getMinutes())}`
-      : `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}${centiseconds}`;
+      : `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}${fraction}`;
     setManualTime(formatQuickTimeInput(raw));
   };
 
