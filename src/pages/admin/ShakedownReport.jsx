@@ -225,6 +225,7 @@ export default function ShakedownReport() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <colgroup>
+                  <col style={{ width: tableColumnWidths.position }} />
                   <col style={{ width: tableColumnWidths.noStart }} />
                   <col style={{ width: tableColumnWidths.entrant }} />
                   <col style={{ width: tableColumnWidths.driver }} />
@@ -236,6 +237,7 @@ export default function ShakedownReport() {
                 </colgroup>
                 <thead>
                   <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
+                    <th className="border border-gray-300 p-2 text-center">Pos</th>
                     <th className="border border-gray-300 p-2 text-center">No</th>
                     <th className="border border-gray-300 p-2">Entrant</th>
                     <th className="border border-gray-300 p-2">Driver / Navigator</th>
@@ -249,6 +251,7 @@ export default function ShakedownReport() {
                 <tbody>
                   {group.entries.map((entry) => (
                     <tr key={entry.participant_id}>
+                      <td className="border border-gray-300 p-2 text-center text-lg font-black">{entry.position || '-'}</td>
                       <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                       <td className="border border-gray-300 p-2">{entry.entrant_name || '-'}</td>
                       <td className="border border-gray-300 p-2">
@@ -316,12 +319,42 @@ function groupShakedownEntries(entries, groupBy) {
   }
 
   const groups = Array.from(map.values());
+  groups.forEach((group) => {
+    group.entries.sort((a, b) => compareShakedownBestResult(a, b));
+    let position = 0;
+    group.entries = group.entries.map((entry) => {
+      const result = shakedownBestResult(entry);
+      if (result.time > 0) position += 1;
+      return { ...entry, position: result.time > 0 ? position : 0 };
+    });
+  });
   groups.sort((a, b) => {
     if (a.key === 'overall') return -1;
     if (b.key === 'overall') return 1;
     return a.label.localeCompare(b.label, 'id-ID');
   });
   return groups;
+}
+
+function shakedownBestResult(entry) {
+  return (entry.runs || []).reduce((best, run) => {
+    const time = Number(run.total_time_ms || 0);
+    if (run.status !== 'OK' || !run.finish_time || time <= 0) return best;
+    const startTime = String(run.start_time || '');
+    if (!best.time || time < best.time || (time === best.time && startTime < best.startTime)) return { time, startTime };
+    return best;
+  }, { time: 0, startTime: '' });
+}
+
+function compareShakedownBestResult(a, b) {
+  const aBest = shakedownBestResult(a);
+  const bBest = shakedownBestResult(b);
+  if (!aBest.time && !bBest.time) return Number(a.start_number || 0) - Number(b.start_number || 0);
+  if (!aBest.time) return 1;
+  if (!bBest.time) return -1;
+  if (aBest.time !== bBest.time) return aBest.time - bBest.time;
+  if (aBest.startTime !== bBest.startTime) return aBest.startTime.localeCompare(bBest.startTime);
+  return Number(a.start_number || 0) - Number(b.start_number || 0);
 }
 
 function shakedownGroupKey(entry, groupBy) {
@@ -389,16 +422,18 @@ function shakedownFilterAllLabel(type) {
 
 function shakedownColumnWidths(attemptCount) {
   const safeAttempts = Math.max(attemptCount, 1);
+  const position = 5;
   const noStart = 6;
   const className = safeAttempts <= 2 ? 9 : 8;
   const regional = safeAttempts <= 2 ? 10 : 9;
   const time = safeAttempts <= 2 ? 9 : Math.max(6, Math.min(8, Math.floor(40 / safeAttempts)));
   const timeTotal = time * safeAttempts;
-  const remaining = Math.max(30, 100 - noStart - className - regional - timeTotal);
+  const remaining = Math.max(30, 100 - position - noStart - className - regional - timeTotal);
   const driver = Math.round(remaining * (safeAttempts <= 2 ? 0.58 : 0.55));
   const entrant = remaining - driver;
 
   return {
+    position: `${position}%`,
     noStart: `${noStart}%`,
     driver: `${driver}%`,
     entrant: `${entrant}%`,
