@@ -86,6 +86,8 @@ export default function PracticeReport() {
   return (
     <div className="min-h-full space-y-6">
       <style>{`
+        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
+        .uniform-result-table thead th { text-align: center !important; }
         @media print {
           @page { size: ${paperOrientation}; margin: 7mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -94,8 +96,9 @@ export default function PracticeReport() {
           main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
           .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
           .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
-          table { font-size: 8px; table-layout: fixed; width: 100%; }
-          th, td { padding: 3px !important; }
+          table { font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
+          th, td { padding: 2.5px 3px !important; font-size: 7px !important; font-weight: 500 !important; }
+          th { font-weight: 800 !important; text-align: center !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; }
         }
@@ -131,29 +134,30 @@ export default function PracticeReport() {
           <EmptyState text="Belum ada data." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="uniform-result-table w-full border-collapse text-[11px] leading-tight">
               <colgroup>
                 <col style={{ width: columnWidths.rank }} /><col style={{ width: columnWidths.number }} /><col style={{ width: columnWidths.number }} />
-                <col style={{ width: columnWidths.entrant }} /><col style={{ width: columnWidths.driver }} /><col style={{ width: columnWidths.className }} />
+                <col style={{ width: columnWidths.entrant }} /><col style={{ width: columnWidths.driver }} /><col style={{ width: columnWidths.navigator }} /><col style={{ width: columnWidths.className }} />
                 {runColumns.map((runNo) => <col key={runNo} style={{ width: columnWidths.time }} />)}<col style={{ width: columnWidths.best }} />
               </colgroup>
-              <thead><tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
-                <th className="border border-gray-300 p-2 text-center">Rank</th><th className="border border-gray-300 p-2 text-center">Practice No</th><th className="border border-gray-300 p-2 text-center">Race No</th>
-                <th className="border border-gray-300 p-2">Entrant</th><th className="border border-gray-300 p-2">Driver / Navigator</th><th className="border border-gray-300 p-2">Class</th>
-                {runColumns.map((runNo) => <th key={runNo} className="border border-gray-300 p-2 text-right">Run {runNo}</th>)}
-                <th className="border border-gray-300 bg-green-50 p-2 text-right text-green-800">Best Time</th>
+              <thead><tr className="bg-slate-300 text-center text-[10px] uppercase text-slate-900">
+                <th className="border border-gray-300 p-2 text-center">Pos</th><th className="border border-gray-300 p-2 text-center">Practice No</th><th className="border border-gray-300 p-2 text-center">Car No</th>
+                <th className="border border-gray-300 p-2 text-center">Entrant</th><th className="border border-gray-300 p-2 text-center">Driver</th><th className="border border-gray-300 p-2 text-center">Navigator</th><th className="border border-gray-300 p-2 text-center">CLS</th>
+                {runColumns.map((runNo) => <th key={runNo} className="border border-gray-300 p-2 text-center">Run {runNo}</th>)}
+                <th className="border border-gray-300 p-2 text-center">Best Time</th>
               </tr></thead>
               <tbody>{result.entries.map((entry) => (
                 <tr key={entry.id}>
                   <td className="border border-gray-300 p-2 text-center font-black">{entry.rank || '-'}</td><td className="border border-gray-300 p-2 text-center font-black">{entry.practice_start_number}</td><td className="border border-gray-300 p-2 text-center">{entry.race_start_number}</td>
                   <td className="border border-gray-300 p-2">{entry.entrant_name || '-'}</td>
-                  <td className="border border-gray-300 p-2"><div className="font-bold text-gray-900">{entry.driver_name || '-'}</div><div className="text-xs text-gray-500">{entry.codriver_name || '-'}</div><div className="text-[11px] text-gray-400">{entry.vehicle_name || '-'}</div></td>
+                  <td className="border border-gray-300 p-2">{entry.driver_name || '-'}</td>
+                  <td className="border border-gray-300 p-2">{entry.codriver_name || '-'}</td>
                   <td className="border border-gray-300 p-2">{entry.class_name || '-'}</td>
                   {runColumns.map((runNo) => {
                     const run = (entry.runs || []).find((item) => item.run_no === runNo);
                     return <td key={runNo} className={`border border-gray-300 p-2 text-right font-mono font-bold ${entry.best_run_no === runNo ? 'bg-green-50 text-green-800' : ''}`}>{run?.finish_time ? formatMs(run.elapsed_time_ms, timeDecimalPlaces) : run?.start_time ? 'OPEN' : '-'}</td>;
                   })}
-                  <td className="border border-gray-300 bg-green-50 p-2 text-right font-mono text-base font-black text-green-800">{entry.best_time_ms ? formatMs(entry.best_time_ms, timeDecimalPlaces) : 'NO TIME'}</td>
+                  <td className="border border-gray-300 p-2 text-right font-mono">{entry.best_time_ms ? formatMs(entry.best_time_ms, timeDecimalPlaces) : 'NO TIME'}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -184,7 +188,8 @@ function practiceColumnWidths(runCount) {
   const safeRuns = Math.max(runCount, 1);
   const time = Math.max(6, Math.min(9, Math.floor(38 / safeRuns)));
   const remaining = Math.max(24, 100 - 38 - (time * safeRuns));
-  return { rank: '5%', number: '7%', entrant: `${Math.round(remaining * 0.4)}%`, driver: `${Math.round(remaining * 0.6)}%`, className: '9%', time: `${time}%`, best: '10%' };
+  const people = Math.round(remaining * 0.6);
+  return { rank: '5%', number: '7%', entrant: `${Math.round(remaining * 0.4)}%`, driver: `${people / 2}%`, navigator: `${people / 2}%`, className: '9%', time: `${time}%`, best: '10%' };
 }
 
 function formatPrintDate(date) {

@@ -273,6 +273,8 @@ export default function PrintResults() {
   return (
     <div className="min-h-full space-y-6">
       <style>{`
+        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
+        .uniform-result-table thead th { text-align: center !important; }
         @media print {
           @page { size: ${paperOrientation}; margin: 5mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -292,11 +294,12 @@ export default function PrintResults() {
           .print-group-title { break-after: avoid; page-break-after: avoid; margin-bottom: 2px !important; }
           .print-group-title h2 { font-size: 12px !important; line-height: 1.1 !important; }
           .print-group-title span { font-size: 8px !important; }
-          table { page-break-inside: auto; font-size: 8.5px !important; line-height: 1.12 !important; table-layout: fixed; width: 100%; }
+          table { page-break-inside: auto; font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
           th, td { padding: 2px 3px !important; vertical-align: top !important; }
           tbody td { background: #fff !important; }
-          thead th { background: #f3f4f6 !important; }
-          th { font-weight: 900 !important; }
+          thead th { background: #cbd5e1 !important; text-align: center !important; }
+          th, td { font-size: 7px !important; font-weight: 500 !important; }
+          th { font-weight: 800 !important; }
           th:nth-child(1), th:nth-child(2), th:nth-child(6), th:nth-child(7),
           td:nth-child(1), td:nth-child(2), td:nth-child(6), td:nth-child(7) {
             text-align: center !important;
@@ -304,8 +307,7 @@ export default function PrintResults() {
           }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; page-break-after: auto; }
-          .print-driver-name { font-size: 8.5px !important; line-height: 1.1 !important; }
-          .print-codriver-name { font-size: 7.5px !important; line-height: 1.1 !important; }
+          .print-driver-name, .print-codriver-name { font-size: 7px !important; line-height: 1.15 !important; font-weight: 500 !important; }
         }
       `}</style>
 
@@ -645,7 +647,8 @@ function finalResultColumnWidths(stageCount) {
   return {
     rank: `${fixed.rank}%`,
     noStart: `${fixed.noStart}%`,
-    driver: `${driver.toFixed(1)}%`,
+    driver: `${(driver / 2).toFixed(1)}%`,
+    navigator: `${(driver / 2).toFixed(1)}%`,
     entrant: `${entrant.toFixed(1)}%`,
     regional: `${fixed.regional}%`,
     className: `${fixed.className}%`,
@@ -662,8 +665,9 @@ function stageResultColumnWidths() {
   return {
     rank: '4%',
     noStart: '5%',
-    entrant: '12%',
-    driver: '17%',
+    entrant: '11%',
+    driver: '9%',
+    navigator: '9%',
     regional: '6%',
     className: '4%',
     category: '4%',
@@ -731,12 +735,13 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
         <span className="text-xs font-bold text-gray-500">{group.entries.length} peserta</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[11px]">
+        <table className="uniform-result-table w-full border-collapse text-[11px]">
           <colgroup>
             <col style={{ width: columnWidths.rank }} />
             <col style={{ width: columnWidths.noStart }} />
             <col style={{ width: columnWidths.entrant }} />
             <col style={{ width: columnWidths.driver }} />
+            <col style={{ width: columnWidths.navigator }} />
             <col style={{ width: columnWidths.regional }} />
             <col style={{ width: columnWidths.className }} />
             <col style={{ width: columnWidths.category }} />
@@ -749,21 +754,22 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
             <col style={{ width: columnWidths.remark }} />
           </colgroup>
           <thead>
-            <tr className="bg-gray-100 text-gray-700">
+            <tr className="bg-slate-300 text-center text-slate-900">
               <th className="border border-gray-300 p-2 text-center">Pos</th>
-              <th className="border border-gray-300 p-2 text-center">No Start</th>
-              <th className="border border-gray-300 p-2 text-left">Entrant</th>
-              <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
-              <th className="border border-gray-300 p-2 text-left">Regional</th>
-              <th className="border border-gray-300 p-2 text-left">Class</th>
-              <th className="border border-gray-300 p-2 text-left">Cat</th>
+              <th className="border border-gray-300 p-2 text-center">Car No</th>
+              <th className="border border-gray-300 p-2 text-center">Entrant</th>
+              <th className="border border-gray-300 p-2 text-center">Driver</th>
+              <th className="border border-gray-300 p-2 text-center">Navigator</th>
+              <th className="border border-gray-300 p-2 text-center">Regional</th>
+              <th className="border border-gray-300 p-2 text-center">CLS</th>
+              <th className="border border-gray-300 p-2 text-center">CAT</th>
               {stages.map((stage) => (
-                <th key={stage.id} className="border border-gray-300 p-2 text-right">SS{stage.ss_order}</th>
+                <th key={stage.id} className="border border-gray-300 p-2 text-center">SS{stage.ss_order}</th>
               ))}
-              <th className="border border-gray-300 p-2 text-right">Total</th>
-              <th className="border border-gray-300 p-2 text-right">Diff Prev</th>
-              <th className="border border-gray-300 p-2 text-right">Diff First</th>
-              <th className="border border-gray-300 p-2 text-left">Keterangan</th>
+              <th className="border border-gray-300 p-2 text-center">Total Time</th>
+              <th className="border border-gray-300 p-2 text-center">Diff</th>
+              <th className="border border-gray-300 p-2 text-center">Diff 1st</th>
+              <th className="border border-gray-300 p-2 text-center">Remark</th>
             </tr>
           </thead>
           <tbody>
@@ -772,10 +778,8 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.print_rank || '-'}</td>
                 <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                 <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
-                <td className="border border-gray-300 p-2">
-                  <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
-                  <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
-                </td>
+                <td className="print-driver-name border border-gray-300 p-2">{entry.driver_name}</td>
+                <td className="print-codriver-name border border-gray-300 p-2">{entry.codriver_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                 <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                 <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
@@ -854,12 +858,13 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
             <div key={`${stage.id}-${group.key}`} className="mb-5">
               <div className="mb-1 text-sm font-black uppercase text-gray-700">{group.label}</div>
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-[11px]">
+                <table className="uniform-result-table w-full border-collapse text-[11px]">
                   <colgroup>
                     <col style={{ width: columnWidths.rank }} />
                     <col style={{ width: columnWidths.noStart }} />
                     <col style={{ width: columnWidths.entrant }} />
                     <col style={{ width: columnWidths.driver }} />
+                    <col style={{ width: columnWidths.navigator }} />
                     <col style={{ width: columnWidths.regional }} />
                     <col style={{ width: columnWidths.className }} />
                     <col style={{ width: columnWidths.category }} />
@@ -873,22 +878,23 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                     <col style={{ width: columnWidths.remark }} />
                   </colgroup>
                   <thead>
-                    <tr className="bg-gray-100 text-gray-700">
+                    <tr className="bg-slate-300 text-center text-slate-900">
                       <th className="border border-gray-300 p-2 text-center">Pos</th>
-                      <th className="border border-gray-300 p-2 text-center">No Start</th>
-                      <th className="border border-gray-300 p-2 text-left">Entrant</th>
-                      <th className="border border-gray-300 p-2 text-left">Driver/Navigator</th>
-                      <th className="border border-gray-300 p-2 text-left">Regional</th>
-                      <th className="border border-gray-300 p-2 text-left">Class</th>
-                      <th className="border border-gray-300 p-2 text-left">Cat</th>
+                      <th className="border border-gray-300 p-2 text-center">Car No</th>
+                      <th className="border border-gray-300 p-2 text-center">Entrant</th>
+                      <th className="border border-gray-300 p-2 text-center">Driver</th>
+                      <th className="border border-gray-300 p-2 text-center">Navigator</th>
+                      <th className="border border-gray-300 p-2 text-center">Regional</th>
+                      <th className="border border-gray-300 p-2 text-center">CLS</th>
+                      <th className="border border-gray-300 p-2 text-center">CAT</th>
                       <th className="border border-gray-300 p-2 text-center">Start</th>
                       <th className="border border-gray-300 p-2 text-center">Finish</th>
-                      <th className="border border-gray-300 p-2 text-right">Time</th>
-                      <th className="border border-gray-300 p-2 text-right">time Penalty</th>
-                      <th className="border border-gray-300 p-2 text-right">Total</th>
-                      <th className="border border-gray-300 p-2 text-right">Diff Prev</th>
-                      <th className="border border-gray-300 p-2 text-right">Diff First</th>
-                      <th className="border border-gray-300 p-2 text-left">Keterangan</th>
+                      <th className="border border-gray-300 p-2 text-center">Stage Time</th>
+                      <th className="border border-gray-300 p-2 text-center">Penalties</th>
+                      <th className="border border-gray-300 p-2 text-center">Total Time</th>
+                      <th className="border border-gray-300 p-2 text-center">Diff</th>
+                      <th className="border border-gray-300 p-2 text-center">Diff 1st</th>
+                      <th className="border border-gray-300 p-2 text-center">Remark</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -897,10 +903,8 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2 text-center font-black">{rank || '-'}</td>
                         <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
                         <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
-                        <td className="border border-gray-300 p-2">
-                          <div className="print-driver-name font-bold text-gray-800">{entry.driver_name}</div>
-                          <div className="print-codriver-name text-[10px] text-gray-500">{entry.codriver_name || '-'}</div>
-                        </td>
+                        <td className="print-driver-name border border-gray-300 p-2">{entry.driver_name}</td>
+                        <td className="print-codriver-name border border-gray-300 p-2">{entry.codriver_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                         <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>

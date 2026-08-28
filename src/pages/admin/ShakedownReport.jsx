@@ -128,6 +128,8 @@ export default function ShakedownReport() {
   return (
     <div className="min-h-full space-y-6">
       <style>{`
+        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
+        .uniform-result-table thead th { text-align: center !important; }
         @media print {
           @page { size: ${paperOrientation}; margin: 7mm; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -219,7 +221,7 @@ export default function ShakedownReport() {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed border-collapse text-[11px] leading-tight">
+              <table className="uniform-result-table w-full table-fixed border-collapse text-[11px] leading-tight">
                 <colgroup>
                   <col style={{ width: tableColumnWidths.position }} />
                   <col style={{ width: tableColumnWidths.noStart }} />
