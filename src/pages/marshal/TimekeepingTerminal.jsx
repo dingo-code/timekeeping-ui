@@ -38,6 +38,7 @@ export default function TimekeepingTerminal() {
   const [restartReason, setRestartReason] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [lastSyncedAt, setLastSyncedAt] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (role === 'admin' || role === 'kamar_hitung') {
@@ -478,6 +479,15 @@ export default function TimekeepingTerminal() {
       : isTCOfficer
         ? (tcAlreadyRecorded ? 'UBAH TC' : 'KIRIM TC')
         : 'KIRIM DATA';
+  const positionTitle = isStarter ? 'POS START' : isFinisher ? 'POS FINISH' : 'POS TC';
+  const recentField = isStarter ? 'start_time' : isFinisher ? 'finish_time' : 'tc_time';
+  const recentInputs = [...records]
+    .filter((record) => record[recentField])
+    .sort((a, b) => {
+      const dateDelta = new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+      return dateDelta || (Number(b.attempt_no) || 0) - (Number(a.attempt_no) || 0);
+    })
+    .slice(0, 10);
 
   // ==========================================
   // TAMPILAN SETUP
@@ -535,37 +545,49 @@ export default function TimekeepingTerminal() {
   // TAMPILAN INPUT MANUAL (START & FINISH)
   // ==========================================
   return (
-    <div className="min-h-screen bg-black flex flex-col p-4 sm:p-8">
-      <header className="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 mb-8">
-        <div>
-          <div className={`${themeColor} font-black text-xl tracking-widest`}>
-            {isStarter ? 'POS START' : isFinisher ? 'POS FINISH' : 'POS TC'}
+    <div className="flex h-dvh flex-col overflow-hidden bg-black p-2 sm:p-3">
+      {isMenuOpen && <button type="button" aria-label="Tutup menu" onClick={() => setIsMenuOpen(false)} className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />}
+      <aside className={`fixed inset-y-0 right-0 z-50 flex w-[min(88vw,360px)] flex-col border-l border-gray-700 bg-gray-950 shadow-2xl transition-transform duration-200 ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="flex items-center justify-between border-b border-gray-800 p-4">
+          <div><p className={`text-xs font-black tracking-[0.22em] ${themeColor}`}>{positionTitle}</p><h2 className="mt-1 text-lg font-black text-white">MENU POS</h2></div>
+          <button type="button" onClick={() => setIsMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl bg-gray-800 text-xl text-white">×</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 border-b border-gray-800 p-3">
+          <button type="button" onClick={() => { setIsMenuOpen(false); setSelectedSS(''); }} className="rounded-xl bg-white px-3 py-3 text-xs font-black uppercase text-gray-900">Ganti Stage</button>
+          <button type="button" onClick={handleLogout} className="rounded-xl bg-red-600 px-3 py-3 text-xs font-black uppercase text-white">Logout</button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-black uppercase tracking-widest text-gray-300">10 Input Terakhir</h3><button type="button" onClick={() => fetchRecords(selectedSS)} className="text-[10px] font-black uppercase text-gray-500">Refresh</button></div>
+          <div className="space-y-2">
+            {recentInputs.length === 0 ? <p className="rounded-xl border border-dashed border-gray-700 p-5 text-center text-xs text-gray-500">Belum ada input {positionTitle.replace('POS ', '')}.</p> : recentInputs.map((record, index) => (
+              <div key={`${record.id}-${index}`} className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-3">
+                <span className={`grid h-9 min-w-9 place-items-center rounded-lg text-sm font-black ${roleBadgeClass}`}>{record.start_number}</span>
+                <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-gray-300">{record.driver_name || `Attempt #${record.attempt_no || 1}`}</p><p className="mt-0.5 font-mono text-sm font-black text-white">{record[recentField]}</p></div>
+                <span className="text-[10px] font-bold text-gray-500">#{record.attempt_no || 1}</span>
+              </div>
+            ))}
           </div>
-          <div className="text-gray-400 text-sm font-bold uppercase">{displayRole} {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => fetchRecords(selectedSS)} className="bg-gray-800 text-white px-3 py-2 rounded font-bold text-xs hover:bg-gray-700 transition">
-            REFRESH
-          </button>
-          <button type="button" onClick={() => setSelectedSS('')} className="bg-gray-800 text-white px-4 py-2 rounded font-bold text-sm hover:bg-gray-700 transition">
-            GANTI STAGE
-          </button>
-          <button type="button" onClick={handleLogout} className="bg-red-700 text-white px-4 py-2 rounded font-bold text-sm hover:bg-red-600 transition">
-            LOGOUT
-          </button>
+      </aside>
+
+      <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl border border-gray-800 bg-gray-900 px-4 shadow-lg">
+        <div className="min-w-0">
+          <div className={`text-lg font-black tracking-widest ${themeColor}`}>{positionTitle}</div>
+          <div className="truncate text-xs font-bold uppercase text-gray-400">{selectedStage ? stageLabel(selectedStage) : ''}</div>
         </div>
+        <button type="button" aria-label="Buka menu" onClick={() => setIsMenuOpen(true)} className="ml-3 flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-700 bg-gray-800 active:scale-95"><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/></button>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center">
-        <form onSubmit={handleSubmit} className="w-full max-w-sm bg-gray-900 p-8 rounded-3xl border border-gray-800 shadow-2xl space-y-6">
+      <main className="flex min-h-0 flex-1 flex-col items-center justify-center pt-2">
+        <form onSubmit={handleSubmit} className="flex max-h-full w-full max-w-lg flex-col gap-2 overflow-hidden rounded-2xl border border-gray-800 bg-gray-900 p-3 shadow-2xl sm:gap-3 sm:p-4">
           {isStageClosed && (
-            <div className="rounded-xl border border-red-700 bg-red-950/50 p-4 text-center text-sm font-black uppercase tracking-widest text-red-100">
+            <div className="rounded-xl border border-red-700 bg-red-950/50 p-2 text-center text-xs font-black uppercase tracking-widest text-red-100">
               SS CLOSE - INPUT PETUGAS POS TERKUNCI
             </div>
           )}
           
           <div className="text-center">
-            <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">{isPracticeStage ? 'Nomor Practice' : 'No Start'}</label>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-gray-400">{isPracticeStage ? 'Nomor Practice' : 'No Start'}</label>
             <input 
               type="number" 
               required
@@ -575,22 +597,22 @@ export default function TimekeepingTerminal() {
                 setStartNumber(e.target.value);
                 setStatusMessage('');
               }}
-              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-6xl font-black text-white p-4 outline-none focus:border-white disabled:opacity-50 transition-colors"
+              className="h-20 w-full rounded-xl border-2 border-gray-700 bg-black p-2 text-center text-5xl font-black text-white outline-none transition-colors focus:border-white disabled:opacity-50 sm:h-24 sm:text-6xl"
               placeholder="00"
             />
           </div>
 
-          <div className={`rounded-xl border p-4 text-sm ${
+          <div className={`rounded-xl border p-2.5 text-xs sm:text-sm ${
             inputStatus.tone === 'ready' ? 'bg-green-950/40 border-green-700 text-green-200' :
             inputStatus.tone === 'warning' ? 'bg-yellow-950/40 border-yellow-700 text-yellow-200' :
             inputStatus.tone === 'danger' ? 'bg-red-950/40 border-red-700 text-red-200' :
             'bg-gray-950 border-gray-700 text-gray-300'
           }`}>
-            <div className="font-black uppercase tracking-widest text-xs mb-2">Status Attempt</div>
+            <div className="mb-1 text-[10px] font-black uppercase tracking-widest">Status Attempt</div>
             <p className="font-semibold">{inputStatus.text}</p>
             {lastSyncedAt && <p className="mt-1 text-[11px] opacity-70">Sinkron terakhir: {lastSyncedAt}</p>}
             {selectedParticipant && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-300">
+              <div className="mt-2 grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] text-gray-300 sm:text-xs">
                 <div>Attempt: <span className="font-bold text-white">#{displayRecord?.attempt_no || (isShakedownStage ? 0 : 1)}</span></div>
                 <div>Target TC: <span className="font-mono text-white">{displayRecord?.target_tc_time || '-'}</span></div>
                 <div>TC: <span className="font-mono text-white">{displayRecord?.tc_time || '-'}</span></div>
@@ -602,16 +624,16 @@ export default function TimekeepingTerminal() {
           </div>
 
           {canCorrectStart && !isStageClosed && (
-            <div className="rounded-xl border border-green-700 bg-green-950/40 p-4">
+            <div className="rounded-xl border border-green-700 bg-green-950/40 p-2.5">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-green-200">Koreksi Start</div>
-              <p className="mb-3 text-xs font-semibold text-green-100">
+              <p className="mb-2 text-[11px] font-semibold text-green-100">
                 Jika mobil tertunda sebelum benar-benar start, isi waktu baru lalu kirim. Untuk mengosongkan start dan menunggu jadwal baru, gunakan cancel start.
               </p>
               <button
                 type="button"
                 onClick={handleCancelStart}
                 disabled={isCancellingStart}
-                className="w-full rounded-lg border border-green-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-green-100 hover:bg-green-900 disabled:opacity-50"
+                className="w-full rounded-lg border border-green-500 px-3 py-2 text-xs font-black uppercase tracking-widest text-green-100 hover:bg-green-900 disabled:opacity-50"
               >
                 {isCancellingStart ? 'MEMBATALKAN...' : 'CANCEL START'}
               </button>
@@ -619,23 +641,23 @@ export default function TimekeepingTerminal() {
           )}
 
           {isStarter && !isShakedownStage && startAlreadyRecorded && !canCorrectStart && activeRecord?.id && !isStageClosed && (
-            <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-4">
+            <div className="rounded-xl border border-orange-700 bg-orange-950/40 p-2.5">
               <div className="mb-2 text-xs font-black uppercase tracking-widest text-orange-200">Permintaan Restart</div>
-              <p className="mb-3 text-xs font-semibold text-orange-100">
+              <p className="mb-2 text-[11px] font-semibold text-orange-100">
                 Start mobil ini sudah terkunci. Isi alasan lalu kirim ke Kamar Hitung untuk persetujuan restart.
               </p>
               <textarea
-                rows="3"
+                rows="2"
                 value={restartReason}
                 onChange={(e) => setRestartReason(e.target.value)}
-                className="w-full rounded-lg border border-orange-800 bg-black p-3 text-sm font-semibold text-white outline-none focus:border-orange-400"
+                className="w-full rounded-lg border border-orange-800 bg-black p-2 text-xs font-semibold text-white outline-none focus:border-orange-400"
                 placeholder="Contoh: Terhalang kendaraan insiden di lintasan"
               />
               <button
                 type="button"
                 onClick={handleRequestRestart}
                 disabled={isRequestingRestart}
-                className="mt-3 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-black uppercase tracking-widest text-black hover:bg-orange-400 disabled:opacity-50"
+                className="mt-2 w-full rounded-lg bg-orange-500 px-3 py-2 text-xs font-black uppercase tracking-widest text-black hover:bg-orange-400 disabled:opacity-50"
               >
                 {isRequestingRestart ? 'MENGIRIM...' : 'KIRIM PERMINTAAN RESTART'}
               </button>
@@ -643,21 +665,21 @@ export default function TimekeepingTerminal() {
           )}
 
           {statusMessage && (
-            <div className="rounded-xl border border-blue-700 bg-blue-950/40 p-3 text-sm font-bold text-blue-200">
+            <div className="rounded-xl border border-blue-700 bg-blue-950/40 p-2 text-xs font-bold text-blue-200">
               {statusMessage}
             </div>
           )}
 
           <div className="text-center">
-            <label className="block text-gray-400 font-bold mb-2 uppercase tracking-widest text-sm">
+            <label className="mb-1 block text-xs font-bold uppercase tracking-widest text-gray-400">
               {timeInputLabel}
             </label>
-            <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="mb-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={handleUseCurrentTime}
                 disabled={isStageClosed}
-                className="rounded-lg bg-gray-800 px-3 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-gray-700 disabled:opacity-50"
+                className="rounded-lg bg-gray-800 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white transition hover:bg-gray-700 disabled:opacity-50"
               >
                 JAM SEKARANG
               </button>
@@ -665,7 +687,7 @@ export default function TimekeepingTerminal() {
                 type="button"
                 onClick={() => setManualTime('')}
                 disabled={isStageClosed || !manualTime}
-                className="rounded-lg border border-gray-700 px-3 py-3 text-xs font-black uppercase tracking-widest text-gray-300 transition hover:bg-gray-800 disabled:opacity-50"
+                className="rounded-lg border border-gray-700 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-300 transition hover:bg-gray-800 disabled:opacity-50"
               >
                 RESET WAKTU
               </button>
@@ -679,15 +701,15 @@ export default function TimekeepingTerminal() {
               maxLength={usesMinuteOnlyInput ? 5 : 11}
               value={manualTime} 
               onChange={handleManualTimeChange}
-              className="w-full bg-black border-2 border-gray-700 rounded-xl text-center text-4xl font-mono font-bold text-white p-4 outline-none focus:border-white disabled:opacity-50 transition-colors"
+              className="h-16 w-full rounded-xl border-2 border-gray-700 bg-black p-2 text-center font-mono text-3xl font-bold text-white outline-none transition-colors focus:border-white disabled:opacity-50 sm:h-20 sm:text-4xl"
               placeholder={usesMinuteOnlyInput ? '0815' : '08153045'}
             />
-            <p className={`mt-2 text-xs font-bold ${manualTimeValidation.isValid ? 'text-green-400' : 'text-gray-500'}`}>
+            <p className={`mt-1 text-[10px] font-bold ${manualTimeValidation.isValid ? 'text-green-400' : 'text-gray-500'}`}>
               {manualTime ? manualTimeValidation.message : `Ketik angka saja: ${expectedTimeDigits}.`}
             </p>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-black uppercase tracking-wide text-gray-500">
+            <div className="mt-1.5 grid grid-cols-3 gap-1 text-[8px] font-black uppercase tracking-wide text-gray-500 sm:text-[10px]">
               {quickExamples.map((example) => (
-                <span key={example} className="rounded bg-black px-2 py-2">{example}</span>
+                <span key={example} className="rounded bg-black px-1 py-1.5">{example}</span>
               ))}
             </div>
           </div>
@@ -695,7 +717,7 @@ export default function TimekeepingTerminal() {
           <button 
             type="submit"
             disabled={isSubmitting || !canSubmit}
-            className={`w-full py-5 ${buttonColor} ${isTCOfficer ? 'text-black' : 'text-white'} font-black text-2xl rounded-xl uppercase tracking-widest shadow-lg disabled:opacity-50 transition-all transform active:scale-95`}
+            className={`w-full py-3.5 ${buttonColor} ${isTCOfficer ? 'text-black' : 'text-white'} rounded-xl text-lg font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50 sm:py-4 sm:text-xl`}
           >
             {submitLabel}
           </button>
