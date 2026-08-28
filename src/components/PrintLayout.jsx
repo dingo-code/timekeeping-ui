@@ -52,7 +52,7 @@ export function PaperSizeField({ value, onChange, className = '' }) {
   return (
     <label className={className}>
       <span className="mb-1 block text-xs font-bold text-gray-500">Ukuran Kertas</span>
-      <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select className="min-w-0 max-w-full w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={value} onChange={(event) => onChange(event.target.value)}>
         {paperSizeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
@@ -63,7 +63,7 @@ export function OrientationField({ value, onChange, className = '' }) {
   return (
     <label className={className}>
       <span className="mb-1 block text-xs font-bold text-gray-500">Orientasi Kertas</span>
-      <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select className="min-w-0 max-w-full w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="portrait">Portrait</option>
         <option value="landscape">Landscape</option>
       </select>

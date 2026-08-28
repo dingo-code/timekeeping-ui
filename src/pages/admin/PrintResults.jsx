@@ -282,12 +282,12 @@ export default function PrintResults() {
       `}</PrintLayoutStyle>
 
       <div className="no-print bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+        <div className="space-y-4">
           <div>
             <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tight">Result</h2>
             <p className="text-sm text-gray-500 mt-1">Final result and stage result print format.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
+          <div className="grid min-w-0 w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 [&>*]:min-w-0 [&_select]:min-w-0 [&_select]:max-w-full">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -366,7 +366,7 @@ export default function PrintResults() {
             </div>
             <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
             <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
-            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary h-[42px] w-full self-end">
+            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary h-[42px] min-w-0 w-full self-end">
               BUAT PDF
             </button>
           </div>

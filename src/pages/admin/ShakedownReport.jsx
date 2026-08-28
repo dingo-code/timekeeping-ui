@@ -134,12 +134,12 @@ export default function ShakedownReport() {
       <PrintLayoutStyle paperSize={paperSize} orientation={paperOrientation} />
 
       <div className="no-print rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-4">
           <div>
             <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Shakedown Result</h2>
             <p className="mt-1 text-sm text-gray-500">Rekap multi-run shakedown per peserta.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_150px_150px_140px_140px_auto] xl:w-auto">
+          <div className="grid min-w-0 w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 [&>*]:min-w-0 [&_select]:min-w-0 [&_select]:max-w-full">
             <label>
               <span className="mb-1 block text-xs font-bold text-gray-500">Event</span>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -169,7 +169,7 @@ export default function ShakedownReport() {
             </label>
             <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
             <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
-            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary self-end py-3">
+            <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary min-w-0 w-full self-end py-3">
               BUAT PDF
             </button>
           </div>
