@@ -316,7 +316,7 @@ function groupShakedownEntries(entries, groupBy) {
     group.entries = group.entries.map((entry) => {
       const result = shakedownBestResult(entry);
       if (result.time > 0) position += 1;
-      return { ...entry, position: result.time > 0 ? position : 0 };
+      return { ...entry, position: result.time > 0 ? position : 0, best_time_ms: result.time };
     });
   });
   groups.sort((a, b) => {
@@ -411,26 +411,18 @@ function shakedownFilterAllLabel(type) {
   return labels[type] || 'Semua';
 }
 
-function shakedownColumnWidths(attemptCount) {
-  const safeAttempts = Math.max(attemptCount, 1);
-  const position = 5;
-  const noStart = 6;
-  const className = safeAttempts <= 2 ? 9 : 8;
-  const regional = safeAttempts <= 2 ? 10 : 9;
-  const time = safeAttempts <= 2 ? 9 : Math.max(6, Math.min(8, Math.floor(40 / safeAttempts)));
-  const timeTotal = time * safeAttempts;
-  const remaining = Math.max(30, 100 - position - noStart - className - regional - timeTotal);
-  const driver = Math.round(remaining * (safeAttempts <= 2 ? 0.58 : 0.55));
-  const entrant = remaining - driver;
-
+function shakedownReferenceColumnWidths() {
   return {
-    position: `${position}%`,
-    noStart: `${noStart}%`,
-    driver: `${driver}%`,
-    entrant: `${entrant}%`,
-    className: `${className}%`,
-    regional: `${regional}%`,
-    time: `${time}%`,
+    position: '4%',
+    noStart: '5%',
+    entrant: '20%',
+    driver: '14%',
+    navigator: '14%',
+    className: '6%',
+    category: '5%',
+    car: '8%',
+    type: '14%',
+    time: '10%',
   };
 }
 
