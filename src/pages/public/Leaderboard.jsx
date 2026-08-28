@@ -537,7 +537,8 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'stage-winners', label: 'Stage Winners' },
     { value: 'starting-list', label: 'Starting List' },
     { value: 'penalties', label: 'Penalties' },
-    { value: 'practice', label: 'Practice' },
+    // Tab Practice disembunyikan sementara. Aktifkan kembali baris berikut jika diperlukan.
+    // { value: 'practice', label: 'Practice' },
   ];
 
   return (
