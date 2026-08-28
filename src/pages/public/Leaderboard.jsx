@@ -153,12 +153,6 @@ export default function Leaderboard() {
   }, [selectedStageId]);
 
   useEffect(() => {
-    if (selectedStage?.is_shakedown && resultCategory !== 'stage-times') {
-      setResultCategory('stage-times');
-    }
-  }, [selectedStage, resultCategory]);
-
-  useEffect(() => {
     stagesRef.current = stages;
   }, [stages]);
 
@@ -375,7 +369,7 @@ export default function Leaderboard() {
           </div>
         )}
 
-        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} shakedownOnly={Boolean(selectedStage?.is_shakedown)} />
+        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
 
         {resultCategory === 'practice' ? (
           <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
@@ -391,7 +385,7 @@ export default function Leaderboard() {
 
         <main className="min-h-0 flex-1">
           {resultCategory === 'stage-times' && (
-            <div className="grid gap-5 xl:grid-cols-2">
+            <div className={`grid gap-5 ${selectedStage?.is_shakedown ? '' : 'xl:grid-cols-2'}`}>
               <ResultsSection
                 title="Stage Times"
                 subtitle="Waktu tercepat pada SS yang dipilih"
@@ -401,7 +395,7 @@ export default function Leaderboard() {
                 resultView="stage-times"
                 timeDecimalPlaces={timeDecimalPlaces}
               />
-              <ResultsSection
+              {!selectedStage?.is_shakedown && <ResultsSection
                 title="Overall"
                 subtitle="Akumulasi total sampai SS yang dipilih"
                 entries={overallForStage}
@@ -409,7 +403,7 @@ export default function Leaderboard() {
                 emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
                 resultView="overall"
                 timeDecimalPlaces={timeDecimalPlaces}
-              />
+              />}
             </div>
           )}
 
@@ -536,8 +530,8 @@ function PracticeTabs({ practices, selectedPracticeId, selectedPractice, onSelec
   );
 }
 
-function ResultCategoryTabs({ value, onChange, shakedownOnly = false }) {
-  const allTabs = [
+function ResultCategoryTabs({ value, onChange }) {
+  const tabs = [
     { value: 'overall', label: 'Overall' },
     { value: 'stage-times', label: 'Stage Times' },
     { value: 'stage-winners', label: 'Stage Winners' },
@@ -546,7 +540,6 @@ function ResultCategoryTabs({ value, onChange, shakedownOnly = false }) {
     // Tab Practice disembunyikan sementara. Aktifkan kembali baris berikut jika diperlukan.
     // { value: 'practice', label: 'Practice' },
   ];
-  const tabs = shakedownOnly ? allTabs.filter((tab) => tab.value === 'stage-times') : allTabs;
 
   return (
     <section className="mb-4 overflow-hidden border border-neutral-200 bg-white">
