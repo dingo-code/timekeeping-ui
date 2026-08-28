@@ -153,6 +153,12 @@ export default function Leaderboard() {
   }, [selectedStageId]);
 
   useEffect(() => {
+    if (selectedStage?.is_shakedown && resultCategory !== 'stage-times') {
+      setResultCategory('stage-times');
+    }
+  }, [selectedStage, resultCategory]);
+
+  useEffect(() => {
     stagesRef.current = stages;
   }, [stages]);
 
@@ -369,7 +375,7 @@ export default function Leaderboard() {
           </div>
         )}
 
-        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
+        <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} shakedownOnly={Boolean(selectedStage?.is_shakedown)} />
 
         {resultCategory === 'practice' ? (
           <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
@@ -530,8 +536,8 @@ function PracticeTabs({ practices, selectedPracticeId, selectedPractice, onSelec
   );
 }
 
-function ResultCategoryTabs({ value, onChange }) {
-  const tabs = [
+function ResultCategoryTabs({ value, onChange, shakedownOnly = false }) {
+  const allTabs = [
     { value: 'overall', label: 'Overall' },
     { value: 'stage-times', label: 'Stage Times' },
     { value: 'stage-winners', label: 'Stage Winners' },
@@ -540,6 +546,7 @@ function ResultCategoryTabs({ value, onChange }) {
     // Tab Practice disembunyikan sementara. Aktifkan kembali baris berikut jika diperlukan.
     // { value: 'practice', label: 'Practice' },
   ];
+  const tabs = shakedownOnly ? allTabs.filter((tab) => tab.value === 'stage-times') : allTabs;
 
   return (
     <section className="mb-4 overflow-hidden border border-neutral-200 bg-white">
