@@ -203,8 +203,9 @@ export default function TimekeepingTerminal() {
   const finishAlreadyRecorded = Boolean(displayRecord?.finish_time);
   const tcAlreadyRecorded = Boolean(activeRecord?.tc_time);
   const canCorrectStart = isStarter && !isShakedownStage && startAlreadyRecorded && !finishAlreadyRecorded && activeRecord?.id && activeRecord.status === 'OK';
+  const canCorrectFinish = isFinisher && finishAlreadyRecorded && displayRecord?.id && displayRecord.status === 'OK';
   const canSubmitStart = isStarter && hasKnownStartNumber && (isPracticeStage || isShakedownStage || !activeRecord || !startAlreadyRecorded || canCorrectStart);
-  const canSubmitFinish = isFinisher && hasKnownStartNumber && ((isPracticeStage || isShakedownStage) ? Boolean(openShakedownRecord) : !finishAlreadyRecorded);
+  const canSubmitFinish = isFinisher && hasKnownStartNumber && (((isPracticeStage || isShakedownStage) ? Boolean(openShakedownRecord) : !finishAlreadyRecorded) || canCorrectFinish);
   const canSubmitTC = isTCOfficer && !isShakedownStage && hasKnownStartNumber;
   const usesMinuteOnlyInput = isStarter || isTCOfficer;
   const finishFractionDigits = Math.max(1, Math.min(3, Number(timeDecimalPlaces) || 2));
@@ -282,14 +283,16 @@ export default function TimekeepingTerminal() {
     if (!startNumber) return { tone: 'neutral', text: `Masukkan ${isPracticeStage ? 'Nomor Practice' : 'No Start'} untuk melihat status attempt aktif.` };
     if (!selectedParticipant) return { tone: 'danger', text: `${isPracticeStage ? 'Nomor Practice' : 'Mobil'} #${startNumber} tidak terdaftar pada sesi ini.` };
     if (isStarter && isPracticeStage) return { tone: 'ready', text: `Siap input Practice run #${(activeRecord?.attempt_no || 0) + 1} dari ${selectedStage?.max_runs || 0}.` };
+    if (isFinisher && isPracticeStage && canCorrectFinish) return { tone: 'warning', text: `Finish Practice #${startNumber}, Run #${displayRecord?.attempt_no || 1} sudah tercatat pada ${displayRecord?.finish_time}. Waktu baru akan menjadi KOREKSI.` };
     if (isFinisher && isPracticeStage && !openShakedownRecord) return { tone: 'warning', text: `Nomor Practice #${startNumber} belum punya start yang menunggu finish.` };
     if (isStarter && isShakedownStage) return { tone: 'ready', text: `Siap input shakedown run #${(activeRecord?.attempt_no || 0) + 1}.` };
     if (isStarter && canCorrectStart) return { tone: 'warning', text: `Start mobil #${startNumber} sudah tercatat. Petugas start bisa ubah waktu atau cancel selama finish belum tercatat.` };
     if (isStarter && startAlreadyRecorded) return { tone: 'danger', text: `Start mobil #${startNumber} sudah terkunci karena finish/status sudah tercatat. Koreksi lewat Kamar Hitung.` };
     if (isStarter) return { tone: 'ready', text: `Siap input start untuk attempt #${activeRecord?.attempt_no || 1}.` };
+    if (isFinisher && isShakedownStage && canCorrectFinish) return { tone: 'warning', text: `Finish Shakedown mobil #${startNumber}, Run #${displayRecord?.attempt_no || 1} sudah tercatat pada ${displayRecord?.finish_time}. Waktu baru akan menjadi KOREKSI.` };
     if (isFinisher && isShakedownStage && !openShakedownRecord) return { tone: 'warning', text: `Mobil #${startNumber} belum punya start shakedown yang menunggu finish.` };
     if (isFinisher && !displayRecord?.start_time) return { tone: 'warning', text: `Mobil #${startNumber} belum punya waktu start aktif.` };
-    if (isFinisher && finishAlreadyRecorded) return { tone: 'danger', text: `Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.` };
+    if (isFinisher && finishAlreadyRecorded) return { tone: 'warning', text: `Finish mobil #${startNumber} sudah tercatat pada ${displayRecord?.finish_time}. Waktu baru akan menjadi KOREKSI.` };
     if (isFinisher) return { tone: 'ready', text: `Siap input finish untuk attempt #${displayRecord?.attempt_no || 1}.` };
     if (isTCOfficer && isShakedownStage) return { tone: 'warning', text: 'Shakedown tidak memakai input TC. Gunakan petugas start dan finish untuk mencatat waktu latihan.' };
     if (isTCOfficer && tcAlreadyRecorded) return { tone: 'warning', text: `TC mobil #${startNumber} sudah tercatat. Input ulang akan mengoreksi waktu TC berdasarkan No Start ini.` };
@@ -316,10 +319,11 @@ export default function TimekeepingTerminal() {
     const submittedTime = normalizeManualTimeForSubmit();
 
     const isStartCorrection = isStarter && !isPracticeStage && !isShakedownStage && startAlreadyRecorded;
+    const isFinishCorrection = isFinisher && canCorrectFinish;
     const confirmMsg = isStarter 
       ? `${isStartCorrection ? 'Konfirmasi UBAH START' : 'Konfirmasi START'} ${isPracticeStage ? 'Practice' : 'Mobil'} #${startNumber} pada ${manualTime}?`
       : isFinisher
-        ? `Konfirmasi FINISH ${isPracticeStage ? 'Practice' : 'Mobil'} #${startNumber} pada ${submittedTime}?`
+        ? `Konfirmasi ${isFinishCorrection ? 'UBAH FINISH' : 'FINISH'} ${isPracticeStage ? 'Practice' : 'Mobil'} #${startNumber} pada ${submittedTime}?`
         : `Konfirmasi TC Mobil #${startNumber} pada ${manualTime}?`;
 
     if (!window.confirm(confirmMsg)) return;
@@ -337,6 +341,14 @@ export default function TimekeepingTerminal() {
         && latestActiveRecord?.status === 'OK';
 
       if (isPracticeStage) {
+        if (isFinishCorrection) {
+          await api.put(`/practices/${selectedSS}/runs/${displayRecord.id}/finish-time`, { finish_time: submittedTime });
+          setStatusMessage(`Finish Practice #${startNumber}, Run #${displayRecord.attempt_no || 1} berhasil dikoreksi.`);
+          await fetchRecords(selectedSS);
+          setStartNumber('');
+          setManualTime('');
+          return;
+        }
         const endpoint = isStarter ? '/timekeeping/practice-runs/start' : '/timekeeping/practice-runs/finish';
         await api.post(endpoint, {
           practice_id: selectedSS,
@@ -356,14 +368,19 @@ export default function TimekeepingTerminal() {
       if (isStarter && latestCanCorrectStart && !isStartCorrection) {
         return alert(`Start mobil #${startNumber} baru saja tercatat di server. Refresh status, lalu ubah/cancel jika memang perlu dikoreksi.`);
       }
-      if (isFinisher && isShakedownStage && !latestOpenShakedownRecord) {
+      if (isFinisher && isShakedownStage && !latestOpenShakedownRecord && !isFinishCorrection) {
         return alert(`Mobil #${startNumber} belum punya start shakedown yang menunggu finish.`);
       }
       if (isFinisher && !isShakedownStage && !latestActiveRecord?.start_time) {
         return alert(`Mobil #${startNumber} belum punya waktu start aktif. Coba refresh status atau pastikan memilih SS yang sama dengan petugas start.`);
       }
-      if (isFinisher && !isShakedownStage && latestActiveRecord?.finish_time) {
-        return alert(`Finish mobil #${startNumber} sudah tercatat. Koreksi hanya lewat Kamar Hitung.`);
+      if (isFinishCorrection) {
+        await api.put(`/timekeeping/ss-records/${displayRecord.id}/finish-time`, { finish_time: submittedTime });
+        setStatusMessage(`Finish mobil #${startNumber} berhasil dikoreksi ke ${submittedTime}.`);
+        await fetchRecords(selectedSS);
+        setStartNumber('');
+        setManualTime('');
+        return;
       }
       if (isTCOfficer && isShakedownStage) {
         return alert('Shakedown tidak memakai input TC.');
@@ -476,6 +493,8 @@ export default function TimekeepingTerminal() {
     ? 'MENGIRIM...'
     : canCorrectStart
       ? 'UBAH START'
+      : canCorrectFinish
+        ? 'UBAH FINISH'
       : isTCOfficer
         ? (tcAlreadyRecorded ? 'UBAH TC' : 'KIRIM TC')
         : 'KIRIM DATA';
@@ -560,11 +579,11 @@ export default function TimekeepingTerminal() {
           <div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-black uppercase tracking-widest text-gray-300">10 Input Terakhir</h3><button type="button" onClick={() => fetchRecords(selectedSS)} className="text-[10px] font-black uppercase text-gray-500">Refresh</button></div>
           <div className="space-y-2">
             {recentInputs.length === 0 ? <p className="rounded-xl border border-dashed border-gray-700 p-5 text-center text-xs text-gray-500">Belum ada input {positionTitle.replace('POS ', '')}.</p> : recentInputs.map((record, index) => (
-              <div key={`${record.id}-${index}`} className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-3">
+              <button type="button" key={`${record.id}-${index}`} onClick={() => { setStartNumber(String(record.start_number)); setManualTime(formatQuickTimeInput(record[recentField] || '')); setStatusMessage(''); setIsMenuOpen(false); }} className="flex w-full items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-3 text-left transition hover:border-gray-600 hover:bg-gray-800 active:scale-[0.98]">
                 <span className={`grid h-9 min-w-9 place-items-center rounded-lg text-sm font-black ${roleBadgeClass}`}>{record.start_number}</span>
                 <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-gray-300">{record.driver_name || `Attempt #${record.attempt_no || 1}`}</p><p className="mt-0.5 font-mono text-sm font-black text-white">{record[recentField]}</p></div>
                 <span className="text-[10px] font-bold text-gray-500">#{record.attempt_no || 1}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
