@@ -578,8 +578,8 @@ export default function TimekeepingTerminal() {
         <button type="button" aria-label="Buka menu" onClick={() => setIsMenuOpen(true)} className="ml-3 flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-700 bg-gray-800 active:scale-95"><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/></button>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center pt-2">
-        <form onSubmit={handleSubmit} className="flex max-h-full w-full max-w-lg flex-col gap-2 overflow-hidden rounded-2xl border border-gray-800 bg-gray-900 p-3 shadow-2xl sm:gap-3 sm:p-4">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-2 [scrollbar-width:thin] [scrollbar-color:#374151_#000]">
+        <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-lg flex-col gap-2 rounded-2xl border border-gray-800 bg-gray-900 p-3 pb-3 shadow-2xl sm:gap-3 sm:p-4">
           {isStageClosed && (
             <div className="rounded-xl border border-red-700 bg-red-950/50 p-2 text-center text-xs font-black uppercase tracking-widest text-red-100">
               SS CLOSE - INPUT PETUGAS POS TERKUNCI
@@ -717,7 +717,7 @@ export default function TimekeepingTerminal() {
           <button 
             type="submit"
             disabled={isSubmitting || !canSubmit}
-            className={`w-full py-3.5 ${buttonColor} ${isTCOfficer ? 'text-black' : 'text-white'} rounded-xl text-lg font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50 sm:py-4 sm:text-xl`}
+            className={`sticky bottom-0 z-20 w-full py-3.5 ${buttonColor} ${isTCOfficer ? 'text-black' : 'text-white'} rounded-xl border border-white/10 text-lg font-black uppercase tracking-widest shadow-[0_-8px_24px_rgba(0,0,0,0.65)] transition-all active:scale-95 disabled:opacity-50 sm:py-4 sm:text-xl`}
           >
             {submitLabel}
           </button>

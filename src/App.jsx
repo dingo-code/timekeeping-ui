@@ -52,7 +52,9 @@ const MarshalPage = () => {
 
 function AppRoutes() {
   const location = useLocation();
-  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login';
+  const fieldTerminalPaths = ['/marshal', '/pos-start', '/pos-finish', '/pos-tc', '/flying-finish'];
+  const isFieldTerminal = fieldTerminalPaths.includes(location.pathname);
+  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login' || isFieldTerminal;
 
   return (
     <div className={`flex min-h-screen flex-col ${usesEmbeddedFooter ? '' : 'pb-12'}`}>
