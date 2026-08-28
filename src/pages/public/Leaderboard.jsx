@@ -71,6 +71,10 @@ export default function Leaderboard() {
     () => buildPenaltyRows(stages, stageRecordsById),
     [stages, stageRecordsById]
   );
+  const retirements = useMemo(
+    () => buildRetirementRows(overallEntries, stages),
+    [overallEntries, stages]
+  );
 
   useEffect(() => {
     fetchEvents();
@@ -438,6 +442,10 @@ export default function Leaderboard() {
             <PenaltiesSection entries={penalties} isLoading={isLoadingAllStages} timeDecimalPlaces={timeDecimalPlaces} />
           )}
 
+          {resultCategory === 'retirement' && (
+            <RetirementSection entries={retirements} isLoading={isLoadingOverall} />
+          )}
+
           {resultCategory === 'practice' && (
             <PracticeLeaderboardSection
               result={practiceResult}
@@ -475,7 +483,7 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Stage</p>
           <h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">
-            {selectedStageId === FINAL_STAGE_ID ? 'Final - Overall All Time' : selectedStage ? `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}` : 'Pilih SS'}
+            {selectedStageId === FINAL_STAGE_ID ? 'Final - Overall All Time' : selectedStage ? (selectedStage.is_shakedown ? 'SHAKEDOWN' : `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}`) : 'Pilih SS'}
           </h2>
         </div>
         <span className="shrink-0 text-xs font-black text-neutral-500">{stages.length} SS + Final</span>
@@ -497,10 +505,8 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
                 }`}
               >
                 {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}
-                <span className="block text-xs font-black uppercase tracking-widest">{isFinal ? 'Final' : `SS ${stage.ss_order}`}</span>
-                <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-700' : 'text-neutral-500'}`}>
-                  {stage.ss_name}
-                </span>
+                <span className="block text-xs font-black uppercase tracking-widest">{isFinal ? 'Final' : stage.is_shakedown ? 'SHAKEDOWN' : `SS ${stage.ss_order}`}</span>
+                {!stage.is_shakedown && <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-700' : 'text-neutral-500'}`}>{stage.ss_name}</span>}
               </button>
             );
           })}
@@ -537,6 +543,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'stage-winners', label: 'Stage Winners' },
     { value: 'starting-list', label: 'Starting List' },
     { value: 'penalties', label: 'Penalties' },
+    { value: 'retirement', label: 'Retirement' },
     // Tab Practice disembunyikan sementara. Aktifkan kembali baris berikut jika diperlukan.
     // { value: 'practice', label: 'Practice' },
   ];
@@ -631,7 +638,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                       <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
                       <td className="p-4 font-bold text-neutral-700">{carName(entry)}</td>
                       <td className="p-4 text-right font-mono font-black text-red-600">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
                       <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
@@ -839,6 +846,17 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
   );
 }
 
+function RetirementSection({ entries, isLoading }) {
+  return (
+    <SimpleSection title="Retirement" subtitle="Peserta yang menyatakan Withdraw (WD)" count={entries.length} isLoading={isLoading} emptyText="Belum ada peserta yang melakukan WD.">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
+        <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Car No.</th><th className="p-4">Driver / Reg</th><th className="p-4">Navigator / Reg</th><th className="p-4">Car</th><th className="p-4">Class</th><th className="p-4">Retirement From</th><th className="p-4">Reason</th><th className="p-4 text-center">Status</th></tr></thead>
+        <tbody>{entries.map((entry) => <tr key={entry.participant_id} className="border-t border-neutral-200"><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1 font-black text-neutral-950">{entry.start_number}</span></td><td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td><td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td><td className="p-4 font-bold text-neutral-700">{carName(entry)}</td><td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td><td className="p-4 font-black text-neutral-950">{entry.withdraw_stage_label}</td><td className="p-4 font-bold text-neutral-700">{entry.withdraw_reason || '-'}</td><td className="p-4 text-center"><span className="inline-flex bg-red-100 px-3 py-1 text-xs font-black text-red-700">WD</span></td></tr>)}</tbody>
+      </table>
+    </SimpleSection>
+  );
+}
+
 function SimpleSection({ title, subtitle, count, isLoading, emptyText, children, showChildrenWhenEmpty = false }) {
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
@@ -919,6 +937,20 @@ function buildPenaltyRows(stages, stageRecordsById) {
     if (Number(a.ss_order) !== Number(b.ss_order)) return Number(a.ss_order) - Number(b.ss_order);
     return Number(a.start_number || 0) - Number(b.start_number || 0);
   });
+}
+
+function buildRetirementRows(entries, stages) {
+  const stageById = new Map(stages.map((stage) => [stage.id, stage]));
+  return entries
+    .filter((entry) => Boolean(entry.withdraw_from_stage_id))
+    .map((entry) => {
+      const stage = stageById.get(entry.withdraw_from_stage_id);
+      return {
+        ...entry,
+        withdraw_stage_label: stage ? (stage.is_shakedown ? 'SHAKEDOWN' : `SS ${stage.ss_order} - ${stage.ss_name}`) : 'Stage tidak tersedia',
+      };
+    })
+    .sort((a, b) => Number(a.start_number || 0) - Number(b.start_number || 0));
 }
 
 function normalizePenaltyDetails(details) {
@@ -1008,6 +1040,12 @@ function normalizeStageEntries(records) {
     return Number.isFinite(numberValue) ? numberValue : 0;
   };
   const hasCompleteTime = (record) => Boolean(record.start_time) && Boolean(record.finish_time);
+  const clockTimeMs = (value) => {
+    const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?/);
+    if (!match) return Number.POSITIVE_INFINITY;
+    const fraction = String(match[4] || '').padEnd(3, '0').slice(0, 3);
+    return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
+  };
   const hasDisplayStatus = (record) => record.status === 'DNF' || record.status === 'DNS';
   const activeRecords = records.filter((record) => (
     record.is_active !== false &&
@@ -1031,6 +1069,12 @@ function normalizeStageEntries(records) {
     const aTotal = numericMs(a.total_time_ms);
     const bTotal = numericMs(b.total_time_ms);
     if (hasStageResult(a) && aTotal !== bTotal) return aTotal - bTotal;
+    if (hasStageResult(a) && hasStageResult(b)) {
+      const startTimeDelta = clockTimeMs(a.start_time) - clockTimeMs(b.start_time);
+      if (Number.isFinite(startTimeDelta) && startTimeDelta !== 0) return startTimeDelta;
+      const startOrderDelta = numericMs(a.start_order) - numericMs(b.start_order);
+      if (startOrderDelta !== 0) return startOrderDelta;
+    }
     return numericMs(a.start_number) - numericMs(b.start_number);
   });
 
@@ -1122,7 +1166,7 @@ function LeaderboardCard({ entry, resultView, timeDecimalPlaces }) {
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-2 text-xs font-bold text-neutral-600">
-          <MiniMetric label="Time" value={formatMs(entry.total_time_ms)} highlight />
+          <MiniMetric label="Time" value={entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)} highlight />
           <MiniMetric label="Diff" value={entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'} />
           <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
         </div>
