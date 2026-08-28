@@ -24,6 +24,7 @@ export default function KamarHitung() {
   const [selectedPractice, setSelectedPractice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [recordSearch, setRecordSearch] = useState('');
+  const [groupBy, setGroupBy] = useState('none');
 
   // State Modal Penalti
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false);
@@ -460,6 +461,7 @@ export default function KamarHitung() {
         record.codriver_name,
         record.team_name,
         record.class_name,
+        record.group_name,
         record.status,
         record.attempt_no ? `attempt ${record.attempt_no}` : '',
         record.attempt_no ? `#${record.attempt_no}` : '',
@@ -469,8 +471,11 @@ export default function KamarHitung() {
     : records;
 
   const filteredPracticeRuns = normalizedRecordSearch
-    ? practiceRuns.filter((run) => [run.practice_start_number, run.race_start_number, run.driver_name, run.run_no, run.status].join(' ').toLowerCase().includes(normalizedRecordSearch))
+    ? practiceRuns.filter((run) => [run.practice_start_number, run.race_start_number, run.driver_name, run.class_name, run.group_name, run.run_no, run.status].join(' ').toLowerCase().includes(normalizedRecordSearch))
     : practiceRuns;
+  const groupingValue = (item) => groupBy === 'class' ? (item.class_name || 'Tanpa Class') : groupBy === 'group' ? (item.group_name || 'Tanpa Group') : '';
+  const groupedRecords = groupBy === 'none' ? filteredRecords : [...filteredRecords].sort((a, b) => groupingValue(a).localeCompare(groupingValue(b), 'id-ID') || Number(a.start_number || 0) - Number(b.start_number || 0));
+  const groupedPracticeRuns = groupBy === 'none' ? filteredPracticeRuns : [...filteredPracticeRuns].sort((a, b) => groupingValue(a).localeCompare(groupingValue(b), 'id-ID') || Number(a.practice_start_number || 0) - Number(b.practice_start_number || 0) || Number(a.run_no || 0) - Number(b.run_no || 0));
 
   const practiceDraftValue = (run, field) => practiceDrafts[run.id]?.[field] ?? run[field] ?? '';
 
@@ -577,7 +582,7 @@ export default function KamarHitung() {
             <div className="h-full flex flex-col items-center justify-center text-gray-400 mt-20"><span className="text-6xl mb-4">🏁</span><h2 className="text-xl font-bold">Menunggu Pilihan Practice</h2><p className="text-sm">Pilih Event dan sesi Practice untuk mengolah waktu peserta.</p></div>
           ) : (
             <PracticeRunManager
-              runs={filteredPracticeRuns}
+              runs={groupedPracticeRuns}
               totalRuns={practiceRuns.length}
               search={recordSearch}
               onSearch={setRecordSearch}
@@ -589,6 +594,9 @@ export default function KamarHitung() {
               onDelete={deletePracticeRun}
               savingRun={savingPracticeRun}
               timeDecimalPlaces={timeDecimalPlaces}
+              groupBy={groupBy}
+              groupingValue={groupingValue}
+              onGroupByChange={setGroupBy}
             />
           )
         ) : !selectedSS ? (
@@ -605,6 +613,11 @@ export default function KamarHitung() {
                 <p className="mt-1 text-xs font-semibold text-gray-500">{filteredRecords.length} dari {records.length} record tampil.</p>
               </div>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)} className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-xs font-black uppercase text-gray-700 outline-none focus:border-red-500">
+                  <option value="none">Tanpa Grouping</option>
+                  <option value="class">Grouping Per Class</option>
+                  <option value="group">Grouping Per Group</option>
+                </select>
                 <input
                   type="search"
                   value={recordSearch}
@@ -645,11 +658,13 @@ export default function KamarHitung() {
                 <tbody className="divide-y divide-gray-100">
                   {isLoading ? <tr><td colSpan="13" className="p-10 text-center text-gray-500 font-bold animate-pulse">Memuat data...</td></tr> :
                    filteredRecords.length === 0 ? <tr><td colSpan="13" className="p-10 text-center text-gray-400 italic">{records.length === 0 ? 'Belum ada data masuk dari pos lapangan untuk SS ini.' : 'Tidak ada record yang cocok dengan pencarian.'}</td></tr> :
-                   filteredRecords.map((r, rowIndex) => {
+                   groupedRecords.map((r, rowIndex) => {
                     const joinedByStartNumbers = getJoinedByStartNumbers(r);
+                    const showGroupHeader = groupBy !== 'none' && (rowIndex === 0 || groupingValue(groupedRecords[rowIndex - 1]) !== groupingValue(r));
                     return (
                     // 👉 2. BUNGKUS DENGAN REACT FRAGMENT AGAR BISA ADA 2 TR (Baris Utama & Baris Dropdown)
                     <Fragment key={r.id}>
+                    {showGroupHeader && <tr className="bg-slate-800 text-white"><td colSpan="13" className="px-4 py-2 text-xs font-black uppercase tracking-widest">{groupBy === 'class' ? 'Class' : 'Group'}: {groupingValue(r)}</td></tr>}
                     <tr key={r.id} className={`${rowIndex % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hover:bg-gray-200'} transition-colors ${!r.is_active ? 'text-gray-500' : ''}`}>
                       <td className="p-3 text-center">
                         <div className="flex flex-col items-center gap-1">
@@ -817,11 +832,11 @@ export default function KamarHitung() {
   );
 }
 
-function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draftValue, onDraftChange, onSave, onSaveGivenTime, onDelete, savingRun, timeDecimalPlaces }) {
+function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draftValue, onDraftChange, onSave, onSaveGivenTime, onDelete, savingRun, timeDecimalPlaces, groupBy, groupingValue, onGroupByChange }) {
   return <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-    <div className="flex flex-col gap-3 border-b bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-black text-gray-800">Pengolahan Waktu Practice</h2><p className="mt-1 text-xs font-semibold text-gray-500">{runs.length} dari {totalRuns} run tampil. Elapsed dihitung ulang otomatis saat disimpan.</p></div><div className="flex items-center gap-2"><input type="search" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Cari nomor, driver, run, status..." className="h-9 w-72 rounded-lg border border-gray-300 px-3 text-sm font-semibold outline-none focus:border-red-500"/><span className="rounded bg-green-100 px-3 py-2 text-xs font-black uppercase text-green-700">Live auto-refresh</span></div></div>
+    <div className="flex flex-col gap-3 border-b bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-black text-gray-800">Pengolahan Waktu Practice</h2><p className="mt-1 text-xs font-semibold text-gray-500">{runs.length} dari {totalRuns} run tampil. Elapsed dihitung ulang otomatis saat disimpan.</p></div><div className="flex flex-wrap items-center gap-2"><select value={groupBy} onChange={(event) => onGroupByChange(event.target.value)} className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-xs font-black uppercase text-gray-700 outline-none focus:border-red-500"><option value="none">Tanpa Grouping</option><option value="class">Grouping Per Class</option><option value="group">Grouping Per Group</option></select><input type="search" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Cari nomor, driver, class, group..." className="h-9 w-72 rounded-lg border border-gray-300 px-3 text-sm font-semibold outline-none focus:border-red-500"/><span className="rounded bg-green-100 px-3 py-2 text-xs font-black uppercase text-green-700">Live auto-refresh</span></div></div>
     <div className="overflow-x-auto"><table className="w-full min-w-[1100px] border-collapse text-sm"><thead className="bg-gray-100 text-xs uppercase tracking-wider text-gray-600"><tr><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3 text-left">Driver</th><th className="p-3 text-center">Run</th><th className="p-3 text-center">Waktu Start</th><th className="p-3 text-center">Waktu Finish</th><th className="p-3 text-center text-blue-600">Elapsed</th><th className="p-3 text-center">Status</th><th className="p-3">Catatan</th><th className="p-3 text-center">Aksi</th></tr></thead>
-      <tbody className="divide-y divide-gray-100">{isLoading ? <tr><td colSpan="10" className="p-10 text-center font-bold text-gray-500">Memuat data...</td></tr> : runs.length === 0 ? <tr><td colSpan="10" className="p-10 text-center italic text-gray-400">Belum ada run Practice pada sesi ini.</td></tr> : runs.map((run, index) => <tr key={run.id} className={index % 2 ? 'bg-gray-50' : 'bg-white'}>
+      <tbody className="divide-y divide-gray-100">{isLoading ? <tr><td colSpan="10" className="p-10 text-center font-bold text-gray-500">Memuat data...</td></tr> : runs.length === 0 ? <tr><td colSpan="10" className="p-10 text-center italic text-gray-400">Belum ada run Practice pada sesi ini.</td></tr> : runs.map((run, index) => <Fragment key={run.id}>{groupBy !== 'none' && (index === 0 || groupingValue(runs[index - 1]) !== groupingValue(run)) && <tr className="bg-slate-800 text-white"><td colSpan="10" className="px-4 py-2 text-xs font-black uppercase tracking-widest">{groupBy === 'class' ? 'Class' : 'Group'}: {groupingValue(run)}</td></tr>}<tr className={index % 2 ? 'bg-gray-50' : 'bg-white'}>
         <td className="p-3 text-center"><span className="rounded bg-red-600 px-3 py-1 font-black text-white">{run.practice_start_number}</span></td><td className="p-3 text-center font-black text-gray-700">{run.race_start_number}</td><td className="p-3 font-bold text-gray-800">{run.driver_name || '-'}</td><td className="p-3 text-center font-black">Run {run.run_no}</td>
         <td className="p-3 text-center"><input value={draftValue(run, 'start_time')} onChange={(event) => onDraftChange(run.id, 'start_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
         <td className="p-3 text-center"><input value={draftValue(run, 'finish_time')} onChange={(event) => onDraftChange(run.id, 'finish_time', event.target.value)} placeholder="HH:MM:SS.00" className="w-32 rounded border border-gray-300 px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-blue-500" /></td>
@@ -829,7 +844,7 @@ function PracticeRunManager({ runs, totalRuns, search, onSearch, isLoading, draf
         <td className="p-3 text-center"><select value={draftValue(run, 'status') || 'OK'} onChange={(event) => onDraftChange(run.id, 'status', event.target.value)} className="rounded border border-gray-300 px-2 py-1.5 text-xs font-black"><option value="OK">OK</option><option value="DNF">DNF</option><option value="DNS">DNS</option><option value="DSQ">DSQ</option></select></td>
         <td className="p-3"><input value={draftValue(run, 'notes')} onChange={(event) => onDraftChange(run.id, 'notes', event.target.value)} placeholder="Catatan opsional" className="w-44 rounded border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-blue-500" /></td>
         <td className="p-3"><div className="flex justify-center gap-1"><button type="button" disabled={savingRun === run.id} onClick={() => onSave(run)} className="rounded bg-blue-600 px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-blue-700 disabled:opacity-50">{savingRun === run.id ? 'Menyimpan' : 'Update'}</button><button type="button" disabled={Boolean(savingRun)} onClick={() => onDelete(run)} className="rounded bg-red-100 px-3 py-2 text-[10px] font-black uppercase text-red-700 hover:bg-red-200 disabled:opacity-50">Hapus</button></div></td>
-      </tr>)}</tbody>
+      </tr></Fragment>)}</tbody>
     </table></div>
   </div>;
 }
