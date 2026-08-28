@@ -78,7 +78,7 @@ export default function InputMonitoring() {
 
   useEffect(() => {
     if (monitorMode !== 'practice' || !selectedEventId) return undefined;
-    const timer = window.setInterval(() => fetchPracticeRuns(practicesRef.current, selectedPracticeIdRef.current, true), 4000);
+    const timer = window.setInterval(() => syncOpenPractices(selectedEventId), 4000);
     return () => window.clearInterval(timer);
   }, [monitorMode, selectedEventId]);
 
@@ -137,6 +137,22 @@ export default function InputMonitoring() {
       setError(err.response?.data?.error || 'Gagal memuat sesi event.');
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function syncOpenPractices(eventId) {
+    try {
+      const response = await api.get(`/public/events/${eventId}/practices`);
+      const nextPractices = response.data.data || [];
+      let nextSelected = selectedPracticeIdRef.current;
+      if (nextSelected !== 'all' && !nextPractices.some((practice) => practice.id === nextSelected)) nextSelected = 'all';
+      setPractices(nextPractices);
+      practicesRef.current = nextPractices;
+      setSelectedPracticeId(nextSelected);
+      selectedPracticeIdRef.current = nextSelected;
+      await fetchPracticeRuns(nextPractices, nextSelected, true);
+    } catch {
+      // Pertahankan tampilan terakhir saat koneksi sesaat terputus.
     }
   }
 

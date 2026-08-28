@@ -163,6 +163,12 @@ export default function Leaderboard() {
     return () => window.clearInterval(timer);
   }, [resultCategory, selectedPracticeId]);
 
+  useEffect(() => {
+    if (!selectedEventId) return undefined;
+    const timer = window.setInterval(() => fetchPractices(selectedEventId, true), 3000);
+    return () => window.clearInterval(timer);
+  }, [selectedEventId]);
+
   const fetchStages = async (eventId) => {
     setIsLoadingStages(true);
     setError('');
@@ -181,16 +187,22 @@ export default function Leaderboard() {
     }
   };
 
-  const fetchPractices = async (eventId) => {
+  const fetchPractices = async (eventId, silent = false) => {
     try {
       const res = await api.get(`/public/events/${eventId}/practices`);
       const nextPractices = res.data.data || [];
       setPractices(nextPractices);
-      setSelectedPracticeId(nextPractices[0]?.id || '');
+      setSelectedPracticeId((current) => {
+        const nextSelected = nextPractices.some((practice) => practice.id === current) ? current : (nextPractices[0]?.id || '');
+        if (!nextSelected) setPracticeResult(null);
+        return nextSelected;
+      });
     } catch (err) {
-      setPractices([]);
-      setSelectedPracticeId('');
-      setError(err.response?.data?.error || 'Gagal memuat daftar Practice.');
+      if (!silent) {
+        setPractices([]);
+        setSelectedPracticeId('');
+        setError(err.response?.data?.error || 'Gagal memuat daftar Practice.');
+      }
     }
   };
 
@@ -524,7 +536,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'stage-times', label: 'Stage Times' },
     { value: 'stage-winners', label: 'Stage Winners' },
     { value: 'starting-list', label: 'Starting List' },
-    { value: 'penalties', label: 'Penaltie' },
+    { value: 'penalties', label: 'Penalties' },
     { value: 'practice', label: 'Practice' },
   ];
 
