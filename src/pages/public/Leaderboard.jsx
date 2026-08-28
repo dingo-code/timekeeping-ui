@@ -569,7 +569,7 @@ function ResultCategoryTabs({ value, onChange }) {
 
 function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, timeDecimalPlaces }) {
   const isOverall = resultView === 'overall';
-  const colSpan = isOverall ? 9 : 5;
+  const colSpan = isOverall ? 9 : 6;
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
 
   return (
@@ -607,7 +607,8 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                   <th className="p-4 text-center">No</th>
                   <th className="p-4">Driver / Navigator</th>
                   <th className="p-4 text-right">Time</th>
-                  <th className="p-4 text-right">Dif</th>
+                  <th className="p-4 text-right">Diff</th>
+                  <th className="p-4 text-right">Diff 1st</th>
                 </>
               )}
             </tr>
@@ -646,7 +647,8 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                         <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
                       </td>
                       <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   )}
                 </tr>
@@ -1034,15 +1036,22 @@ function normalizeStageEntries(records) {
 
   let rank = 1;
   const bestTime = activeRecords.find(hasStageResult)?.total_time_ms || 0;
+  let previousRankedTime = 0;
   return activeRecords.map((record) => {
     const ranked = hasStageResult(record);
+    const totalTime = numericMs(record.total_time_ms);
     const entry = {
       ...record,
       rank: ranked ? rank : '-',
-      diff_ms: ranked && bestTime ? numericMs(record.total_time_ms) - numericMs(bestTime) : 0,
+      gap_ms: ranked && previousRankedTime ? totalTime - previousRankedTime : 0,
+      diff_ms: ranked && bestTime ? totalTime - numericMs(bestTime) : 0,
+      diff_first_ms: ranked && bestTime ? totalTime - numericMs(bestTime) : 0,
       penalty_desc: formatPenaltyDetails(record.penalty_details),
     };
-    if (ranked) rank += 1;
+    if (ranked) {
+      previousRankedTime = totalTime;
+      rank += 1;
+    }
     return entry;
   });
 }
@@ -1112,9 +1121,10 @@ function LeaderboardCard({ entry, resultView, timeDecimalPlaces }) {
           <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-xs font-bold text-neutral-600">
+        <div className="grid grid-cols-3 gap-2 text-xs font-bold text-neutral-600">
           <MiniMetric label="Time" value={formatMs(entry.total_time_ms)} highlight />
-          <MiniMetric label="Dif" value={entry.diff_ms ? `+${formatMs(entry.diff_ms)}` : '-'} />
+          <MiniMetric label="Diff" value={entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'} />
+          <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
         </div>
       )}
     </article>
