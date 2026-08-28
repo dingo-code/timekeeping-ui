@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
+import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
+import { normalizePaperSize } from '../../utils/printLayout';
 
 export default function PracticeReport() {
   const [events, setEvents] = useState([]);
@@ -9,6 +11,7 @@ export default function PracticeReport() {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedPracticeId, setSelectedPracticeId] = useState('');
   const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('practice_result_orientation') || 'landscape');
+  const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('practice_result_paper_size')));
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -47,11 +50,17 @@ export default function PracticeReport() {
   const maxRuns = result?.practice?.max_runs || selectedPractice?.max_runs || 0;
   const runColumns = Array.from({ length: maxRuns }, (_, index) => index + 1);
   const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
-  const columnWidths = practiceColumnWidths(runColumns.length);
+  const columnWidths = practiceColumnWidths(runColumns.length, paperOrientation);
 
   const changeOrientation = (value) => {
     setPaperOrientation(value);
     localStorage.setItem('practice_result_orientation', value);
+  };
+
+  const changePaperSize = (value) => {
+    const nextValue = normalizePaperSize(value);
+    setPaperSize(nextValue);
+    localStorage.setItem('practice_result_paper_size', nextValue);
   };
 
   const changeEvent = (eventId) => {
@@ -85,24 +94,7 @@ export default function PracticeReport() {
 
   return (
     <div className="min-h-full space-y-6">
-      <style>{`
-        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
-        .uniform-result-table thead th { text-align: center !important; }
-        @media print {
-          @page { size: ${paperOrientation}; margin: 7mm; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          body { background: #fff !important; margin: 0 !important; }
-          aside, header, .no-print { display: none !important; }
-          main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
-          .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
-          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
-          table { font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
-          th, td { padding: 2.5px 3px !important; font-size: 7px !important; font-weight: 500 !important; }
-          th { font-weight: 800 !important; text-align: center !important; }
-          thead { display: table-header-group; }
-          tr { page-break-inside: avoid; }
-        }
-      `}</style>
+      <PrintLayoutStyle paperSize={paperSize} orientation={paperOrientation} />
 
       <div className="no-print rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -110,21 +102,17 @@ export default function PracticeReport() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Practice Result</h2>
             <p className="mt-1 text-sm text-gray-500">Rekap multi-run Practice dengan ranking berdasarkan best run.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_150px_auto] xl:w-auto">
+          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_140px_140px_auto] xl:w-auto">
             <SelectField label="Event" value={selectedEventId} onChange={changeEvent} placeholder="-- Pilih Event --" options={events} />
             <SelectField label="Practice" value={selectedPracticeId} onChange={changePractice} placeholder="-- Pilih Practice --" options={practices} />
-            <label>
-              <span className="mb-1 block text-xs font-bold text-gray-500">Orientasi Kertas</span>
-              <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={paperOrientation} onChange={(event) => changeOrientation(event.target.value)}>
-                <option value="portrait">Portrait</option><option value="landscape">Landscape</option>
-              </select>
-            </label>
+            <PaperSizeField value={paperSize} onChange={changePaperSize} />
+            <OrientationField value={paperOrientation} onChange={changeOrientation} />
             <button onClick={handlePrint} disabled={!selectedPracticeId || isLoading} className="admin-btn-primary self-end py-3">CETAK</button>
           </div>
         </div>
       </div>
 
-      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader event={selectedEvent} logoUrl={assetUrl(selectedEvent?.logo_url)} practice={result?.practice || selectedPractice} maxRuns={maxRuns} />
         {!selectedPracticeId ? (
           <EmptyState text="Pilih Practice terlebih dahulu." />
@@ -133,7 +121,7 @@ export default function PracticeReport() {
         ) : !result?.entries?.length ? (
           <EmptyState text="Belum ada data." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="print-table-wrap overflow-x-auto">
             <table className="uniform-result-table w-full border-collapse text-[11px] leading-tight">
               <colgroup>
                 <col style={{ width: columnWidths.rank }} /><col style={{ width: columnWidths.number }} /><col style={{ width: columnWidths.number }} />
@@ -177,19 +165,29 @@ function EmptyState({ text }) {
 }
 
 function PrintHeader({ event, logoUrl, practice, maxRuns }) {
-  return <div className="print-header mb-5 border-b border-gray-300 pb-4"><div className="grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
-    <div className="flex h-28 items-center justify-center bg-white">{logoUrl ? <img src={logoUrl} alt="Logo event" className="max-h-28 w-auto max-w-full object-contain" /> : <span className="text-center text-[10px] font-black uppercase text-gray-400">Logo Event</span>}</div>
-    <div className="self-center text-center"><h1 className="text-xl font-black uppercase tracking-wide text-gray-900">{event?.name || 'Practice Result'}</h1><p className="text-sm font-bold capitalize text-gray-700">{formatEventDateRange(event)}</p><p className="text-sm font-semibold text-gray-600">{event?.location || '-'}</p><p className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{practice?.name || 'Practice'} · Best Run · Maksimal {maxRuns} Run</p></div>
-    <div className="flex h-28 flex-col items-center justify-center gap-1"><span className="inline-block border-2 border-gray-900 px-3 py-1.5 text-center text-xs font-black uppercase leading-tight tracking-wide">Practice Result</span><UnofficialResultMark /><p className="text-center text-[9px] font-bold text-gray-600">Tanggal Cetak: {formatPrintDate(new Date())}</p></div>
+  return <div className="print-header mb-5 border-b border-gray-300 pb-4"><div className="print-header-grid grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
+    <div className="print-logo-box flex h-28 items-center justify-center bg-white">{logoUrl ? <img src={logoUrl} alt="Logo event" className="print-logo-img max-h-28 w-auto max-w-full object-contain" /> : <span className="text-center text-[10px] font-black uppercase text-gray-400">Logo Event</span>}</div>
+    <div className="self-center text-center"><h1 className="print-title text-xl font-black uppercase tracking-wide text-gray-900">{event?.name || 'Practice Result'}</h1><p className="print-subtitle text-sm font-bold capitalize text-gray-700">{formatEventDateRange(event)}</p><p className="print-subtitle text-sm font-semibold text-gray-600">{event?.location || '-'}</p><p className="print-subtitle mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{practice?.name || 'Practice'} · Best Run · Maksimal {maxRuns} Run</p></div>
+    <div className="print-meta-box flex h-28 flex-col items-center justify-center gap-1"><span className="print-status inline-block border-2 border-gray-900 px-3 py-1.5 text-center text-xs font-black uppercase leading-tight tracking-wide">Practice Result</span><UnofficialResultMark /><p className="print-date text-center text-[9px] font-bold text-gray-600">Tanggal Cetak: {formatPrintDate(new Date())}</p></div>
   </div></div>;
 }
 
-function practiceColumnWidths(runCount) {
+function practiceColumnWidths(runCount, orientation = 'landscape') {
   const safeRuns = Math.max(runCount, 1);
-  const time = Math.max(6, Math.min(9, Math.floor(38 / safeRuns)));
-  const remaining = Math.max(24, 100 - 38 - (time * safeRuns));
-  const people = Math.round(remaining * 0.6);
-  return { rank: '5%', number: '7%', entrant: `${Math.round(remaining * 0.4)}%`, driver: `${people / 2}%`, navigator: `${people / 2}%`, className: '9%', time: `${time}%`, best: '10%' };
+  const fixed = { rank: 5, number: 7, className: 9, best: orientation === 'portrait' ? 11 : 10 };
+  const fixedTotal = fixed.rank + (fixed.number * 2) + fixed.className + fixed.best;
+  const peopleTotal = orientation === 'portrait' ? 29 : 31;
+  const time = (100 - fixedTotal - peopleTotal) / safeRuns;
+  return {
+    rank: `${fixed.rank}%`,
+    number: `${fixed.number}%`,
+    entrant: `${peopleTotal * 0.4}%`,
+    driver: `${peopleTotal * 0.3}%`,
+    navigator: `${peopleTotal * 0.3}%`,
+    className: `${fixed.className}%`,
+    time: `${time}%`,
+    best: `${fixed.best}%`,
+  };
 }
 
 function formatPrintDate(date) {

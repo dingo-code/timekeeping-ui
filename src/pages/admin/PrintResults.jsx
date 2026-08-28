@@ -3,6 +3,8 @@ import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
+import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
+import { normalizePaperSize } from '../../utils/printLayout';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -30,6 +32,7 @@ export default function PrintResults() {
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [resultStatus, setResultStatus] = useState(localStorage.getItem('print_result_status') || 'unofficial');
   const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('print_result_orientation') || 'landscape');
+  const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('print_result_paper_size')));
   const [report, setReport] = useState(emptyReport());
   const [isLoading, setIsLoading] = useState(false);
 
@@ -116,6 +119,12 @@ export default function PrintResults() {
   const handlePaperOrientationChange = (value) => {
     setPaperOrientation(value);
     localStorage.setItem('print_result_orientation', value);
+  };
+
+  const handlePaperSizeChange = (value) => {
+    const nextValue = normalizePaperSize(value);
+    setPaperSize(nextValue);
+    localStorage.setItem('print_result_paper_size', nextValue);
   };
 
   const handleResultFilterChange = (key, value) => {
@@ -272,44 +281,10 @@ export default function PrintResults() {
 
   return (
     <div className="min-h-full space-y-6">
-      <style>{`
-        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
-        .uniform-result-table thead th { text-align: center !important; }
-        @media print {
-          @page { size: ${paperOrientation}; margin: 5mm; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          body { background: #fff !important; margin: 0 !important; }
-          aside, header, .no-print { display: none !important; }
-          main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
-          .print-page { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
-          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 4px !important; padding-bottom: 4px !important; }
-          .print-header-grid { grid-template-columns: 120px 1fr 132px !important; min-height: 72px !important; gap: 6px !important; }
-          .print-logo-box, .print-meta-box { height: 72px !important; }
-          .print-logo-img { max-height: 72px !important; }
-          .print-title { font-size: 16px !important; line-height: 1.05 !important; }
-          .print-subtitle { font-size: 9px !important; line-height: 1.12 !important; }
-          .print-status { border-width: 1px !important; padding: 3px 8px !important; font-size: 9px !important; line-height: 1.1 !important; }
-          .print-date { font-size: 8px !important; line-height: 1.1 !important; }
-          .print-group { page-break-inside: auto; break-inside: auto; margin-bottom: 7px !important; }
-          .print-group-title { break-after: avoid; page-break-after: avoid; margin-bottom: 2px !important; }
-          .print-group-title h2 { font-size: 12px !important; line-height: 1.1 !important; }
-          .print-group-title span { font-size: 8px !important; }
-          table { page-break-inside: auto; font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
-          th, td { padding: 2px 3px !important; vertical-align: top !important; }
-          tbody td { background: #fff !important; }
-          thead th { background: #cbd5e1 !important; text-align: center !important; }
-          th, td { font-size: 7px !important; font-weight: 500 !important; }
-          th { font-weight: 800 !important; }
-          th:nth-child(1), th:nth-child(2), th:nth-child(6), th:nth-child(7),
-          td:nth-child(1), td:nth-child(2), td:nth-child(6), td:nth-child(7) {
-            text-align: center !important;
-            white-space: nowrap !important;
-          }
-          thead { display: table-header-group; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          .print-driver-name, .print-codriver-name { font-size: 7px !important; line-height: 1.15 !important; font-weight: 500 !important; }
-        }
-      `}</style>
+      <PrintLayoutStyle paperSize={paperSize} orientation={paperOrientation}>{`
+        th:nth-child(1), th:nth-child(2), th:nth-child(6), th:nth-child(7),
+        td:nth-child(1), td:nth-child(2), td:nth-child(6), td:nth-child(7) { text-align: center !important; white-space: nowrap !important; }
+      `}</PrintLayoutStyle>
 
       <div className="no-print bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
@@ -394,13 +369,8 @@ export default function PrintResults() {
                 <option value="official">Official Result</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">Orientasi Kertas</label>
-              <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={paperOrientation} onChange={(e) => handlePaperOrientationChange(e.target.value)}>
-                <option value="portrait">Portrait</option>
-                <option value="landscape">Landscape</option>
-              </select>
-            </div>
+            <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
+            <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary h-[42px] w-full self-end">
               CETAK
             </button>
@@ -408,7 +378,7 @@ export default function PrintResults() {
         </div>
       </div>
 
-      <div className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      <div className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader
           eventName={selectedEvent?.name || '-'}
           eventDateText={selectedEventDateText}
@@ -433,6 +403,7 @@ export default function PrintResults() {
             stageResultTime={stageResultTime}
             resultRowClass={resultRowClass}
             excludedStatuses={excludedFinalStatuses}
+            orientation={paperOrientation}
           />
         ) : (
           <StageResultReport
@@ -443,6 +414,7 @@ export default function PrintResults() {
             stageRemark={stageRemark}
             resultRowClass={resultRowClass}
             timeDecimalPlaces={timeDecimalPlaces}
+            orientation={paperOrientation}
           />
         )}
       </div>
@@ -624,23 +596,25 @@ function genderLabel(value) {
   return 'Gender Tidak Diketahui';
 }
 
-function finalResultColumnWidths(stageCount) {
+function finalResultColumnWidths(stageCount, orientation = 'landscape') {
   const safeStageCount = Math.max(stageCount, 1);
+  const isPortrait = orientation === 'portrait';
   const fixed = {
-    rank: 4,
-    noStart: 5,
-    regional: 7,
+    rank: isPortrait ? 4.5 : 4,
+    noStart: isPortrait ? 5.5 : 5,
+    regional: isPortrait ? 6 : 7,
     className: 4,
     category: 4,
-    total: 7,
+    total: isPortrait ? 8 : 7,
     diffPrev: 6,
     diffFirst: 6,
     remark: 8,
   };
   const fixedTotal = Object.values(fixed).reduce((sum, value) => sum + value, 0);
-  const availableForStageTimes = 100 - fixedTotal - 27;
-  const stageTime = Math.max(3.4, Math.min(6, availableForStageTimes / safeStageCount));
-  const remaining = Math.max(22, 100 - fixedTotal - (stageTime * safeStageCount));
+  const nameBudget = isPortrait ? 30 : 27;
+  const availableForStageTimes = 100 - fixedTotal - nameBudget;
+  const stageTime = availableForStageTimes / safeStageCount;
+  const remaining = 100 - fixedTotal - (stageTime * safeStageCount);
   const driver = remaining * 0.58;
   const entrant = remaining - driver;
 
@@ -661,7 +635,14 @@ function finalResultColumnWidths(stageCount) {
   };
 }
 
-function stageResultColumnWidths() {
+function stageResultColumnWidths(orientation = 'landscape') {
+  if (orientation === 'portrait') {
+    return {
+      rank: '4%', noStart: '5%', entrant: '10%', driver: '8.5%', navigator: '8.5%',
+      regional: '5%', className: '4%', category: '4%', start: '6%', finish: '6%',
+      time: '7%', penalty: '6%', total: '7%', diffPrev: '5.5%', diffFirst: '5.5%', remark: '8%',
+    };
+  }
   return {
     rank: '4%',
     noStart: '5%',
@@ -688,8 +669,8 @@ function formatDiffMs(value, formatMs) {
   return `+${formatMs(diff)}`;
 }
 
-function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses }) {
-  const columnWidths = finalResultColumnWidths(stages.length);
+function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses, orientation }) {
+  const columnWidths = finalResultColumnWidths(stages.length, orientation);
   const lastStage = stages.reduce((latest, stage) => {
     if (!latest) return stage;
     return Number(stage.ss_order) > Number(latest.ss_order) ? stage : latest;
@@ -734,7 +715,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
         <h2 className="text-lg font-black uppercase text-gray-800">{group.label}</h2>
         <span className="text-xs font-bold text-gray-500">{group.entries.length} peserta</span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="print-table-wrap overflow-x-auto">
         <table className="uniform-result-table w-full border-collapse text-[11px]">
           <colgroup>
             <col style={{ width: columnWidths.rank }} />
@@ -837,8 +818,8 @@ function uniqueRemarks(values) {
   });
 }
 
-function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass, timeDecimalPlaces = 2 }) {
-  const columnWidths = stageResultColumnWidths();
+function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass, timeDecimalPlaces = 2, orientation }) {
+  const columnWidths = stageResultColumnWidths(orientation);
   if (stages.length === 0) {
     return <div className="p-10 text-center text-gray-500">Belum ada SS untuk dicetak.</div>;
   }
@@ -857,7 +838,7 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
           return (
             <div key={`${stage.id}-${group.key}`} className="mb-5">
               <div className="mb-1 text-sm font-black uppercase text-gray-700">{group.label}</div>
-              <div className="overflow-x-auto">
+              <div className="print-table-wrap overflow-x-auto">
                 <table className="uniform-result-table w-full border-collapse text-[11px]">
                   <colgroup>
                     <col style={{ width: columnWidths.rank }} />

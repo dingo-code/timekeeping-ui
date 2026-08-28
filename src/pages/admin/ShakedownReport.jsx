@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
+import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
+import { normalizePaperSize } from '../../utils/printLayout';
 
 const shakedownReportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -21,6 +23,7 @@ export default function ShakedownReport() {
   const [reportType, setReportType] = useState('overall');
   const [selectedFilterKey, setSelectedFilterKey] = useState('all');
   const [paperOrientation, setPaperOrientation] = useState(localStorage.getItem('shakedown_result_orientation') || 'portrait');
+  const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('shakedown_result_paper_size')));
   const [report, setReport] = useState({ max_attempts: 0, entries: [] });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -102,11 +105,17 @@ export default function ShakedownReport() {
     ? ''
     : filterOptions.find((option) => option.value === selectedFilterKey)?.label || '';
   const printDateText = formatPrintDate(new Date());
-  const tableColumnWidths = shakedownReferenceColumnWidths();
+  const tableColumnWidths = shakedownReferenceColumnWidths(paperOrientation);
 
   const handlePaperOrientationChange = (value) => {
     setPaperOrientation(value);
     localStorage.setItem('shakedown_result_orientation', value);
+  };
+
+  const handlePaperSizeChange = (value) => {
+    const nextValue = normalizePaperSize(value);
+    setPaperSize(nextValue);
+    localStorage.setItem('shakedown_result_paper_size', nextValue);
   };
 
   const handlePrint = () => {
@@ -127,24 +136,7 @@ export default function ShakedownReport() {
 
   return (
     <div className="min-h-full space-y-6">
-      <style>{`
-        .uniform-result-table tbody td { font-size: 11px !important; line-height: 1.15 !important; font-weight: 500 !important; }
-        .uniform-result-table thead th { text-align: center !important; }
-        @media print {
-          @page { size: ${paperOrientation}; margin: 7mm; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          body { background: #fff !important; margin: 0 !important; }
-          aside, header, .no-print { display: none !important; }
-          main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
-          .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
-          .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
-          table { font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
-          th, td { padding: 2.5px 3px !important; font-size: 7px !important; font-weight: 500 !important; }
-          th { font-weight: 800 !important; }
-          thead { display: table-header-group; }
-          tr { page-break-inside: avoid; }
-        }
-      `}</style>
+      <PrintLayoutStyle paperSize={paperSize} orientation={paperOrientation} />
 
       <div className="no-print rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -152,7 +144,7 @@ export default function ShakedownReport() {
             <h2 className="text-2xl font-black uppercase tracking-tight text-gray-800">Shakedown Result</h2>
             <p className="mt-1 text-sm text-gray-500">Rekap multi-run shakedown per peserta.</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_150px_150px_150px_auto] xl:w-auto">
+          <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_220px_150px_150px_140px_140px_auto] xl:w-auto">
             <label>
               <span className="mb-1 block text-xs font-bold text-gray-500">Event</span>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)}>
@@ -180,13 +172,8 @@ export default function ShakedownReport() {
                 {filterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-            <label>
-              <span className="mb-1 block text-xs font-bold text-gray-500">Orientasi Kertas</span>
-              <select className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={paperOrientation} onChange={(e) => handlePaperOrientationChange(e.target.value)}>
-                <option value="portrait">Portrait</option>
-                <option value="landscape">Landscape</option>
-              </select>
-            </label>
+            <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
+            <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary self-end py-3">
               CETAK
             </button>
@@ -194,7 +181,7 @@ export default function ShakedownReport() {
         </div>
       </div>
 
-      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader
           eventName={selectedEvent?.name || 'Shakedown Result'}
           eventDateText={selectedEventDateText}
@@ -220,7 +207,7 @@ export default function ShakedownReport() {
                 <span className="text-xs font-bold text-gray-500">{group.entries.length} peserta</span>
               </div>
             )}
-            <div className="overflow-x-auto">
+            <div className="print-table-wrap overflow-x-auto">
               <table className="uniform-result-table w-full table-fixed border-collapse text-[11px] leading-tight">
                 <colgroup>
                   <col style={{ width: tableColumnWidths.position }} />
@@ -276,27 +263,27 @@ export default function ShakedownReport() {
 function PrintHeader({ eventName, eventDateText, eventLocation, logoUrl, resultStatusLabel, printDateText, lineFourLabel, filterLabel }) {
   return (
     <div className="print-header mb-5 border-b border-gray-300 pb-4">
-      <div className="grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
-        <div className="flex h-28 items-center justify-center bg-white">
+      <div className="print-header-grid grid min-h-32 grid-cols-[150px_1fr_150px] items-center gap-3">
+        <div className="print-logo-box flex h-28 items-center justify-center bg-white">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo event" className="max-h-28 w-auto max-w-full object-contain" />
+            <img src={logoUrl} alt="Logo event" className="print-logo-img max-h-28 w-auto max-w-full object-contain" />
           ) : (
             <span className="text-center text-[10px] font-black uppercase text-gray-400">Logo Event</span>
           )}
         </div>
         <div className="self-center text-center">
-          <h1 className="text-xl font-black uppercase tracking-wide text-gray-900">{eventName}</h1>
-          <p className="text-sm font-bold capitalize text-gray-700">{eventDateText}</p>
-          <p className="text-sm font-semibold text-gray-600">{eventLocation}</p>
-          {filterLabel && <p className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{filterLabel}</p>}
-          <p className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{lineFourLabel}</p>
+          <h1 className="print-title text-xl font-black uppercase tracking-wide text-gray-900">{eventName}</h1>
+          <p className="print-subtitle text-sm font-bold capitalize text-gray-700">{eventDateText}</p>
+          <p className="print-subtitle text-sm font-semibold text-gray-600">{eventLocation}</p>
+          {filterLabel && <p className="print-subtitle mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{filterLabel}</p>}
+          <p className="print-subtitle mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">{lineFourLabel}</p>
         </div>
-        <div className="flex h-28 flex-col items-center justify-center gap-2">
-          <span className="inline-block border-2 border-gray-900 px-3 py-2 text-center text-xs font-black uppercase leading-tight tracking-wide">
+        <div className="print-meta-box flex h-28 flex-col items-center justify-center gap-2">
+          <span className="print-status inline-block border-2 border-gray-900 px-3 py-2 text-center text-xs font-black uppercase leading-tight tracking-wide">
             {resultStatusLabel}
           </span>
           <UnofficialResultMark />
-          <p className="text-center text-[10px] font-bold text-gray-600">Tanggal Cetak: {printDateText}</p>
+          <p className="print-date text-center text-[10px] font-bold text-gray-600">Tanggal Cetak: {printDateText}</p>
         </div>
       </div>
     </div>
@@ -413,7 +400,13 @@ function shakedownFilterAllLabel(type) {
   return labels[type] || 'Semua';
 }
 
-function shakedownReferenceColumnWidths() {
+function shakedownReferenceColumnWidths(orientation = 'landscape') {
+  if (orientation === 'portrait') {
+    return {
+      position: '4%', noStart: '5%', entrant: '18%', driver: '15%', navigator: '15%',
+      className: '6%', category: '5%', car: '8%', type: '14%', time: '10%',
+    };
+  }
   return {
     position: '4%',
     noStart: '5%',
