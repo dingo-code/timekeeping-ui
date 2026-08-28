@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
 import { normalizePaperSize } from '../../utils/printLayout';
+import { generateReportPdfFromElement } from '../../utils/reportPdf';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -35,6 +36,7 @@ export default function PrintResults() {
   const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('print_result_paper_size')));
   const [report, setReport] = useState(emptyReport());
   const [isLoading, setIsLoading] = useState(false);
+  const reportElementRef = useRef(null);
 
   useEffect(() => {
     fetchEvents();
@@ -263,20 +265,13 @@ export default function PrintResults() {
           return stage ? `SS ${stage.ss_order} - ${stage.ss_name}` : 'Semua SS';
         })();
 
-  const handlePrint = () => {
-    const originalTitle = document.title;
-    let restored = false;
-    const restoreTitle = () => {
-      if (restored) return;
-      restored = true;
-      document.title = originalTitle;
-      window.removeEventListener('afterprint', restoreTitle);
-    };
-
-    window.addEventListener('afterprint', restoreTitle);
-    document.title = ' ';
-    window.print();
-    window.setTimeout(restoreTitle, 3000);
+  const handlePrint = async () => {
+    await generateReportPdfFromElement({
+      element: reportElementRef.current,
+      paperSize,
+      orientation: paperOrientation,
+      fileName: `${selectedEvent?.name || 'result'}-${selectedStageLabel}`,
+    });
   };
 
   return (
@@ -372,13 +367,13 @@ export default function PrintResults() {
             <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
             <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary h-[42px] w-full self-end">
-              CETAK
+              BUAT PDF
             </button>
           </div>
         </div>
       </div>
 
-      <div className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
+      <div ref={reportElementRef} className="print-page bg-white border border-gray-200 rounded-xl p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader
           eventName={selectedEvent?.name || '-'}
           eventDateText={selectedEventDateText}

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
 import { normalizePaperSize } from '../../utils/printLayout';
+import { generateReportPdfFromElement } from '../../utils/reportPdf';
 
 export default function PracticeReport() {
   const [events, setEvents] = useState([]);
@@ -14,6 +15,7 @@ export default function PracticeReport() {
   const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('practice_result_paper_size')));
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const reportElementRef = useRef(null);
 
   useEffect(() => {
     api.get('/events').then((res) => {
@@ -77,19 +79,13 @@ export default function PracticeReport() {
     setIsLoading(Boolean(practiceId));
   };
 
-  const handlePrint = () => {
-    const originalTitle = document.title;
-    let restored = false;
-    const restoreTitle = () => {
-      if (restored) return;
-      restored = true;
-      document.title = originalTitle;
-      window.removeEventListener('afterprint', restoreTitle);
-    };
-    window.addEventListener('afterprint', restoreTitle);
-    document.title = ' ';
-    window.print();
-    window.setTimeout(restoreTitle, 3000);
+  const handlePrint = async () => {
+    await generateReportPdfFromElement({
+      element: reportElementRef.current,
+      paperSize,
+      orientation: paperOrientation,
+      fileName: `${selectedEvent?.name || 'result'}-${selectedPractice?.name || 'practice'}`,
+    });
   };
 
   return (
@@ -107,12 +103,12 @@ export default function PracticeReport() {
             <SelectField label="Practice" value={selectedPracticeId} onChange={changePractice} placeholder="-- Pilih Practice --" options={practices} />
             <PaperSizeField value={paperSize} onChange={changePaperSize} />
             <OrientationField value={paperOrientation} onChange={changeOrientation} />
-            <button onClick={handlePrint} disabled={!selectedPracticeId || isLoading} className="admin-btn-primary self-end py-3">CETAK</button>
+            <button onClick={handlePrint} disabled={!selectedPracticeId || isLoading} className="admin-btn-primary self-end py-3">BUAT PDF</button>
           </div>
         </div>
       </div>
 
-      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
+      <div ref={reportElementRef} className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader event={selectedEvent} logoUrl={assetUrl(selectedEvent?.logo_url)} practice={result?.practice || selectedPractice} maxRuns={maxRuns} />
         {!selectedPracticeId ? (
           <EmptyState text="Pilih Practice terlebih dahulu." />

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
 import { formatMs } from '../../utils/timeFormat';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
 import { normalizePaperSize } from '../../utils/printLayout';
+import { generateReportPdfFromElement } from '../../utils/reportPdf';
 
 const shakedownReportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -26,6 +27,7 @@ export default function ShakedownReport() {
   const [paperSize, setPaperSize] = useState(normalizePaperSize(localStorage.getItem('shakedown_result_paper_size')));
   const [report, setReport] = useState({ max_attempts: 0, entries: [] });
   const [isLoading, setIsLoading] = useState(false);
+  const reportElementRef = useRef(null);
 
   useEffect(() => {
     fetchEvents();
@@ -118,20 +120,13 @@ export default function ShakedownReport() {
     localStorage.setItem('shakedown_result_paper_size', nextValue);
   };
 
-  const handlePrint = () => {
-    const originalTitle = document.title;
-    let restored = false;
-    const restoreTitle = () => {
-      if (restored) return;
-      restored = true;
-      document.title = originalTitle;
-      window.removeEventListener('afterprint', restoreTitle);
-    };
-
-    window.addEventListener('afterprint', restoreTitle);
-    document.title = ' ';
-    window.print();
-    window.setTimeout(restoreTitle, 3000);
+  const handlePrint = async () => {
+    await generateReportPdfFromElement({
+      element: reportElementRef.current,
+      paperSize,
+      orientation: paperOrientation,
+      fileName: `${selectedEvent?.name || 'result'}-${selectedStageLabel}-shakedown`,
+    });
   };
 
   return (
@@ -175,13 +170,13 @@ export default function ShakedownReport() {
             <PaperSizeField value={paperSize} onChange={handlePaperSizeChange} />
             <OrientationField value={paperOrientation} onChange={handlePaperOrientationChange} />
             <button onClick={handlePrint} disabled={!selectedEventId || isLoading} className="admin-btn-primary self-end py-3">
-              CETAK
+              BUAT PDF
             </button>
           </div>
         </div>
       </div>
 
-      <div className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
+      <div ref={reportElementRef} className="print-panel rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-orientation={paperOrientation} data-paper-size={paperSize}>
         <PrintHeader
           eventName={selectedEvent?.name || 'Shakedown Result'}
           eventDateText={selectedEventDateText}
