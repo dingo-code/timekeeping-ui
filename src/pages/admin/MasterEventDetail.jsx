@@ -64,6 +64,7 @@ export default function MasterEventDetail() {
   // --- State Starting List & Jadwal TC ---
   const [selectedTCStageId, setSelectedTCStageId] = useState('');
   const [startingList, setStartingList] = useState([]);
+  const [startingListOrder, setStartingListOrder] = useState([]);
   const [startOrderDrafts, setStartOrderDrafts] = useState({});
   const [tcGenerateForm, setTcGenerateForm] = useState({ first_target_tc_time: '', interval_minutes: 2 });
   const [tcTargetDrafts, setTcTargetDrafts] = useState({});
@@ -181,10 +182,12 @@ export default function MasterEventDetail() {
       const res = await api.get(`/admin/stages/${stageId}/starting-list`);
       const nextList = res.data.data || [];
       setStartingList(nextList);
+      setStartingListOrder(nextList.map((entry) => entry.participant_id));
       setStartOrderDrafts(Object.fromEntries(nextList.map((entry) => [entry.participant_id, entry.start_order || entry.start_number])));
     } catch (e) {
       console.error('Gagal memuat starting list');
       setStartingList([]);
+      setStartingListOrder([]);
       setStartOrderDrafts({});
     }
   };
@@ -215,9 +218,10 @@ export default function MasterEventDetail() {
   };
 
   const startingListPayload = () => {
-    const rows = tcRows.map((row) => ({
+    const rows = tcRows.map((row, index) => ({
       participant_id: row.id,
       start_order: Number(startOrderDrafts[row.id] ?? row.start_order ?? row.start_number),
+      list_position: index + 1,
     }));
     const invalidRow = rows.find((row) => !Number.isInteger(row.start_order) || row.start_order <= 0);
     if (invalidRow) {
@@ -287,18 +291,26 @@ export default function MasterEventDetail() {
     if (!file) return;
 
     try {
-      const XLSX = await import('xlsx');
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-      if (rows.length === 0) return alert('File Excel kosong.');
+      const isPDF = file.name.toLowerCase().endsWith('.pdf');
+      let rows;
+      if (isPDF) {
+        rows = await parseStartingListPDF(file);
+      } else {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      }
+      if (rows.length === 0) return alert(`File ${isPDF ? 'PDF' : 'Excel'} tidak memiliki baris starting list yang dapat dibaca.`);
 
       const participantsByCarNo = new Map(participants.map((participant) => [String(participant.start_number).trim(), participant]));
       const nextStartOrderDrafts = { ...startOrderDrafts };
       const nextTCTargetDrafts = { ...tcTargetDrafts };
       const unmatched = [];
       const imported = [];
+      const importedParticipantIds = [];
+      const importedParticipantIdSet = new Set();
 
       rows.forEach((row, index) => {
         const carNo = readExcelValue(row, ['CAR NO', 'CARNO', 'NO START', 'START NO']);
@@ -307,27 +319,38 @@ export default function MasterEventDetail() {
           if (carNo) unmatched.push(carNo);
           return;
         }
+        if (importedParticipantIdSet.has(participant.id)) {
+          throw new Error(`CAR NO ${participant.start_number} muncul lebih dari satu kali di file import.`);
+        }
 
         const startOrder = Number(readExcelValue(row, ['*', 'START KE', 'START ORDER', 'ORDER']));
         if (!Number.isInteger(startOrder) || startOrder <= 0) {
-          throw new Error(`Start Ke tidak valid pada baris Excel ${index + 2}.`);
+          throw new Error(`Start Ke tidak valid pada baris ${index + 1}${isPDF ? ' PDF' : ' Excel'}.`);
         }
 
         nextStartOrderDrafts[participant.id] = startOrder;
         const targetTime = normalizeImportedClock(readExcelValue(row, ['TC TIME', 'TARGET TC', 'TARGET TC TIME']));
         if (targetTime) nextTCTargetDrafts[participant.id] = targetTime;
         imported.push(participant.start_number);
+        importedParticipantIds.push(participant.id);
+        importedParticipantIdSet.add(participant.id);
       });
 
       if (imported.length === 0) return alert('Tidak ada CAR NO yang cocok dengan Entry List event ini.');
 
       setStartOrderDrafts(nextStartOrderDrafts);
       setTcTargetDrafts(nextTCTargetDrafts);
+      const remainingParticipantIds = startingListOrder
+        .filter((participantId) => !importedParticipantIdSet.has(participantId));
+      const remainingNewParticipantIds = participants
+        .map((participant) => participant.id)
+        .filter((participantId) => !importedParticipantIdSet.has(participantId) && !remainingParticipantIds.includes(participantId));
+      setStartingListOrder([...importedParticipantIds, ...remainingParticipantIds, ...remainingNewParticipantIds]);
       const summary = `${imported.length} peserta diimport dari ${file.name}${unmatched.length ? `, ${unmatched.length} CAR NO tidak cocok` : ''}.`;
       setStartingListImportSummary(summary);
       alert(summary);
     } catch (err) {
-      alert(err.message || 'Gagal membaca file Excel starting list.');
+      alert(err.message || 'Gagal membaca file starting list.');
     }
   };
 
@@ -335,8 +358,7 @@ export default function MasterEventDetail() {
     try {
       const XLSX = await import('xlsx');
       const headers = ['CAR NO', 'START KE', 'TC TIME'];
-      const sortedParticipants = [...participants].sort((a, b) => Number(a.start_number) - Number(b.start_number));
-      const rows = sortedParticipants.map((participant, index) => [
+      const rows = tcRows.map((participant, index) => [
         participant.start_number,
         startOrderDrafts[participant.id] || index + 1,
         tcTargetDrafts[participant.id] || '',
@@ -348,6 +370,7 @@ export default function MasterEventDetail() {
         ['3', 'TC TIME opsional. Format yang disarankan HH:MM:SS, contoh 08:01:00.'],
         ['4', 'Import hanya mengisi draft. Tekan Simpan Starting List untuk menyimpan urutan.'],
         ['5', 'Pilih SS yang benar sebelum mengunduh dan mengimport template.'],
+        ['6', 'Urutan baris pada file akan dipertahankan apa adanya dan tidak di-sort otomatis.'],
       ];
       const workbook = XLSX.utils.book_new();
       const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -423,7 +446,13 @@ export default function MasterEventDetail() {
 
   const tcRecordByParticipantId = new Map(tcRecords.map((record) => [record.participant_id, record]));
   const startingListByParticipantId = new Map(startingList.map((entry) => [entry.participant_id, entry]));
-  const tcRows = participants.map((participant) => {
+  const participantById = new Map(participants.map((participant) => [participant.id, participant]));
+  const orderedParticipantIds = new Set(startingListOrder);
+  const orderedParticipants = [
+    ...startingListOrder.map((participantId) => participantById.get(participantId)).filter(Boolean),
+    ...participants.filter((participant) => !orderedParticipantIds.has(participant.id)),
+  ];
+  const tcRows = orderedParticipants.map((participant) => {
     const record = tcRecordByParticipantId.get(participant.id);
     const listEntry = startingListByParticipantId.get(participant.id);
     return {
@@ -435,7 +464,7 @@ export default function MasterEventDetail() {
       tc_status: record?.tc_status || 'NOT_SCHEDULED',
       tc_delta_ms: record?.tc_delta_ms || 0,
     };
-  }).sort((a, b) => (Number(a.start_order) || 0) - (Number(b.start_order) || 0) || (Number(a.start_number) || 0) - (Number(b.start_number) || 0));
+  });
   const normalizedTCSearch = tcSearchTerm.trim().toLowerCase();
   const filteredTCRows = tcRows.filter((row) => (
     [
@@ -1575,10 +1604,10 @@ export default function MasterEventDetail() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <label className="admin-btn-muted flex-1 cursor-pointer whitespace-nowrap text-center">
-                  Import Excel
+                  Import Excel / PDF
                   <input
                     type="file"
-                    accept=".xlsx,.xls,.csv"
+                    accept=".xlsx,.xls,.csv,.pdf,application/pdf"
                     className="hidden"
                     onChange={handleImportStartingListExcel}
                   />
@@ -2159,6 +2188,88 @@ function readExcelValue(row, candidateHeaders) {
     if (match) return match[1];
   }
   return '';
+}
+
+async function parseStartingListPDF(file) {
+  installStartingListPDFCompatibility();
+  const pdfjs = await import('pdfjs-dist');
+  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const parsedRows = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const content = await page.getTextContent();
+    const items = content.items
+      .map((item) => ({
+        text: cleanExcelText(item.str),
+        x: Number(item.transform?.[4] || 0),
+        y: Number(item.transform?.[5] || 0),
+      }))
+      .filter((item) => item.text);
+    const orderItems = items
+      .filter((item) => item.x < viewport.width * 0.04 && /^\d+$/.test(item.text) && item.y > 35)
+      .sort((a, b) => b.y - a.y);
+
+    for (const orderItem of orderItems) {
+      const rowItems = items.filter((item) => Math.abs(item.y - orderItem.y) <= 2.5);
+      const carNumberItem = rowItems.find((item) => (
+        item.x >= viewport.width * 0.04 &&
+        item.x < viewport.width * 0.09 &&
+        /^\d+$/.test(item.text)
+      ));
+      const targetTimeItem = rowItems.find((item) => (
+        item.x >= viewport.width * 0.9 && /^\d{1,2}[:.,]\d{2}(?:[:.,]\d{2})?$/.test(item.text)
+      ));
+      if (!carNumberItem) continue;
+      parsedRows.push({
+        '*': orderItem.text,
+        'CAR NO': carNumberItem.text,
+        'TC TIME': targetTimeItem?.text || '',
+      });
+    }
+  }
+
+  if (parsedRows.length === 0) {
+    throw new Error('Format tabel PDF tidak dikenali. Kolom urutan dan CAR NO tidak ditemukan.');
+  }
+  return parsedRows;
+}
+
+function installStartingListPDFCompatibility() {
+  if (!Promise.withResolvers) {
+    Promise.withResolvers = () => {
+      let resolve;
+      let reject;
+      const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+      });
+      return { promise, resolve, reject };
+    };
+  }
+  if (!Array.prototype.at) {
+    Object.defineProperty(Array.prototype, 'at', {
+      configurable: true,
+      writable: true,
+      value(index) {
+        const position = Number(index);
+        return this[position < 0 ? this.length + position : position];
+      },
+    });
+  }
+  if (!String.prototype.at) {
+    Object.defineProperty(String.prototype, 'at', {
+      configurable: true,
+      writable: true,
+      value(index) {
+        const position = Number(index);
+        return this[position < 0 ? this.length + position : position];
+      },
+    });
+  }
 }
 
 function normalizeExcelHeader(value) {
