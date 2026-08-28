@@ -57,11 +57,6 @@ export default function ShakedownReport() {
   const visibleGroups = selectedFilterKey === 'all'
     ? groupedEntries
     : groupedEntries.filter((group) => group.key === selectedFilterKey);
-  const visibleMaxAttempts = Math.max(
-    0,
-    ...visibleGroups.flatMap((group) => group.entries.flatMap((entry) => entry.runs.map((run) => run.attempt_no || 0)))
-  );
-  const attemptColumns = Array.from({ length: visibleMaxAttempts || report.max_attempts || 0 }, (_, index) => index + 1);
 
   const fetchEvents = async () => {
     try {
@@ -107,7 +102,7 @@ export default function ShakedownReport() {
     ? ''
     : filterOptions.find((option) => option.value === selectedFilterKey)?.label || '';
   const printDateText = formatPrintDate(new Date());
-  const tableColumnWidths = shakedownColumnWidths(attemptColumns.length);
+  const tableColumnWidths = shakedownReferenceColumnWidths();
 
   const handlePaperOrientationChange = (value) => {
     setPaperOrientation(value);
@@ -141,8 +136,9 @@ export default function ShakedownReport() {
           main, main > div { display: block !important; padding: 0 !important; background: #fff !important; }
           .print-panel { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
           .print-header { break-after: avoid; page-break-after: avoid; margin-bottom: 8px !important; padding-bottom: 8px !important; }
-          table { font-size: 8px; table-layout: fixed; width: 100%; }
-          th, td { padding: 3px !important; }
+          table { font-size: 7px !important; line-height: 1.15 !important; table-layout: fixed; width: 100%; }
+          th, td { padding: 2.5px 3px !important; font-size: 7px !important; font-weight: 500 !important; }
+          th { font-weight: 800 !important; }
           thead { display: table-header-group; }
           tr { page-break-inside: avoid; }
         }
@@ -223,51 +219,46 @@ export default function ShakedownReport() {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full table-fixed border-collapse text-[11px] leading-tight">
                 <colgroup>
                   <col style={{ width: tableColumnWidths.position }} />
                   <col style={{ width: tableColumnWidths.noStart }} />
                   <col style={{ width: tableColumnWidths.entrant }} />
                   <col style={{ width: tableColumnWidths.driver }} />
+                  <col style={{ width: tableColumnWidths.navigator }} />
                   <col style={{ width: tableColumnWidths.className }} />
-                  <col style={{ width: tableColumnWidths.regional }} />
-                  {attemptColumns.map((attemptNo) => (
-                    <col key={attemptNo} style={{ width: tableColumnWidths.time }} />
-                  ))}
+                  <col style={{ width: tableColumnWidths.category }} />
+                  <col style={{ width: tableColumnWidths.car }} />
+                  <col style={{ width: tableColumnWidths.type }} />
+                  <col style={{ width: tableColumnWidths.time }} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-gray-100 text-left text-xs uppercase tracking-wide text-gray-600">
+                  <tr className="bg-yellow-300 text-left text-[10px] uppercase text-gray-900">
                     <th className="border border-gray-300 p-2 text-center">Pos</th>
-                    <th className="border border-gray-300 p-2 text-center">No</th>
+                    <th className="border border-gray-300 p-2 text-center">Car No</th>
                     <th className="border border-gray-300 p-2">Entrant</th>
-                    <th className="border border-gray-300 p-2">Driver / Navigator</th>
-                    <th className="border border-gray-300 p-2">Class</th>
-                    <th className="border border-gray-300 p-2">Regional</th>
-                    {attemptColumns.map((attemptNo) => (
-                      <th key={attemptNo} className="print-time border border-gray-300 p-2 text-right">Time {attemptNo}</th>
-                    ))}
+                    <th className="border border-gray-300 p-2">Driver</th>
+                    <th className="border border-gray-300 p-2">Navigator</th>
+                    <th className="border border-gray-300 p-2 text-center">Cls</th>
+                    <th className="border border-gray-300 p-2 text-center">Cat</th>
+                    <th className="border border-gray-300 p-2">Car</th>
+                    <th className="border border-gray-300 p-2">Type</th>
+                    <th className="border border-gray-300 p-2 text-right">Stage Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   {group.entries.map((entry) => (
                     <tr key={entry.participant_id}>
-                      <td className="border border-gray-300 p-2 text-center text-lg font-black">{entry.position || '-'}</td>
-                      <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
+                      <td className="border border-gray-300 p-2 text-center">{entry.position || '-'}</td>
+                      <td className="border border-gray-300 p-2 text-center">{entry.start_number}</td>
                       <td className="border border-gray-300 p-2">{entry.entrant_name || '-'}</td>
-                      <td className="border border-gray-300 p-2">
-                        <div className="font-bold text-gray-900">{entry.driver_name}</div>
-                        <div className="text-xs text-gray-500">{entry.codriver_name || '-'}</div>
-                      </td>
-                      <td className="border border-gray-300 p-2">{entry.class_name || '-'}</td>
-                      <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
-                      {attemptColumns.map((attemptNo) => {
-                        const run = entry.runs.find((item) => item.attempt_no === attemptNo);
-                        return (
-                          <td key={attemptNo} className="border border-gray-300 p-2 text-right font-mono font-bold">
-                            {run ? formatMs(run.total_time_ms, timeDecimalPlaces) : '-'}
-                          </td>
-                        );
-                      })}
+                      <td className="border border-gray-300 p-2">{entry.driver_name || '-'}</td>
+                      <td className="border border-gray-300 p-2">{entry.codriver_name || '-'}</td>
+                      <td className="border border-gray-300 p-2 text-center">{entry.class_name || '-'}</td>
+                      <td className="border border-gray-300 p-2 text-center">{entry.category_name || '-'}</td>
+                      <td className="border border-gray-300 p-2">{entry.car_brand || '-'}</td>
+                      <td className="border border-gray-300 p-2">{entry.car_type || '-'}</td>
+                      <td className="border border-gray-300 p-2 text-right font-mono">{entry.best_time_ms ? formatMs(entry.best_time_ms, timeDecimalPlaces) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
