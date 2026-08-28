@@ -233,17 +233,17 @@ export default function ShakedownReport() {
                   <col style={{ width: tableColumnWidths.time }} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-yellow-300 text-left text-[10px] uppercase text-gray-900">
+                  <tr className="bg-slate-300 text-center text-[10px] uppercase text-slate-900">
                     <th className="border border-gray-300 p-2 text-center">Pos</th>
                     <th className="border border-gray-300 p-2 text-center">Car No</th>
-                    <th className="border border-gray-300 p-2">Entrant</th>
-                    <th className="border border-gray-300 p-2">Driver</th>
-                    <th className="border border-gray-300 p-2">Navigator</th>
+                    <th className="border border-gray-300 p-2 text-center">Entrant</th>
+                    <th className="border border-gray-300 p-2 text-center">Driver</th>
+                    <th className="border border-gray-300 p-2 text-center">Navigator</th>
                     <th className="border border-gray-300 p-2 text-center">Cls</th>
                     <th className="border border-gray-300 p-2 text-center">Cat</th>
-                    <th className="border border-gray-300 p-2">Car</th>
-                    <th className="border border-gray-300 p-2">Type</th>
-                    <th className="border border-gray-300 p-2 text-right">Stage Time</th>
+                    <th className="border border-gray-300 p-2 text-center">Car</th>
+                    <th className="border border-gray-300 p-2 text-center">Type</th>
+                    <th className="border border-gray-300 p-2 text-center">Stage Time</th>
                   </tr>
                 </thead>
                 <tbody>
