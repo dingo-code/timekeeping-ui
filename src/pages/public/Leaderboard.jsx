@@ -585,90 +585,128 @@ function ResultCategoryTabs({ value, onChange }) {
 
 function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, timeDecimalPlaces }) {
   const isOverall = resultView === 'overall';
-  const colSpan = isOverall ? 9 : 6;
+  const colSpan = isOverall ? 10 : 7;
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
+  const [selectedClass, setSelectedClass] = useState('all');
+  const classOptions = useMemo(
+    () => Array.from(new Set(
+      entries
+        .map((entry) => String(entry.class_name || '').trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
+    [entries]
+  );
+  const activeClass = selectedClass === 'all' || classOptions.includes(selectedClass)
+    ? selectedClass
+    : 'all';
+  const visibleEntries = useMemo(
+    () => activeClass === 'all'
+      ? entries
+      : entries.filter((entry) => String(entry.class_name || '').trim() === activeClass),
+    [activeClass, entries]
+  );
+
+  const visibleEmptyText = entries.length > 0 && visibleEntries.length === 0
+    ? `Tidak ada peserta pada class ${activeClass}.`
+    : emptyText;
 
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+      <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
           <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-neutral-500">{entries.length}</span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500" htmlFor={`${resultView}-class-filter`}>
+            Class
+          </label>
+          <select
+            id={`${resultView}-class-filter`}
+            value={activeClass}
+            onChange={(event) => setSelectedClass(event.target.value)}
+            className="min-w-0 max-w-full border border-neutral-300 bg-white px-2 py-1.5 text-xs font-black text-neutral-950 outline-none focus:border-red-600 sm:max-w-48"
+          >
+            <option value="all">Semua Class</option>
+            {classOptions.map((className) => (
+              <option key={className} value={className}>{className}</option>
+            ))}
+          </select>
+          <span className="text-xs font-black uppercase text-neutral-500">
+            {activeClass === 'all' ? visibleEntries.length : `${visibleEntries.length}/${entries.length}`}
+          </span>
           {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
         </div>
       </div>
 
       <div className="hidden overflow-x-auto lg:block">
-        <table className={`w-full border-collapse text-sm transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+        <table className={`w-full border-collapse text-xs transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
-            <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
+            <tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-wider text-neutral-500">
               {isOverall ? (
                 <>
-                  <th className="p-4 text-center">Pos</th>
-                  <th className="p-4 text-center">Car No</th>
-                  <th className="p-4">Driver/Reg</th>
-                  <th className="p-4">Navigator/Reg</th>
-                  <th className="p-4">Car</th>
-                  <th className="p-4">Class</th>
-                  <th className="p-4 text-right">Penalties</th>
-                  <th className="p-4 text-right">Total</th>
-                  <th className="p-4 text-right">Diff</th>
-                  <th className="p-4 text-right">Diff 1st</th>
+                  <th className="p-3 text-center">Pos</th>
+                  <th className="p-3 text-center">Car No</th>
+                  <th className="p-3">Driver/Reg</th>
+                  <th className="p-3">Navigator/Reg</th>
+                  <th className="p-3">Car</th>
+                  <th className="p-3">Class</th>
+                  <th className="p-3 text-right">Penalties</th>
+                  <th className="p-3 text-right">Total</th>
+                  <th className="p-3 text-right">Diff</th>
+                  <th className="p-3 text-right">Diff 1st</th>
                 </>
               ) : (
                 <>
-                  <th className="p-4 text-center">Pos</th>
-                  <th className="p-4 text-center">No</th>
-                  <th className="p-4">Driver / Navigator</th>
-                  <th className="p-4">Class</th>
-                  <th className="p-4 text-right">Time</th>
-                  <th className="p-4 text-right">Diff</th>
-                  <th className="p-4 text-right">Diff 1st</th>
+                  <th className="p-3 text-center">Pos</th>
+                  <th className="p-3 text-center">No</th>
+                  <th className="p-3">Driver / Navigator</th>
+                  <th className="p-3">Class</th>
+                  <th className="p-3 text-right">Time</th>
+                  <th className="p-3 text-right">Diff</th>
+                  <th className="p-3 text-right">Diff 1st</th>
                 </>
               )}
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 ? (
+            {visibleEntries.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</td>
+                <td colSpan={colSpan} className="p-10 text-center text-sm font-bold text-neutral-500">{visibleEmptyText}</td>
               </tr>
             ) : (
-              entries.map((entry) => (
+              visibleEntries.map((entry) => (
                 <tr key={entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
                   {isOverall ? (
                     <>
-                      <td className="p-4 text-center">{entry.rank}</td>
-                      <td className="p-4 text-center">
-                        <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
+                      <td className="p-3 text-center">{entry.rank}</td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex min-w-10 justify-center border border-neutral-300 bg-white px-2 py-1">{entry.start_number}</span>
                       </td>
-                      <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
-                      <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
-                      <td className="p-4">{carName(entry)}</td>
-                      <td className="p-4">{entry.class_name || '-'}</td>
-                      <td className="p-4 text-right font-mono font-black text-red-600">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="p-3">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+                      <td className="p-3">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+                      <td className="p-3">{carName(entry)}</td>
+                      <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
+                      <td className="p-3 text-right font-mono font-black text-red-600">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
+                      <td className="p-3 text-right font-mono">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
+                      <td className="p-3 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="p-3 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   ) : (
                     <>
-                      <td className="p-4 text-center">{entry.rank}</td>
-                      <td className="p-4 text-center">
-                        <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
+                      <td className="p-3 text-center">{entry.rank}</td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex min-w-10 justify-center border border-neutral-300 bg-white px-2 py-1">{entry.start_number}</span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-3">
                         <div className="font-black text-neutral-950">{entry.driver_name}</div>
                         <div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-                        <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
+                        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
                       </td>
-                      <td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td>
-                      <td className="p-4 text-right font-mono">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-4 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="p-4 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
+                      <td className="p-3 text-right font-mono">{formatMs(entry.total_time_ms)}</td>
+                      <td className="p-3 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="p-3 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   )}
                 </tr>
@@ -679,10 +717,10 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
       </div>
 
       <div className="space-y-3 p-3 lg:hidden">
-        {entries.length === 0 ? (
-          <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
+        {visibleEntries.length === 0 ? (
+          <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{visibleEmptyText}</div>
         ) : (
-          entries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
+          visibleEntries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
         )}
       </div>
     </section>
@@ -722,28 +760,28 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <SimpleSection title="Stage Winners" subtitle="Pemenang tercepat dari setiap SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada stage winner.">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-xs">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
-            <th className="p-4">Stage</th>
-            <th className="p-4">Stage Name</th>
-            <th className="p-4">Driver</th>
-            <th className="p-4">Navigator</th>
-            <th className="p-4">Car</th>
-            <th className="p-4">Class</th>
-            <th className="p-4 text-right">Time</th>
+          <tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-wider text-neutral-500">
+            <th className="p-3">Stage</th>
+            <th className="p-3">Stage Name</th>
+            <th className="p-3">Driver</th>
+            <th className="p-3">Navigator</th>
+            <th className="p-3">Car</th>
+            <th className="p-3">Class</th>
+            <th className="p-3 text-right">Time</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
             <tr key={entry.stage_id} className="border-t border-neutral-200">
-              <td className="p-4">SS {entry.ss_order}</td>
-              <td className="p-4">{entry.ss_name}</td>
-              <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
-              <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
-              <td className="p-4">{carName(entry)}</td>
-              <td className="p-4">{entry.class_name || '-'}</td>
-              <td className="p-4 text-right font-mono text-lg">{formatMs(entry.total_time_ms)}</td>
+              <td className="p-3 font-black">SS {entry.ss_order}</td>
+              <td className="p-3">{entry.ss_name}</td>
+              <td className="p-3">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+              <td className="p-3">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+              <td className="p-3">{carName(entry)}</td>
+              <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
+              <td className="p-3 text-right font-mono text-sm font-black">{formatMs(entry.total_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -1166,6 +1204,7 @@ function LeaderboardCard({ entry, resultView, timeDecimalPlaces }) {
           <h2 className="mt-1 break-words text-xl font-black text-neutral-950">{entry.driver_name}</h2>
           <p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{carName(entry)}</p>
+          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-red-600">Class {entry.class_name || '-'}</p>
         </div>
         <div className="border border-neutral-300 bg-white px-3 py-2 text-center">
           <div className="text-[9px] font-black uppercase text-neutral-500">No</div>
