@@ -612,6 +612,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                   <th className="p-4">Driver/Reg</th>
                   <th className="p-4">Navigator/Reg</th>
                   <th className="p-4">Car</th>
+                  <th className="p-4">Class</th>
                   <th className="p-4 text-right">Penalties</th>
                   <th className="p-4 text-right">Total</th>
                   <th className="p-4 text-right">Diff</th>
@@ -622,6 +623,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                   <th className="p-4 text-center">Pos</th>
                   <th className="p-4 text-center">No</th>
                   <th className="p-4">Driver / Navigator</th>
+                  <th className="p-4">Class</th>
                   <th className="p-4 text-right">Time</th>
                   <th className="p-4 text-right">Diff</th>
                   <th className="p-4 text-right">Diff 1st</th>
@@ -646,6 +648,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                       <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
                       <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
                       <td className="p-4 font-bold text-neutral-700">{carName(entry)}</td>
+                      <td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td>
                       <td className="p-4 text-right font-mono font-black text-red-600">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
                       <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
@@ -662,6 +665,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                         <div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
                         <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
                       </td>
+                      <td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td>
                       <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
                       <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
                       <td className="p-4 text-right font-mono font-black text-neutral-500">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
@@ -726,6 +730,7 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
             <th className="p-4">Driver</th>
             <th className="p-4">Navigator</th>
             <th className="p-4">Car</th>
+            <th className="p-4">Class</th>
             <th className="p-4 text-right">Time</th>
           </tr>
         </thead>
@@ -737,6 +742,7 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
               <td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
               <td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
               <td className="p-4 font-bold text-neutral-700">{carName(entry)}</td>
+              <td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td>
               <td className="p-4 text-right font-mono text-lg font-black text-neutral-950">{formatMs(entry.total_time_ms)}</td>
             </tr>
           ))}
