@@ -54,8 +54,17 @@ export default function InputMonitoring() {
   );
   const activeFeed = monitorMode === 'practice' ? filteredPracticeRuns : filteredRecords;
   const latestRecord = activeFeed[0];
-  const startedOnlyCount = activeFeed.filter((record) => record.start_time && !record.finish_time).length;
-  const finishedCount = activeFeed.filter((record) => record.finish_time).length;
+  const startedOnlyCount = activeFeed.filter((record) => (
+    record.start_time
+    && !record.finish_time
+    && !['DNS', 'DNF'].includes(normalizedStatus(record))
+  )).length;
+  const dnsCount = activeFeed.filter((record) => normalizedStatus(record) === 'DNS').length;
+  const dnfCount = activeFeed.filter((record) => normalizedStatus(record) === 'DNF').length;
+  const finishedCount = activeFeed.filter((record) => (
+    record.finish_time
+    && !['DNS', 'DNF'].includes(normalizedStatus(record))
+  )).length;
 
   useEffect(() => {
     fetchEvents();
@@ -364,11 +373,13 @@ export default function InputMonitoring() {
           </div>
         )}
 
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <Summary label={monitorMode === 'practice' ? 'Total Run' : 'Total Input'} value={activeFeed.length} accent="red" />
           <Summary label="Sedang Berjalan" value={startedOnlyCount} accent="blue" />
+          <Summary label="DNS" value={dnsCount} accent="yellow" />
+          <Summary label="DNF" value={dnfCount} accent="orange" />
           <Summary label="Finish" value={finishedCount} accent="green" />
-          <Summary label="Input Terbaru" value={latestRecord ? (monitorMode === 'practice' ? `P${latestRecord.practice_start_number} - ${practiceInputKind(latestRecord)}` : `${latestRecord.start_number} - ${inputKind(latestRecord)}`) : '-'} accent="yellow" />
+          <Summary label="Input Terbaru" value={latestRecord ? (monitorMode === 'practice' ? `P${latestRecord.practice_start_number} - ${practiceInputKind(latestRecord)}` : `${latestRecord.start_number} - ${inputKind(latestRecord)}`) : '-'} accent="purple" />
         </section>
 
         <main className="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-[#151515] shadow-[0_30px_100px_rgba(0,0,0,0.38)]">
@@ -538,6 +549,8 @@ function Summary({ label, value, accent = 'red' }) {
     blue: 'bg-blue-500',
     green: 'bg-green-500',
     yellow: 'bg-yellow-400',
+    orange: 'bg-orange-500',
+    purple: 'bg-purple-500',
   }[accent] || 'bg-red-500';
 
   return (
@@ -629,6 +642,10 @@ function normalizeSearchValue(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+}
+
+function normalizedStatus(record) {
+  return String(record?.status || '').trim().toUpperCase();
 }
 
 function inputKind(record) {
