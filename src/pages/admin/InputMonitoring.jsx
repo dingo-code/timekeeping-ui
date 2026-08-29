@@ -373,7 +373,7 @@ export default function InputMonitoring() {
           </div>
         )}
 
-        <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <section className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
           <Summary label={monitorMode === 'practice' ? 'Total Run' : 'Total Input'} value={activeFeed.length} accent="red" />
           <Summary label="Sedang Berjalan" value={startedOnlyCount} accent="blue" />
           <Summary label="DNS" value={dnsCount} accent="yellow" />
@@ -554,10 +554,10 @@ function Summary({ label, value, accent = 'red' }) {
   }[accent] || 'bg-red-500';
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#151515] p-4">
-      <span className={`absolute left-0 top-0 h-full w-1 ${accentClass}`} />
-      <p className="pl-2 text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-2 truncate pl-2 text-3xl font-black leading-none text-white">{value}</p>
+    <div className="relative min-w-0 overflow-hidden rounded-md border border-white/10 bg-[#151515] px-3 py-2.5">
+      <span className={`absolute left-0 top-0 h-full w-0.5 ${accentClass}`} />
+      <p className="truncate pl-1.5 text-[9px] font-black uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="mt-1.5 truncate pl-1.5 text-xl font-black leading-none text-white xl:text-2xl">{value}</p>
     </div>
   );
 }
