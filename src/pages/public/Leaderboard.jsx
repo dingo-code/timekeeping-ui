@@ -17,9 +17,10 @@ export default function Leaderboard() {
   const [entries, setEntries] = useState([]);
   const [entriesByStage, setEntriesByStage] = useState({});
   const [stageRecordsById, setStageRecordsById] = useState({});
+  const [startingListsByStage, setStartingListsByStage] = useState({});
   const [overallEntries, setOverallEntries] = useState([]);
   const [resultCategory, setResultCategory] = useState('stage-times');
-  const [startingListMode, setStartingListMode] = useState('entry-list');
+  const [startingListMode, setStartingListMode] = useState('stage-list');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
@@ -63,9 +64,9 @@ export default function Leaderboard() {
     () => buildStartingList(overallEntries),
     [overallEntries]
   );
-  const selectedStageRecords = useMemo(
-    () => (selectedStageId === FINAL_STAGE_ID ? [] : (stageRecordsById[selectedStageId] || [])),
-    [stageRecordsById, selectedStageId]
+  const selectedStageStartingList = useMemo(
+    () => (selectedStageId === FINAL_STAGE_ID ? [] : (startingListsByStage[selectedStageId] || [])),
+    [startingListsByStage, selectedStageId]
   );
   const penalties = useMemo(
     () => buildPenaltyRows(stages, stageRecordsById),
@@ -100,6 +101,7 @@ export default function Leaderboard() {
     setEntries([]);
     setEntriesByStage({});
     setStageRecordsById({});
+    setStartingListsByStage({});
     setOverallEntries([]);
     setStages([]);
     setPractices([]);
@@ -246,18 +248,25 @@ export default function Leaderboard() {
     setIsLoadingAllStages(true);
     try {
       const pairs = await Promise.all(stageList.map(async (stage) => {
-        const res = await api.get(`/public/stages/${stage.id}/records`);
-        const rawRecords = res.data.data || [];
-        return [stage.id, rawRecords, normalizeStageEntries(rawRecords)];
+        const [recordsResponse, startingListResponse] = await Promise.all([
+          api.get(`/public/stages/${stage.id}/records`),
+          api.get(`/public/stages/${stage.id}/starting-list`),
+        ]);
+        const rawRecords = recordsResponse.data.data || [];
+        const startingListRows = startingListResponse.data.data || [];
+        return [stage.id, rawRecords, normalizeStageEntries(rawRecords), startingListRows];
       }));
 
       const nextRawRecords = {};
       const nextEntries = {};
-      pairs.forEach(([stageId, rawRecords, normalizedEntries]) => {
+      const nextStartingLists = {};
+      pairs.forEach(([stageId, rawRecords, normalizedEntries, startingListRows]) => {
         nextRawRecords[stageId] = rawRecords;
         nextEntries[stageId] = normalizedEntries;
+        nextStartingLists[stageId] = startingListRows;
       });
       setStageRecordsById(nextRawRecords);
+      setStartingListsByStage(nextStartingLists);
       setEntriesByStage((current) => ({ ...current, ...nextEntries }));
       if (selectedStageIdRef.current && nextEntries[selectedStageIdRef.current]) {
         setEntries(nextEntries[selectedStageIdRef.current]);
@@ -430,11 +439,11 @@ export default function Leaderboard() {
           {resultCategory === 'starting-list' && (
             <StartingListSection
               entries={startingList}
-              stageEntries={selectedStageRecords}
+              stageEntries={selectedStageStartingList}
               selectedStage={selectedStage}
               mode={startingListMode}
               onModeChange={setStartingListMode}
-              isLoading={isLoadingOverall || isLoadingEntries}
+              isLoading={isLoadingOverall || isLoadingAllStages}
             />
           )}
 
@@ -779,7 +788,7 @@ function StartingListSection({ entries, stageEntries, selectedStage, mode, onMod
             <th className="p-4">Car</th>
             <th className="p-4">Class</th>
             <th className="p-4">Category</th>
-            {isStageMode && <th className="p-4 text-right">Start Time</th>}
+            {isStageMode && <th className="p-4 text-right">TC Time</th>}
           </tr>
         </thead>
         <tbody>
@@ -799,7 +808,7 @@ function StartingListSection({ entries, stageEntries, selectedStage, mode, onMod
               <td className="p-4 font-bold text-neutral-700">{carName(entry)}</td>
               <td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td>
               <td className="p-4 font-bold text-neutral-700">{entry.category_name || '-'}</td>
-              {isStageMode && <td className="p-4 text-right font-mono font-black text-neutral-950">{formatClock(entry.start_time)}</td>}
+              {isStageMode && <td className="p-4 text-right font-mono font-black text-neutral-950">{formatClock(entry.target_tc_time || entry.tc_time)}</td>}
             </tr>
           ))}
         </tbody>
@@ -899,9 +908,7 @@ function buildStartingList(entries) {
 }
 
 function buildStageStartingList(entries) {
-  return [...entries]
-    .filter((entry) => entry.is_active !== false)
-    .sort((a, b) => Number(a.start_order || a.start_number || 0) - Number(b.start_order || b.start_number || 0));
+  return entries;
 }
 
 function buildPenaltyRows(stages, stageRecordsById) {
