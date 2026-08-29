@@ -641,7 +641,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                 <tr key={entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
                   {isOverall ? (
                     <>
-                      <td className="p-4 text-center text-2xl">{entry.rank}</td>
+                      <td className="p-4 text-center">{entry.rank}</td>
                       <td className="p-4 text-center">
                         <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
                       </td>
@@ -656,7 +656,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                     </>
                   ) : (
                     <>
-                      <td className="p-4 text-center text-2xl">{entry.rank}</td>
+                      <td className="p-4 text-center">{entry.rank}</td>
                       <td className="p-4 text-center">
                         <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
                       </td>
