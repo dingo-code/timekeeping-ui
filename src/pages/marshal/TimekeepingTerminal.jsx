@@ -43,7 +43,7 @@ export default function TimekeepingTerminal() {
 
   useEffect(() => {
     if (role === 'admin' || role === 'kamar_hitung') {
-      alert('Terminal Lapangan hanya untuk Petugas Start dan Finish.');
+      alert('Terminal Lapangan hanya untuk Petugas Start, Finish, Flying Finish, dan TC.');
       navigate('/admin'); 
     } else {
       fetchEvents();

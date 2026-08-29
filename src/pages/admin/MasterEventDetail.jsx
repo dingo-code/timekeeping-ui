@@ -170,7 +170,6 @@ export default function MasterEventDetail() {
     try {
       const res = await api.get(`/timekeeping/stages/${stageId}/records`);
       setTcRecords(res.data.data || []);
-      setTcTargetDrafts({});
     } catch (e) {
       console.error('Gagal memuat jadwal TC');
     }
@@ -184,6 +183,7 @@ export default function MasterEventDetail() {
       setStartingList(nextList);
       setStartingListOrder(nextList.map((entry) => entry.participant_id));
       setStartOrderDrafts(Object.fromEntries(nextList.map((entry) => [entry.participant_id, entry.start_order || entry.start_number])));
+      setTcTargetDrafts(Object.fromEntries(nextList.filter((entry) => entry.target_tc_time).map((entry) => [entry.participant_id, entry.target_tc_time.slice(0, 8)])));
     } catch (e) {
       console.error('Gagal memuat starting list');
       setStartingList([]);
@@ -222,6 +222,7 @@ export default function MasterEventDetail() {
       participant_id: row.id,
       start_order: Number(startOrderDrafts[row.id] ?? row.start_order ?? row.start_number),
       list_position: index + 1,
+      target_tc_time: tcTargetDrafts[row.id] ?? row.target_tc_time ?? '',
     }));
     const invalidRow = rows.find((row) => !Number.isInteger(row.start_order) || row.start_order <= 0);
     if (invalidRow) {
@@ -240,14 +241,6 @@ export default function MasterEventDetail() {
     setIsSavingStartingList(true);
     try {
       await api.put(`/admin/stages/${selectedTCStageId}/starting-list`, { entries });
-      const targetEntries = Object.entries(tcTargetDrafts).filter(([, targetTime]) => targetTime);
-      if (targetEntries.length > 0) {
-        await Promise.all(targetEntries.map(([participantId, targetTime]) => (
-          api.put(`/admin/stages/${selectedTCStageId}/participants/${participantId}/tc-target`, {
-            target_tc_time: targetTime,
-          })
-        )));
-      }
       await refreshTCSetup(selectedTCStageId);
       if (!silent) alert('Starting list berhasil disimpan.');
     } finally {
@@ -459,7 +452,7 @@ export default function MasterEventDetail() {
       ...participant,
       record,
       start_order: Number(startOrderDrafts[participant.id] ?? listEntry?.start_order ?? participant.start_number),
-      target_tc_time: tcTargetDrafts[participant.id] ?? record?.target_tc_time ?? '',
+      target_tc_time: tcTargetDrafts[participant.id] ?? listEntry?.target_tc_time ?? record?.target_tc_time ?? '',
       tc_time: record?.tc_time || '',
       tc_status: record?.tc_status || 'NOT_SCHEDULED',
       tc_delta_ms: record?.tc_delta_ms || 0,
