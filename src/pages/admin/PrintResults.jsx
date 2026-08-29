@@ -151,6 +151,9 @@ export default function PrintResults() {
       })
       .filter(Boolean);
     const remarks = uniqueRemarks([...statusRemarks, ...penaltyRemarks]);
+    if (entry.status === 'NOT_FINISHER') {
+      return remarks.length > 0 ? `NON FINISHER (${remarks.join(', ')})` : 'NON FINISHER';
+    }
     if (remarks.length > 0) return `(${remarks.join(', ')})`;
     if (entry.status === 'DNS' || entry.status === 'DNF' || entry.status === 'BWTM' || entry.status === 'NOT_FINISHER' || entry.status === 'WITHDRAW') return '';
     if (!entry.status || entry.status === 'OK') return '';
@@ -182,7 +185,7 @@ export default function PrintResults() {
     return '';
   };
 
-  const excludedFinalStatuses = new Set(['NOT_FINISHER', 'WITHDRAW']);
+  const excludedFinalStatuses = new Set(['WITHDRAW']);
   const stageStatusWeight = (status) => {
     if (status === 'OK') return 0;
     if (status === 'BWTM') return 0;
@@ -674,7 +677,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
     .map((group) => {
       const sortedEntries = sortFinalResultEntries(group.entries
         .filter((entry) => !excludedStatuses.has(entry.status))
-        .filter((entry) => !isLastStageNonFinisher(entry, lastStage)));
+        .map((entry) => normalizeFinalEntryStatus(entry, lastStage)));
       const firstTotal = Number(sortedEntries.find((entry) => isRankableFinalEntry(entry))?.total_time_ms || 0);
       let previousRankedTotal = 0;
       let printRank = 1;
@@ -780,10 +783,15 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
   ));
 }
 
-function isLastStageNonFinisher(entry, lastStage) {
-  if (!lastStage) return false;
+function normalizeFinalEntryStatus(entry, lastStage) {
+  if (!lastStage) return entry;
   const lastStageTime = entry.stage_times?.find((stageTime) => stageTime.ss_id === lastStage.id);
-  return lastStageTime?.status === 'DNS' || lastStageTime?.status === 'DNF';
+  if (lastStageTime?.status === 'DNS') return { ...entry, status: 'NOT_FINISHER' };
+  if (lastStageTime?.status !== 'DNF') return entry;
+  if (Number(lastStageTime.total_time_ms) > 0) {
+    return entry.status === 'NOT_FINISHER' ? { ...entry, status: lastStageTime.status } : entry;
+  }
+  return { ...entry, status: 'NOT_FINISHER' };
 }
 
 function isRankableFinalEntry(entry) {

@@ -1019,14 +1019,23 @@ function buildOverallEntries(entries, selectedStage) {
     return Number.isFinite(numberValue) ? numberValue : 0;
   };
   const hasCompleteTime = (stageTime) => Boolean(stageTime?.start_time) && Boolean(stageTime?.finish_time);
-  const isCompletedStage = (stageTime) => (
-    stageTime?.status === 'OK' &&
-    hasCompleteTime(stageTime) &&
-    numericMs(stageTime.total_time_ms) > 0
-  );
+  const isCompletedStage = (stageTime) => {
+    const totalTimeMs = numericMs(stageTime?.total_time_ms);
+    if (totalTimeMs <= 0) return false;
+    if (['BWTM', 'DNF', 'DNS'].includes(stageTime?.status)) return true;
+    return stageTime?.status === 'OK' && hasCompleteTime(stageTime);
+  };
   const terminalStatus = (stageTimes) => (
     stageTimes.find((stageTime) => ['DNF', 'DNS', 'DSQ'].includes(stageTime.status))?.status || ''
   );
+  const isRankableOverall = (entry) => (
+    numericMs(entry.total_time_ms) > 0 && ['OK', 'BWTM', 'DNF', 'DNS'].includes(entry.status)
+  );
+  const finalStageOrder = isFinal
+    ? Math.max(0, ...entries.flatMap((entry) => (
+      entry.stage_times || []
+    )).map((stageTime) => numericMs(stageTime.ss_order)))
+    : 0;
 
   const rows = entries
     .map((entry) => {
@@ -1038,9 +1047,22 @@ function buildOverallEntries(entries, selectedStage) {
         ));
       const upToSelectedStage = stageTimes.filter((stageTime) => Number(stageTime.ss_order) <= stageLimit);
       const completedTimes = upToSelectedStage.filter(isCompletedStage);
-      const status = terminalStatus(upToSelectedStage);
+      const stageStatus = terminalStatus(upToSelectedStage);
       const hasSelectedResult = isFinal ? completedTimes.length > 0 : isCompletedStage(selectedStageTime);
-      const hasTerminalStatus = ['DNF', 'DNS', 'DSQ'].includes(status);
+      const finalStageTime = isFinal
+        ? stageTimes.find((stageTime) => numericMs(stageTime.ss_order) === finalStageOrder)
+        : null;
+      const resolvedFinalStatus = finalStageTime?.status === 'DNS'
+        ? 'NOT_FINISHER'
+        : finalStageTime?.status === 'DNF'
+          ? numericMs(finalStageTime.total_time_ms) > 0 ? 'DNF' : 'NOT_FINISHER'
+          : entry.status;
+      const status = isFinal
+        ? (resolvedFinalStatus || stageStatus || 'OK')
+        : hasSelectedResult
+          ? (stageStatus || 'OK')
+          : stageStatus === 'DSQ' ? 'DSQ' : 'INCOMPLETE';
+      const hasTerminalStatus = ['DNF', 'DNS', 'DSQ', 'NOT_FINISHER', 'WITHDRAW'].includes(status);
 
       if (!hasSelectedResult && !hasTerminalStatus) return null;
 
@@ -1050,7 +1072,7 @@ function buildOverallEntries(entries, selectedStage) {
         completed_count: completedTimes.length,
         penalty_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.penalty_time_ms), 0),
         total_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.total_time_ms), 0),
-        status: hasTerminalStatus ? status : 'OK',
+        status,
         gap_ms: 0,
         diff_ms: 0,
         diff_first_ms: 0,
@@ -1059,18 +1081,22 @@ function buildOverallEntries(entries, selectedStage) {
     .filter(Boolean);
 
   rows.sort((a, b) => {
+    const aRankable = isRankableOverall(a);
+    const bRankable = isRankableOverall(b);
+    if (aRankable !== bRankable) return aRankable ? -1 : 1;
+    if (aRankable && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
+
     const aWeight = resultStatusWeight(a.status);
     const bWeight = resultStatusWeight(b.status);
     if (aWeight !== bWeight) return aWeight - bWeight;
-    if (a.status === 'OK' && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
     return numericMs(a.start_number) - numericMs(b.start_number);
   });
 
-  const bestTime = rows.find((entry) => entry.status === 'OK')?.total_time_ms || 0;
+  const bestTime = rows.find(isRankableOverall)?.total_time_ms || 0;
   let rank = 1;
   let previousTime = 0;
   return rows.map((entry) => {
-    if (entry.status !== 'OK') return { ...entry, rank: '-', gap_ms: 0, diff_ms: 0, diff_first_ms: 0 };
+    if (!isRankableOverall(entry)) return { ...entry, rank: '-', gap_ms: 0, diff_ms: 0, diff_first_ms: 0 };
 
     const rankedEntry = {
       ...entry,
@@ -1097,16 +1123,17 @@ function normalizeStageEntries(records) {
     const fraction = String(match[4] || '').padEnd(3, '0').slice(0, 3);
     return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
   };
-  const hasDisplayStatus = (record) => record.status === 'DNF' || record.status === 'DNS';
+  const hasDisplayStatus = (record) => ['BWTM', 'DNF', 'DNS'].includes(record.status);
   const activeRecords = records.filter((record) => (
     record.is_active !== false &&
     (hasCompleteTime(record) || hasDisplayStatus(record))
   ));
-  const hasStageResult = (record) => (
-    record.status === 'OK' &&
-    hasCompleteTime(record) &&
-    numericMs(record.total_time_ms) > 0
-  );
+  const hasStageResult = (record) => {
+    const totalTimeMs = numericMs(record.total_time_ms);
+    if (totalTimeMs <= 0) return false;
+    if (['BWTM', 'DNF', 'DNS'].includes(record.status)) return true;
+    return record.status === 'OK' && hasCompleteTime(record);
+  };
   const stageRecordWeight = (record) => {
     if (hasStageResult(record)) return 0;
     return resultStatusWeight(record.status);
