@@ -34,6 +34,7 @@ export default function Leaderboard() {
   const selectedStageIdRef = useRef('');
   const stagesRef = useRef([]);
   const wsRef = useRef(null);
+  const practiceRequestRef = useRef(0);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId),
@@ -213,14 +214,21 @@ export default function Leaderboard() {
   };
 
   const fetchPracticeResult = async (practiceId, silent = false) => {
+    const requestId = practiceRequestRef.current + 1;
+    practiceRequestRef.current = requestId;
     if (!silent) setIsLoadingPractice(true);
     try {
       const res = await api.get(`/public/practice-results/${practiceId}`);
-      setPracticeResult(res.data.data || null);
+      if (requestId === practiceRequestRef.current) {
+        setPracticeResult(res.data.data || null);
+        setError('');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Gagal memuat Practice Result.');
+      if (requestId === practiceRequestRef.current) {
+        setError(err.response?.data?.error || 'Gagal memuat Practice Result.');
+      }
     } finally {
-      if (!silent) setIsLoadingPractice(false);
+      if (requestId === practiceRequestRef.current) setIsLoadingPractice(false);
     }
   };
 
@@ -553,8 +561,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'starting-list', label: 'Starting List' },
     { value: 'penalties', label: 'Penalties' },
     { value: 'retirement', label: 'Retirement' },
-    // Tab Practice disembunyikan sementara. Aktifkan kembali baris berikut jika diperlukan.
-    // { value: 'practice', label: 'Practice' },
+    { value: 'practice', label: 'Practice' },
   ];
 
   return (
@@ -728,32 +735,60 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
 }
 
 function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPlaces }) {
-  const entries = result?.entries || [];
+  const entries = useMemo(() => result?.entries || [], [result]);
+  const [selectedClass, setSelectedClass] = useState('all');
+  const classOptions = useMemo(
+    () => Array.from(new Set(entries.map((entry) => String(entry.class_name || '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
+    [entries]
+  );
+  const activeClass = selectedClass === 'all' || classOptions.includes(selectedClass) ? selectedClass : 'all';
+  const visibleEntries = useMemo(
+    () => activeClass === 'all' ? entries : entries.filter((entry) => String(entry.class_name || '').trim() === activeClass),
+    [activeClass, entries]
+  );
   const bestTime = entries.find((entry) => Number(entry.best_time_ms) > 0)?.best_time_ms || 0;
   const maxRuns = Number(result?.practice?.max_runs || practice?.max_runs || 0);
   const runColumns = Array.from({ length: maxRuns }, (_, index) => index + 1);
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
-      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-        <div><h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Practice Result</h2><p className="mt-0.5 text-xs font-semibold text-neutral-500">{practice?.name || 'Practice'} · Ranking berdasarkan best run</p></div>
-        <div className="flex items-center gap-3"><span className="text-xs font-black uppercase text-neutral-500">{entries.length}</span>{isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}</div>
+      <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Practice Live Timing</h2><p className="mt-0.5 text-xs font-semibold text-neutral-500">{practice?.name || 'Practice'} · Ranking berdasarkan best run</p></div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+          <span className="inline-flex items-center gap-1.5 border border-green-200 bg-green-50 px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-green-700"><span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />Auto-refresh 3 detik</span>
+          <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500" htmlFor="practice-class-filter">Class</label>
+          <select id="practice-class-filter" value={activeClass} onChange={(event) => setSelectedClass(event.target.value)} className="min-w-0 max-w-full border border-neutral-300 bg-white px-2 py-1.5 text-xs font-black text-neutral-950 outline-none focus:border-red-600 sm:max-w-48">
+            <option value="all">Semua Class</option>
+            {classOptions.map((className) => <option key={className} value={className}>{className}</option>)}
+          </select>
+          <span className="text-xs font-black uppercase text-neutral-500">{activeClass === 'all' ? visibleEntries.length : `${visibleEntries.length}/${entries.length}`}</span>
+          {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
+        </div>
       </div>
       <div className="hidden overflow-x-auto lg:block">
         <table className={`w-full border-collapse text-sm ${isLoading ? 'opacity-70' : ''}`}>
           <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Pos</th><th className="p-4 text-center">Practice No</th><th className="p-4 text-center">Race No</th><th className="p-4">Driver / Navigator</th><th className="p-4">Car / Class</th>{runColumns.map((runNo) => <th key={runNo} className="p-4 text-right">Run {runNo}</th>)}<th className="p-4 text-center">Best Run</th><th className="p-4 text-right">Best Time</th><th className="p-4 text-right">Diff 1st</th></tr></thead>
-          <tbody>{entries.length === 0 ? <tr><td colSpan={8 + runColumns.length} className="p-10 text-center font-bold text-neutral-500">Belum ada hasil Practice.</td></tr> : entries.map((entry) => {
+          <tbody>{visibleEntries.length === 0 ? <tr><td colSpan={8 + runColumns.length} className="p-10 text-center font-bold text-neutral-500">{entries.length ? `Tidak ada peserta pada class ${activeClass}.` : 'Belum ada hasil Practice.'}</td></tr> : visibleEntries.map((entry) => {
             const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
-            return <tr key={entry.id} className="border-t border-neutral-200"><td className="p-4 text-center text-2xl font-black">{entry.rank || '-'}</td><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 px-3 py-1 font-black">{entry.practice_start_number}</span></td><td className="p-4 text-center font-bold text-neutral-600">{entry.race_start_number}</td><td className="p-4"><div className="font-black">{entry.driver_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div><div className="mt-1 text-[11px] font-bold uppercase text-neutral-400">{entry.entrant_name || '-'}</div></td><td className="p-4"><div className="font-bold text-neutral-700">{entry.vehicle_name || '-'}</div><div className="text-xs font-bold text-neutral-500">{entry.class_name || '-'}</div></td>{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); const isBest = entry.best_run_no === runNo; return <td key={runNo} className={`p-4 text-right font-mono font-black ${isBest ? 'bg-green-50 text-green-700' : 'text-neutral-700'}`}>{run?.finish_time ? formatMs(run.elapsed_time_ms) : run?.start_time ? 'OPEN' : '-'}</td>; })}<td className="p-4 text-center font-black">{entry.best_run_no ? `Run ${entry.best_run_no}` : '-'}</td><td className="p-4 text-right font-mono text-lg font-black">{formatMs(entry.best_time_ms)}</td><td className="p-4 text-right font-mono font-black text-neutral-500">{diff > 0 ? `+${formatMs(diff)}` : '-'}</td></tr>;
+            return <tr key={entry.id} className="border-t border-neutral-200"><td className="p-4 text-center text-2xl font-black">{entry.rank || '-'}</td><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 px-3 py-1 font-black">{entry.practice_start_number}</span></td><td className="p-4 text-center font-bold text-neutral-600">{entry.race_start_number}</td><td className="p-4"><div className="font-black">{entry.driver_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div><div className="mt-1 text-[11px] font-bold uppercase text-neutral-400">{entry.entrant_name || '-'}</div></td><td className="p-4"><div className="font-bold text-neutral-700">{entry.vehicle_name || '-'}</div><div className="text-xs font-bold text-neutral-500">{entry.class_name || '-'}</div></td>{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); const isBest = entry.best_run_no === runNo; return <td key={runNo} className={`p-4 text-right font-mono font-black ${isBest ? 'bg-green-50 text-green-700' : 'text-neutral-700'}`}><PracticeRunValue run={run} formatMs={formatMs} /></td>; })}<td className="p-4 text-center font-black">{entry.best_run_no ? `Run ${entry.best_run_no}` : '-'}</td><td className="p-4 text-right font-mono text-lg font-black">{formatMs(entry.best_time_ms)}</td><td className="p-4 text-right font-mono font-black text-neutral-500">{diff > 0 ? `+${formatMs(diff)}` : '-'}</td></tr>;
           })}</tbody>
         </table>
       </div>
-      <div className="space-y-3 p-3 lg:hidden">{entries.length === 0 ? <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">Belum ada hasil Practice.</div> : entries.map((entry) => {
+      <div className="space-y-3 p-3 lg:hidden">{visibleEntries.length === 0 ? <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{entries.length ? `Tidak ada peserta pada class ${activeClass}.` : 'Belum ada hasil Practice.'}</div> : visibleEntries.map((entry) => {
         const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
-        return <article key={entry.id} className="border border-neutral-200 bg-white p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank || '-'}</div><h2 className="mt-1 text-xl font-black">{entry.driver_name || '-'}</h2><p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p><p className="mt-1 text-[11px] font-bold uppercase text-neutral-500">{entry.vehicle_name || '-'}</p></div><div className="border border-neutral-300 px-3 py-2 text-center"><div className="text-[9px] font-black uppercase text-neutral-500">Practice</div><div className="text-2xl font-black">{entry.practice_start_number}</div></div></div><div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); return <MiniMetric key={runNo} label={`Run ${runNo}`} value={run?.finish_time ? formatMs(run.elapsed_time_ms) : run?.start_time ? 'OPEN' : '-'} highlight={entry.best_run_no === runNo} />; })}</div><div className="grid grid-cols-3 gap-2"><MiniMetric label="Best Run" value={entry.best_run_no ? `Run ${entry.best_run_no}` : '-'} /><MiniMetric label="Best Time" value={formatMs(entry.best_time_ms)} highlight /><MiniMetric label="Diff 1st" value={diff > 0 ? `+${formatMs(diff)}` : '-'} /></div></article>;
+        return <article key={entry.id} className="border border-neutral-200 bg-white p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank || '-'}</div><h2 className="mt-1 text-xl font-black">{entry.driver_name || '-'}</h2><p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p><p className="mt-1 text-[11px] font-bold uppercase text-neutral-500">{entry.vehicle_name || '-'} · {entry.class_name || '-'}</p></div><div className="border border-neutral-300 px-3 py-2 text-center"><div className="text-[9px] font-black uppercase text-neutral-500">Practice</div><div className="text-2xl font-black">{entry.practice_start_number}</div><div className="text-[9px] font-bold text-neutral-500">Race #{entry.race_start_number || '-'}</div></div></div><div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); return <MiniMetric key={runNo} label={`Run ${runNo}`} value={<PracticeRunValue run={run} formatMs={formatMs} />} highlight={entry.best_run_no === runNo} />; })}</div><div className="grid grid-cols-3 gap-2"><MiniMetric label="Best Run" value={entry.best_run_no ? `Run ${entry.best_run_no}` : '-'} /><MiniMetric label="Best Time" value={formatMs(entry.best_time_ms)} highlight /><MiniMetric label="Diff 1st" value={diff > 0 ? `+${formatMs(diff)}` : '-'} /></div></article>;
       })}</div>
     </section>
   );
+}
+
+function PracticeRunValue({ run, formatMs }) {
+  if (!run) return '-';
+  const status = String(run.status || 'OK').toUpperCase();
+  if (status !== 'OK') return <span className={status === 'DSQ' ? 'text-red-600' : 'text-orange-600'}>{status}</span>;
+  if (!run.finish_time) return run.start_time ? <span className="text-blue-600">RUNNING</span> : '-';
+  return <span>{formatMs(run.elapsed_time_ms)}{run.is_given_time && <small className="ml-1 align-top text-[8px] font-black text-orange-600">GT</small>}</span>;
 }
 
 function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
