@@ -1096,10 +1096,11 @@ function StartingListSection({ entries, stageEntries, selectedStage, mode, onMod
 function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
-    <SimpleSection title="Penalties" subtitle="Daftar penalti yang tercatat pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
-      <table className="w-full border-collapse text-sm">
+    <SimpleSection title="Penalties" subtitle="Penalti manual, TC, DNF, dan DNS pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
+      <table className="w-full min-w-[1050px] border-collapse text-sm">
         <thead>
           <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
+            <th className="p-4 text-center">Stage</th>
             <th className="p-4 text-center">Car No.</th>
             <th className="p-4">Driver / Reg</th>
             <th className="p-4">Navigator / Reg</th>
@@ -1107,12 +1108,13 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
             <th className="p-4">Class</th>
             <th className="p-4">Category</th>
             <th className="p-4">Reason</th>
-            <th className="p-4 text-right">Penalties</th>
+            <th className="p-4 text-right">Penalty / Given Time</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
             <tr key={entry.key} className="border-t border-neutral-200">
+              <td className="whitespace-nowrap p-4 text-center font-black">{entry.stage_label}</td>
               <td className="p-4 text-center">
                 <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
               </td>
@@ -1121,8 +1123,12 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
               <td className="p-4">{carName(entry)}</td>
               <td className="p-4">{entry.class_name || '-'}</td>
               <td className="p-4">{entry.category_name || '-'}</td>
-              <td className="p-4">{entry.penalty_name}</td>
-              <td className="p-4 text-right font-mono text-red-600">+{formatMs(entry.penalty_time_ms)}</td>
+              <td className="p-4 font-bold">{entry.penalty_name}</td>
+              <td className="p-4 text-right font-mono font-black text-red-600">
+                {entry.is_given_time
+                  ? (entry.penalty_time_ms > 0 ? formatMs(entry.penalty_time_ms) : '-')
+                  : `+${formatMs(entry.penalty_time_ms)}`}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1195,25 +1201,41 @@ function buildPenaltyRows(stages, stageRecordsById) {
       .filter((record) => record.is_active !== false)
       .forEach((record) => {
         const penalties = normalizePenaltyDetails(record.penalty_details);
+        const stageLabel = stage.is_shakedown ? 'SHAKEDOWN' : `SS ${stage.ss_order}`;
+        const participantDetails = {
+          ss_order: stage.ss_order,
+          ss_name: stage.ss_name,
+          stage_label: stageLabel,
+          start_number: record.start_number,
+          driver_name: record.driver_name,
+          driver_regional_name: record.driver_regional_name,
+          regional_name: record.regional_name,
+          codriver_name: record.codriver_name,
+          codriver_regional_name: record.codriver_regional_name,
+          vehicle_name: record.vehicle_name,
+          team_name: record.team_name,
+          class_name: record.class_name,
+          category_name: record.category_name,
+        };
         penalties.forEach((penalty, index) => {
           rows.push({
             key: `${stage.id}-${record.id}-${index}`,
-            ss_order: stage.ss_order,
-            ss_name: stage.ss_name,
-            start_number: record.start_number,
-            driver_name: record.driver_name,
-            driver_regional_name: record.driver_regional_name,
-            regional_name: record.regional_name,
-            codriver_name: record.codriver_name,
-            codriver_regional_name: record.codriver_regional_name,
-            vehicle_name: record.vehicle_name,
-            team_name: record.team_name,
-            class_name: record.class_name,
-            category_name: record.category_name,
+            ...participantDetails,
             penalty_name: penalty.name || 'Penalty',
             penalty_time_ms: Number(penalty.time_ms || 0),
+            is_given_time: false,
           });
         });
+
+        if (record.status === 'DNF' || record.status === 'DNS') {
+          rows.push({
+            key: `${stage.id}-${record.id}-status-${record.status}`,
+            ...participantDetails,
+            penalty_name: record.status,
+            penalty_time_ms: Number(record.total_time_ms || 0),
+            is_given_time: true,
+          });
+        }
       });
   });
   return rows.sort((a, b) => {
