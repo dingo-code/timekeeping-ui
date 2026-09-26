@@ -5,8 +5,12 @@ import { formatMs as formatDurationMs } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
+const EMBED_VIEWS = new Set(['stage-times', 'overall', 'stage-winners', 'starting-list', 'penalties', 'retirement', 'practice']);
 
-export default function Leaderboard() {
+export default function Leaderboard({ embedded = false }) {
+  const query = new URLSearchParams(window.location.search);
+  const requestedEventId = query.get('event') || '';
+  const requestedView = query.get('view') || '';
   const [events, setEvents] = useState([]);
   const [stages, setStages] = useState([]);
   const [practices, setPractices] = useState([]);
@@ -19,7 +23,7 @@ export default function Leaderboard() {
   const [stageRecordsById, setStageRecordsById] = useState({});
   const [startingListsByStage, setStartingListsByStage] = useState({});
   const [overallEntries, setOverallEntries] = useState([]);
-  const [resultCategory, setResultCategory] = useState('stage-times');
+  const [resultCategory, setResultCategory] = useState(() => (EMBED_VIEWS.has(requestedView) ? requestedView : 'stage-times'));
   const [startingListMode, setStartingListMode] = useState('stage-list');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
@@ -141,7 +145,10 @@ export default function Leaderboard() {
       const res = await api.get('/public/events');
       const nextEvents = res.data.data || [];
       setEvents(nextEvents);
-      if (nextEvents.length > 0) setSelectedEventId(nextEvents[0].id);
+      if (nextEvents.length > 0) {
+        const requestedEvent = nextEvents.find((event) => event.id === requestedEventId);
+        setSelectedEventId(requestedEvent?.id || nextEvents[0].id);
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memuat daftar event.');
     } finally {
@@ -155,7 +162,9 @@ export default function Leaderboard() {
       setEntries([]);
       return;
     }
-    if (entriesByStage[selectedStageId]) setEntries(entriesByStage[selectedStageId]);
+    // Jangan biarkan baris dari stage sebelumnya tetap terlihat sambil
+    // menunggu request stage yang baru selesai.
+    setEntries(entriesByStage[selectedStageId] || []);
     if (selectedStageId) fetchStageLeaderboard(selectedStageId);
   }, [selectedStageId]);
 
@@ -238,9 +247,11 @@ export default function Leaderboard() {
     try {
       const res = await api.get(`/public/stages/${stageId}/records`);
       const normalizedEntries = normalizeStageEntries(res.data.data || []);
-      setEntries(normalizedEntries);
       setEntriesByStage((current) => ({ ...current, [stageId]: normalizedEntries }));
+      // Respons stage lama bisa tiba setelah pengguna sudah memilih stage lain.
+      if (selectedStageIdRef.current === stageId) setEntries(normalizedEntries);
     } catch (err) {
+      if (selectedStageIdRef.current === stageId) setEntries([]);
       setError(err.response?.data?.error || 'Gagal memuat Live Timing.');
     } finally {
       setIsLoadingEntries(false);
@@ -337,8 +348,8 @@ export default function Leaderboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f4f4] text-neutral-950" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="flex min-h-screen w-full flex-col px-3 py-4 sm:px-6 lg:px-8">
+    <div className={`${embedded ? 'min-h-full' : 'min-h-screen'} bg-[#f4f4f4] text-neutral-950`} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <div className={`flex w-full flex-col ${embedded ? 'min-h-full px-2 py-2 sm:px-3' : 'min-h-screen px-3 py-4 sm:px-6 lg:px-8'}`}>
         <header className="mb-4 border-b border-neutral-200 bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -683,7 +694,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
               </tr>
             ) : (
               visibleEntries.map((entry) => (
-                <tr key={entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
+                <tr key={entry.id || entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
                   {isOverall ? (
                     <>
                       <td className="p-3 text-center">{entry.rank}</td>
@@ -727,7 +738,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         {visibleEntries.length === 0 ? (
           <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{visibleEmptyText}</div>
         ) : (
-          visibleEntries.map((entry) => <LeaderboardCard key={entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
+          visibleEntries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
         )}
       </div>
     </section>
@@ -1159,7 +1170,7 @@ function normalizeStageEntries(records) {
     return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
   };
   const hasDisplayStatus = (record) => ['BWTM', 'DNF', 'DNS'].includes(record.status);
-  const activeRecords = records.filter((record) => (
+  const rawActiveRecords = records.filter((record) => (
     record.is_active !== false &&
     (hasCompleteTime(record) || hasDisplayStatus(record))
   ));
@@ -1173,6 +1184,46 @@ function normalizeStageEntries(records) {
     if (hasStageResult(record)) return 0;
     return resultStatusWeight(record.status);
   };
+
+  // Shakedown dapat memiliki beberapa run aktif untuk peserta yang sama.
+  // Live timing menampilkan best run per peserta; merender semua run dengan
+  // participant_id yang sama juga menghasilkan duplicate React key dan dapat
+  // meninggalkan baris lama saat pengguna berpindah dari Shakedown ke SS.
+  const shakedownBestByParticipant = new Map();
+  const activeRecords = [];
+  rawActiveRecords.forEach((record) => {
+    if (!record.is_shakedown) {
+      activeRecords.push(record);
+      return;
+    }
+
+    const participantKey = record.participant_id || record.id;
+    const current = shakedownBestByParticipant.get(participantKey);
+    if (!current) {
+      shakedownBestByParticipant.set(participantKey, record);
+      return;
+    }
+
+    const currentRanked = hasStageResult(current);
+    const candidateRanked = hasStageResult(record);
+    const currentTotal = numericMs(current.total_time_ms);
+    const candidateTotal = numericMs(record.total_time_ms);
+    const currentStart = clockTimeMs(current.start_time);
+    const candidateStart = clockTimeMs(record.start_time);
+    const currentAttempt = numericMs(current.attempt_no);
+    const candidateAttempt = numericMs(record.attempt_no);
+
+    const candidateIsBetter = candidateRanked !== currentRanked
+      ? candidateRanked
+      : candidateRanked && candidateTotal !== currentTotal
+        ? candidateTotal < currentTotal
+        : candidateRanked && candidateStart !== currentStart
+          ? candidateStart < currentStart
+          : candidateAttempt > currentAttempt;
+
+    if (candidateIsBetter) shakedownBestByParticipant.set(participantKey, record);
+  });
+  activeRecords.push(...shakedownBestByParticipant.values());
 
   activeRecords.sort((a, b) => {
     const aWeight = stageRecordWeight(a);

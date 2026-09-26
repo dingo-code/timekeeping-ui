@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { submitTimingRequest } from '../../services/offlineQueue';
+import { getSynchronizedNow, setTerminalContext } from '../../services/terminalMonitoring';
 import { useAuthStore } from '../../store/useAuthStore';
+import TerminalClockStatus from '../../components/TerminalClockStatus';
 import { formatClockCentiseconds } from '../../utils/timeFormat';
 
 export default function TimekeepingTerminal() {
@@ -40,6 +43,7 @@ export default function TimekeepingTerminal() {
   const [lastSyncedAt, setLastSyncedAt] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState('');
+  const [eventAccessMessage, setEventAccessMessage] = useState('');
 
   useEffect(() => {
     if (role === 'admin' || role === 'kamar_hitung') {
@@ -55,7 +59,18 @@ export default function TimekeepingTerminal() {
       const res = await api.get('/events');
       const nextEvents = res.data.data || [];
       setEvents(nextEvents);
-      if (assignedEventId) await loadEvent(assignedEventId);
+      if (assignedEventId) {
+        if (nextEvents.some((event) => event.id === assignedEventId)) {
+          setEventAccessMessage('');
+          await loadEvent(assignedEventId);
+        } else {
+          setSelectedEvent('');
+          setStages([]);
+          setPractices([]);
+          setParticipants([]);
+          setEventAccessMessage('Event telah LOCKED dan hanya dapat diakses oleh Admin.');
+        }
+      }
     } catch (e) { console.error('Gagal memuat event'); }
   };
 
@@ -224,6 +239,15 @@ export default function TimekeepingTerminal() {
     ? ['0815 = 08:15', '1340 = 13:40', 'Kirim sebagai HH:mm']
     : [`081530${finishExampleFraction} = 08:15:30.${finishExampleFraction}`, `Wajib ${finishFractionDigits} digit di belakang detik`, `Kirim sebagai HH:mm:ss.${'S'.repeat(finishFractionDigits)}`];
 
+  useEffect(() => {
+    setTerminalContext({
+      eventId: selectedEvent,
+      sessionType: terminalMode === 'practice' ? 'practice' : selectedStage?.is_shakedown ? 'shakedown' : 'stage',
+      sessionId: selectedSS,
+      sessionName: selectedStage ? stageLabel(selectedStage) : '',
+    });
+  }, [selectedEvent, selectedSS, selectedStage, terminalMode]);
+
   const formatQuickTimeInput = (value) => {
     const digits = value.replace(/\D/g, '').slice(0, maxTimeDigits);
     if (usesMinuteOnlyInput) {
@@ -273,7 +297,7 @@ export default function TimekeepingTerminal() {
   };
 
   const handleUseCurrentTime = () => {
-    const now = new Date();
+    const now = getSynchronizedNow();
     const pad2 = (value) => String(value).padStart(2, '0');
     const fraction = String(now.getMilliseconds()).padStart(3, '0').slice(0, finishFractionDigits);
     const raw = usesMinuteOnlyInput
@@ -354,11 +378,23 @@ export default function TimekeepingTerminal() {
           return;
         }
         const endpoint = isStarter ? '/timekeeping/practice-runs/start' : '/timekeeping/practice-runs/finish';
-        await api.post(endpoint, {
-          practice_id: selectedSS,
-          practice_start_number: Number(startNumber),
-          time: submittedTime,
+        const response = await submitTimingRequest({
+          method: 'post',
+          url: endpoint,
+          data: {
+            practice_id: selectedSS,
+            practice_start_number: Number(startNumber),
+            time: submittedTime,
+          },
+          label: `${isStarter ? 'START' : 'FINISH'} Practice #${startNumber} · ${submittedTime}`,
+          metadata: { sessionType: 'practice', sessionId: selectedSS, startNumber: Number(startNumber) },
         });
+        if (response.data?.queued) {
+          setStatusMessage(`${isStarter ? 'START' : 'FINISH'} Practice #${startNumber} tersimpan di perangkat dan menunggu sinkronisasi.`);
+          setStartNumber('');
+          setManualTime('');
+          return;
+        }
         setStatusMessage(`${isStarter ? 'START' : 'FINISH'} Practice #${startNumber} berhasil disimpan.`);
         await fetchRecords(selectedSS);
         setStartNumber('');
@@ -404,11 +440,23 @@ export default function TimekeepingTerminal() {
 
       if (isTCOfficer) {
         const isCorrection = Boolean(latestActiveRecord?.tc_time);
-        await api.post('/timekeeping/tc-records', {
-          ss_id: selectedSS,
-          participant_id: participantId,
-          tc_time: submittedTime,
+        const response = await submitTimingRequest({
+          method: 'post',
+          url: '/timekeeping/tc-records',
+          data: {
+            ss_id: selectedSS,
+            participant_id: participantId,
+            tc_time: submittedTime,
+          },
+          label: `TC mobil #${startNumber} · ${submittedTime}`,
+          metadata: { sessionType: 'stage', sessionId: selectedSS, startNumber: Number(startNumber) },
         });
+        if (response.data?.queued) {
+          setStatusMessage(`TC mobil #${startNumber} tersimpan di perangkat dan menunggu sinkronisasi.`);
+          setStartNumber('');
+          setManualTime('');
+          return;
+        }
         setStatusMessage(isCorrection ? `TC mobil #${startNumber} berhasil dikoreksi.` : `TC tersimpan untuk mobil #${startNumber}.`);
         await fetchRecords(selectedSS);
         setStartNumber('');
@@ -437,7 +485,19 @@ export default function TimekeepingTerminal() {
       if (isStarter) payload.start_time = submittedTime;
       if (isFinisher) payload.finish_time = submittedTime;
       
-      await api.post('/timekeeping/ss-records', payload);
+      const response = await submitTimingRequest({
+        method: 'post',
+        url: '/timekeeping/ss-records',
+        data: payload,
+        label: `${isStarter ? 'START' : 'FINISH'} mobil #${startNumber} · ${submittedTime}`,
+        metadata: { sessionType: isShakedownStage ? 'shakedown' : 'stage', sessionId: selectedSS, startNumber: Number(startNumber) },
+      });
+      if (response.data?.queued) {
+        setStatusMessage(`${isStarter ? 'START' : 'FINISH'} mobil #${startNumber} tersimpan di perangkat dan menunggu sinkronisasi.`);
+        setStartNumber('');
+        setManualTime('');
+        return;
+      }
       setStatusMessage(`${isStarter ? 'START' : 'FINISH'} tersimpan untuk mobil #${startNumber}.`);
       await fetchRecords(selectedSS);
       
@@ -537,14 +597,16 @@ export default function TimekeepingTerminal() {
             <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${roleBadgeClass}`}>
               Role: {displayRole}
             </span>
+            <div className="mt-3 flex justify-center"><TerminalClockStatus /></div>
           </div>
           
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">Event Penugasan</label>
               <div className={`w-full rounded-lg border p-4 text-lg font-bold ${assignedEventId ? 'border-gray-200 bg-gray-50 text-gray-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-                {assignedEventName || selectedEventData?.name || 'Event belum ditetapkan oleh admin'}
+                {selectedEventData?.name || (eventAccessMessage ? 'EVENT LOCKED' : assignedEventName || 'Event belum ditetapkan oleh admin')}
               </div>
+              {eventAccessMessage && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700">{eventAccessMessage}</p>}
             </div>
 
             {!isTCOfficer && <div>
@@ -610,7 +672,10 @@ export default function TimekeepingTerminal() {
           <div className={`text-lg font-black tracking-widest ${themeColor}`}>{positionTitle}</div>
           <div className="truncate text-xs font-bold uppercase text-gray-400">{selectedStage ? stageLabel(selectedStage) : ''}</div>
         </div>
-        <button type="button" aria-label="Buka menu" onClick={() => setIsMenuOpen(true)} className="ml-3 flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-700 bg-gray-800 active:scale-95"><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/></button>
+        <div className="ml-3 flex shrink-0 items-center gap-2">
+          <TerminalClockStatus />
+          <button type="button" aria-label="Buka menu" onClick={() => setIsMenuOpen(true)} className="flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-gray-700 bg-gray-800 active:scale-95"><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/><span className="h-0.5 w-5 rounded bg-white"/></button>
+        </div>
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-2 [scrollbar-width:thin] [scrollbar-color:#374151_#000]">

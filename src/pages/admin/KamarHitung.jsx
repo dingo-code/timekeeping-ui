@@ -1,8 +1,10 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { setTerminalContext } from '../../services/terminalMonitoring';
 import { useAuthStore } from '../../store/useAuthStore';
 import Modal from '../../components/Modal';
+import TerminalClockStatus from '../../components/TerminalClockStatus';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 
@@ -22,6 +24,7 @@ export default function KamarHitung() {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedSS, setSelectedSS] = useState('');
   const [selectedPractice, setSelectedPractice] = useState('');
+  const [eventAccessMessage, setEventAccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [recordSearch, setRecordSearch] = useState('');
   const [groupBy, setGroupBy] = useState('none');
@@ -41,6 +44,12 @@ export default function KamarHitung() {
   };
 
   const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
+  const canDeleteStageInput = Boolean(
+    selectedStage &&
+    selectedStage.is_open !== false &&
+    !['FINAL', 'LOCKED'].includes(String(selectedStage.result_status || '').toUpperCase())
+  );
+  const selectedPracticeData = practices.find((practice) => practice.id === selectedPractice) || null;
   const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
   const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
   const stageLabel = (stage) => `${stage?.is_shakedown ? `Shakedown : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}${stage?.is_open === false ? ' (CLOSE)' : ''}`;
@@ -63,9 +72,10 @@ export default function KamarHitung() {
     const timer = setInterval(() => {
       fetchRecords(selectedSS, true);
       fetchRestartRequests(selectedSS);
+      refreshStageStatuses(selectedEvent);
     }, 3000);
     return () => clearInterval(timer);
-  }, [selectedSS]);
+  }, [selectedSS, selectedEvent]);
 
   useEffect(() => {
     if (!selectedPractice) return;
@@ -74,12 +84,34 @@ export default function KamarHitung() {
     return () => clearInterval(timer);
   }, [selectedPractice]);
 
+  useEffect(() => {
+    const isPractice = controlMode === 'practice';
+    setTerminalContext({
+      eventId: selectedEvent,
+      sessionType: isPractice ? 'practice' : selectedStage?.is_shakedown ? 'shakedown' : 'stage',
+      sessionId: isPractice ? selectedPractice : selectedSS,
+      sessionName: isPractice
+        ? selectedPracticeData?.name || ''
+        : selectedStage ? stageLabel(selectedStage) : '',
+    });
+  }, [controlMode, selectedEvent, selectedPractice, selectedPracticeData, selectedSS, selectedStage]);
+
   async function fetchEvents() {
     try {
       const res = await api.get('/events');
       const nextEvents = res.data.data || [];
       setEvents(nextEvents);
-      if (role !== 'admin' && assignedEventId) await loadEvent(assignedEventId);
+      if (role !== 'admin' && assignedEventId) {
+        if (nextEvents.some((event) => event.id === assignedEventId)) {
+          setEventAccessMessage('');
+          await loadEvent(assignedEventId);
+        } else {
+          setSelectedEvent('');
+          setStages([]);
+          setPractices([]);
+          setEventAccessMessage('Event telah LOCKED dan hanya dapat diakses oleh Admin.');
+        }
+      }
     } catch { console.error('Gagal memuat event'); }
   }
 
@@ -146,6 +178,16 @@ export default function KamarHitung() {
     }
   }
 
+  async function refreshStageStatuses(eventId) {
+    if (!eventId) return;
+    try {
+      const res = await api.get(`/events/${eventId}/stages`);
+      setStages(res.data.data || []);
+    } catch {
+      console.error('Gagal memperbarui status SS');
+    }
+  }
+
   async function fetchRestartRequests(ssId) {
     if (!ssId) return;
     try {
@@ -189,6 +231,24 @@ export default function KamarHitung() {
       fetchRecords(selectedSS);
     } catch {
       alert('Gagal membatalkan penalti');
+    }
+  };
+
+  const handleDeleteRecord = async (record) => {
+    const reason = window.prompt(
+      `Alasan menghapus input Mobil #${record.start_number} (${record.driver_name}):\n\nData lama tetap disimpan sebagai histori audit.`,
+      ''
+    );
+    if (reason === null) return;
+    if (!reason.trim()) return alert('Alasan menghapus input wajib diisi.');
+    if (!window.confirm(`Hapus input aktif Mobil #${record.start_number}? Petugas dapat menginput ulang setelah proses ini.`)) return;
+
+    try {
+      await api.delete(`/timekeeping/ss-records/${record.id}`, { data: { reason: reason.trim() } });
+      alert('Input salah berhasil dihapus. Data lama tersimpan sebagai histori audit.');
+      await fetchRecords(selectedSS);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menghapus input.');
     }
   };
 
@@ -543,12 +603,12 @@ export default function KamarHitung() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 p-4 shadow-sm flex justify-between items-center">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white p-4 shadow-sm">
         <div>
           <h1 className="text-xl font-black text-gray-800 tracking-tight uppercase">🖥️ Kamar Hitung <span className="text-red-600">Control</span></h1>
           <p className="text-xs text-gray-500 font-bold uppercase mt-1">Petugas: {role?.replace('_', ' ')}</p>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <select className="p-2 border border-red-300 rounded-lg text-sm font-black outline-none focus:ring-1 focus:ring-red-500 bg-red-50 text-red-700" value={controlMode} onChange={(event) => { setControlMode(event.target.value); setRecordSearch(''); }}>
             <option value="ss">SPECIAL STAGE</option>
             <option value="practice">PRACTICE</option>
@@ -560,7 +620,7 @@ export default function KamarHitung() {
             </select>
           ) : (
             <div className={`rounded-lg border px-3 py-2 text-sm font-bold ${assignedEventId ? 'border-gray-300 bg-gray-50 text-gray-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-              {assignedEventName || selectedEventData?.name || 'EVENT BELUM DITETAPKAN'}
+              {selectedEventData?.name || (eventAccessMessage ? 'EVENT LOCKED' : assignedEventName || 'EVENT BELUM DITETAPKAN')}
             </div>
           )}
 
@@ -572,9 +632,12 @@ export default function KamarHitung() {
             {stages.map(s => <option key={s.id} value={s.id}>{stageLabel(s)}</option>)}
           </select>}
           
+          <TerminalClockStatus />
           <button onClick={() => { logout(); navigate('/login'); }} className="text-xs font-bold text-gray-500 hover:text-red-600 transition">LOGOUT</button>
         </div>
       </header>
+
+      {eventAccessMessage && <p className="mx-6 mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">{eventAccessMessage}</p>}
 
       <main className="flex-1 p-6">
         {controlMode === 'practice' ? (
@@ -696,7 +759,7 @@ export default function KamarHitung() {
                         <span className="text-xs text-gray-500 font-normal">{r.codriver_name || '-'}</span>
                         {!r.is_active && r.restart_reason && (
                           <div className="mt-1 text-[11px] font-semibold text-orange-700 bg-orange-50 inline-block px-2 py-1 rounded">
-                            Restart: {r.restart_reason}
+                            {r.restart_reason.startsWith('Dihapus Kamar Hitung:') ? r.restart_reason : `Restart: ${r.restart_reason}`}
                           </div>
                         )}
                       </td>
@@ -755,6 +818,15 @@ export default function KamarHitung() {
                         )}
                         {r.is_active && r.status !== 'OK' && (
                           <button onClick={() => handleSetStatus(r.id, 'OK')} className="ml-auto block w-40 rounded border border-gray-300 px-2 py-1.5 text-[10px] font-black uppercase text-gray-500 transition hover:text-green-600">Batal Status</button>
+                        )}
+                        {canDeleteStageInput && r.is_active && hasDeletableInput(r) && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRecord(r)}
+                            className="ml-auto mt-1 block w-40 rounded bg-red-700 px-2 py-1.5 text-[10px] font-black uppercase text-white transition hover:bg-red-900"
+                          >
+                            Hapus Input
+                          </button>
                         )}
                         {!r.is_active && (
                           <span className="block text-center text-xs font-bold text-gray-400">Histori attempt</span>
@@ -854,6 +926,18 @@ function formatClockHourMinute(value) {
   const match = String(value).match(/^(\d{2}):(\d{2})/);
   if (!match) return value;
   return `${match[1]}:${match[2]}`;
+}
+
+function hasDeletableInput(record) {
+  return Boolean(
+    record?.tc_time ||
+    record?.start_time ||
+    record?.finish_time ||
+    Number(record?.elapsed_time_ms) > 0 ||
+    Number(record?.penalty_time_ms) > 0 ||
+    Number(record?.total_time_ms) > 0 ||
+    (record?.status && record.status !== 'OK')
+  );
 }
 
 function RestartRequestPanel({ requests, onApprove, onReject, timeDecimalPlaces = 2 }) {

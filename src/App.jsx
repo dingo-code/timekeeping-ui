@@ -27,6 +27,8 @@ import UserManagement from './pages/admin/UserManagement';
 import Dashboard from './pages/admin/Dashboard';
 import FinishStopwatch from './pages/petugas-finish/FinishStopwatch';
 import BackupReconciliation from './pages/admin/BackupReconciliation';
+import OfflineQueueStatus from './components/OfflineQueueStatus';
+import TerminalMonitoring from './pages/admin/TerminalMonitoring';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -54,7 +56,8 @@ function AppRoutes() {
   const location = useLocation();
   const fieldTerminalPaths = ['/marshal', '/pos-start', '/pos-finish', '/pos-tc', '/flying-finish'];
   const isFieldTerminal = fieldTerminalPaths.includes(location.pathname);
-  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login' || isFieldTerminal;
+  const isEmbedPage = location.pathname.startsWith('/embed/');
+  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login' || isFieldTerminal || isEmbedPage;
 
   return (
     <div className={`flex min-h-screen flex-col ${usesEmbeddedFooter ? '' : 'pb-12'}`}>
@@ -64,6 +67,7 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/unauthorized" element={<DummyPage title="403 - Akses Ditolak" />} />
         <Route path="/live-timing" element={<Leaderboard />} />
+        <Route path="/embed/live-timing" element={<Leaderboard embedded />} />
         <Route path="/leaderboard" element={<Navigate to="/live-timing" replace />} />
         <Route path="/timecard/:eventId" element={<Timecard />} />
         <Route path="/timecard/:eventId/:participantId" element={<Timecard />} />
@@ -95,6 +99,7 @@ function AppRoutes() {
           <Route path="results/practice" element={<PracticeReport />} />
           <Route path="monitoring-input" element={<InputMonitoring />} />
           <Route path="backup-reconciliation" element={<BackupReconciliation />} />
+          <Route path="terminal-monitoring" element={<TerminalMonitoring />} />
           
           <Route path="event" element={<DummyPage title="Halaman Pengelolaan Event & SS" />} />
           <Route path="penalty" element={<DummyPage title="Halaman Setup Master Penalti" />} />
@@ -121,6 +126,7 @@ function AppRoutes() {
         </Routes>
       </main>
       {!usesEmbeddedFooter && <AppFooter />}
+      {!isEmbedPage && <OfflineQueueStatus />}
     </div>
   );
 }

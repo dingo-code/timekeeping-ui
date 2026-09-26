@@ -128,7 +128,7 @@ async function parseWorkbook(file) {
 }
 async function parsePDF(file) {
   installPDFCompatibility();
-  const pdfjs = await import('pdfjs-dist'); const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url'); pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  const pdfjs = await import('pdfjs-dist'); const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url'); pdfjs.GlobalWorkerOptions.workerSrc = `${worker.default}?v=20260926-1`;
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, result = [];
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
     const content = await (await pdf.getPage(pageNo)).getTextContent(), lines = new Map();

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import AppFooter from '../components/AppFooter';
+import TerminalClockStatus from '../components/TerminalClockStatus';
 
 function Icon({ name, className = 'h-5 w-5', ...props }) {
   const paths = {
@@ -168,6 +169,7 @@ export default function AdminLayout() {
         <div className="p-6 text-center border-b border-gray-800">
           <h1 className="text-2xl font-black text-white tracking-wider">COMPACT<span className="text-red-500">INDO</span></h1>
           <p className="text-xs text-gray-400 mt-1 font-medium tracking-wide">Race Time Control</p>
+          <TerminalClockStatus variant="sidebar" />
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
@@ -296,6 +298,15 @@ export default function AdminLayout() {
             <Icon name="monitor" />
             <span>Monitoring Input</span>
           </a>
+          <Link
+            to="/admin/terminal-monitoring"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-semibold ${
+              location.pathname === '/admin/terminal-monitoring' ? 'bg-red-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Icon name="monitor" />
+            <span>Clock / Terminal</span>
+          </Link>
           <a
             href="/kamar-hitung"
             target="_blank"

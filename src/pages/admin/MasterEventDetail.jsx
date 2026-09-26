@@ -9,6 +9,15 @@ import PracticeManagement from './PracticeManagement';
 import SmartEntryListUpdate from './SmartEntryListUpdate';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
+const RESULT_STATUS_STYLES = {
+  DRAFT: 'bg-slate-100 text-slate-700',
+  RUNNING: 'bg-emerald-100 text-emerald-700',
+  PROVISIONAL: 'bg-amber-100 text-amber-700',
+  FINAL: 'bg-blue-100 text-blue-700',
+  LOCKED: 'bg-purple-100 text-purple-700',
+};
+const NEXT_RESULT_STATUS = { DRAFT: 'RUNNING', RUNNING: 'PROVISIONAL', PROVISIONAL: 'FINAL', FINAL: 'LOCKED' };
+const RESULT_ACTION_LABEL = { RUNNING: 'Mulai', PROVISIONAL: 'Tutup Sementara', FINAL: 'Finalkan', LOCKED: 'Kunci' };
 
 export default function MasterEventDetail() {
   const { id } = useParams(); // Mengambil ID Event dari URL
@@ -40,6 +49,11 @@ export default function MasterEventDetail() {
   const [stageSearchTerm, setStageSearchTerm] = useState('');
   const [stageCurrentPage, setStageCurrentPage] = useState(1);
   const [stageItemsPerPage, setStageItemsPerPage] = useState(5);
+  const [eventGovernance, setEventGovernance] = useState(null);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [correctionRequests, setCorrectionRequests] = useState([]);
+  const [correctionForm, setCorrectionForm] = useState({ ss_id: '', reason: '', proposed_changes: '' });
+  const [isSavingGovernance, setIsSavingGovernance] = useState(false);
 
   // --- State Modal & Edit Peserta ---
   const [isParticipantModalOpen, setIsParticipantModalOpen] = useState(false);
@@ -110,6 +124,10 @@ export default function MasterEventDetail() {
       refreshTCSetup(selectedTCStageId);
     }
   }, [activeTab, selectedTCStageId]);
+
+  useEffect(() => {
+    if (activeTab === 'governance') loadGovernanceData();
+  }, [activeTab, id]);
 
   const normalizedStageSearch = stageSearchTerm.trim().toLowerCase();
   const filteredStages = stages.filter((ss) => (
@@ -523,23 +541,69 @@ export default function MasterEventDetail() {
     } catch (err) { alert('Gagal menghapus SS'); }
   };
 
-  const handleToggleStageOpen = async (stage) => {
-    const nextIsOpen = !(stage.is_open ?? true);
-    const actionLabel = nextIsOpen ? 'open' : 'close';
-    if (!window.confirm(`${actionLabel === 'close' ? 'Close' : 'Open'} ${stage.ss_name}?`)) return;
-
+  const loadGovernanceData = async () => {
     try {
-      await api.put(`/admin/events/${id}/stages/${stage.id}`, {
-        ss_name: stage.ss_name,
-        ss_order: Number(stage.ss_order),
-        distance_km: Number(stage.distance_km),
-        is_shakedown: Boolean(stage.is_shakedown),
-        is_open: nextIsOpen,
-        track_condition: (stage.track_condition || 'DRY').toUpperCase() === 'WET' ? 'WET' : 'DRY',
-      });
-      fetchEventData();
+      const [governanceRes, correctionsRes, auditRes] = await Promise.all([
+        api.get(`/admin/events/${id}/governance`),
+        api.get(`/admin/events/${id}/result-corrections`),
+        api.get(`/admin/events/${id}/audit-logs?limit=100`),
+      ]);
+      setEventGovernance(governanceRes.data.data || null);
+      setCorrectionRequests(correctionsRes.data.data || []);
+      setAuditLogs(auditRes.data.data || []);
     } catch (err) {
-      alert(`Gagal mengubah status SS menjadi ${actionLabel}`);
+      console.error('Gagal memuat governance result', err);
+    }
+  };
+
+  const changeResultStatus = async ({ stage = null, currentStatus, name }) => {
+    const nextStatus = NEXT_RESULT_STATUS[currentStatus];
+    if (!nextStatus) return;
+    const reason = window.prompt(`Alasan ${RESULT_ACTION_LABEL[nextStatus].toLowerCase()} ${name}:`);
+    if (!reason?.trim()) return;
+    setIsSavingGovernance(true);
+    try {
+      const url = stage ? `/admin/stages/${stage.id}/result-status` : `/admin/events/${id}/result-status`;
+      await api.put(url, { status: nextStatus, reason: reason.trim() });
+      await Promise.all([fetchEventData(), loadGovernanceData()]);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mengubah status result');
+    } finally {
+      setIsSavingGovernance(false);
+    }
+  };
+
+  const submitCorrectionRequest = async (e) => {
+    e.preventDefault();
+    if (!correctionForm.reason.trim()) return alert('Alasan koreksi wajib diisi.');
+    setIsSavingGovernance(true);
+    try {
+      await api.post('/governance/result-corrections', {
+        event_id: id,
+        ss_id: correctionForm.ss_id,
+        reason: correctionForm.reason.trim(),
+        proposed_changes: { description: correctionForm.proposed_changes.trim() },
+      });
+      setCorrectionForm({ ss_id: '', reason: '', proposed_changes: '' });
+      await loadGovernanceData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal membuat permintaan koreksi');
+    } finally {
+      setIsSavingGovernance(false);
+    }
+  };
+
+  const reviewCorrection = async (request, action) => {
+    const notes = window.prompt(action === 'approve' ? 'Catatan persetujuan (opsional):' : 'Alasan penolakan:');
+    if (notes === null || (action === 'reject' && !notes.trim())) return;
+    setIsSavingGovernance(true);
+    try {
+      await api.post(`/admin/result-corrections/${request.id}/${action}`, { notes: notes.trim() });
+      await Promise.all([fetchEventData(), loadGovernanceData()]);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal memproses permintaan koreksi');
+    } finally {
+      setIsSavingGovernance(false);
     }
   };
 
@@ -1267,7 +1331,7 @@ export default function MasterEventDetail() {
 
       {/* Tabs Menu */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="flex border-b border-gray-200 bg-gray-50">
+        <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50">
           <button 
             onClick={() => setActiveTab('stages')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'stages' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
@@ -1303,6 +1367,12 @@ export default function MasterEventDetail() {
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'tc' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             Starting List
+          </button>
+          <button
+            onClick={() => setActiveTab('governance')}
+            className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'governance' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Audit & Finalisasi
           </button>
         </div>
 
@@ -1367,14 +1437,16 @@ export default function MasterEventDetail() {
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${ss.is_open ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
-                          {ss.is_open ?? true ? 'Open' : 'Close'}
+                        <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${RESULT_STATUS_STYLES[ss.result_status] || RESULT_STATUS_STYLES.DRAFT}`}>
+                          {ss.result_status || 'DRAFT'} · v{ss.result_version || 1}
                         </span>
                       </td>
                       <td className="p-3 text-right space-x-3">
-                        <button onClick={() => handleToggleStageOpen(ss)} className={ss.is_open ?? true ? 'admin-btn-muted' : 'admin-btn-edit'}>
-                          {ss.is_open ?? true ? 'Close' : 'Open'}
-                        </button>
+                        {NEXT_RESULT_STATUS[ss.result_status] && (
+                          <button disabled={isSavingGovernance} onClick={() => changeResultStatus({ stage: ss, currentStatus: ss.result_status, name: ss.ss_name })} className="admin-btn-muted disabled:opacity-50">
+                            {RESULT_ACTION_LABEL[NEXT_RESULT_STATUS[ss.result_status]]}
+                          </button>
+                        )}
                         <button onClick={() => openStageModal(ss)} className="admin-btn-edit">Edit</button>
                         <button onClick={() => handleDeleteStage(ss.id)} className="admin-btn-delete">Hapus</button>
                       </td>
@@ -1384,6 +1456,99 @@ export default function MasterEventDetail() {
               </tbody>
             </table>
             <DataTableFooter totalItems={filteredStages.length} currentPage={safeStageCurrentPage} totalPages={stageTotalPages} pageSize={stageItemsPerPage} searchTerm={stageSearchTerm} onPageChange={setStageCurrentPage} />
+          </div>
+        )}
+
+        {activeTab === 'governance' && (
+          <div className="space-y-6 p-6">
+            <div className="rounded-xl border border-gray-200 bg-slate-50 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">Result Keseluruhan Event</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <span className={`rounded px-3 py-1 text-xs font-black ${RESULT_STATUS_STYLES[eventGovernance?.result_status] || RESULT_STATUS_STYLES.DRAFT}`}>
+                      {eventGovernance?.result_status || 'DRAFT'} · v{eventGovernance?.result_version || 1}
+                    </span>
+                    {eventGovernance?.status_reason && <span className="text-sm text-gray-600">{eventGovernance.status_reason}</span>}
+                  </div>
+                </div>
+                {NEXT_RESULT_STATUS[eventGovernance?.result_status] && (
+                  <button
+                    disabled={isSavingGovernance}
+                    onClick={() => changeResultStatus({ currentStatus: eventGovernance.result_status, name: eventGovernance.name || 'event' })}
+                    className="admin-btn-primary disabled:opacity-50"
+                  >
+                    {RESULT_ACTION_LABEL[NEXT_RESULT_STATUS[eventGovernance.result_status]]} Result Event
+                  </button>
+                )}
+              </div>
+              <p className="mt-4 text-xs text-gray-500">Event hanya dapat menjadi FINAL setelah seluruh SS resmi FINAL/LOCKED. Status LOCKED hanya dapat dibuka melalui koreksi yang disetujui.</p>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <form onSubmit={submitCorrectionRequest} className="rounded-xl border border-gray-200 p-5">
+                <h3 className="font-black text-gray-800">Ajukan Koreksi Result</h3>
+                <p className="mb-4 mt-1 text-xs text-gray-500">Dipakai hanya setelah event atau SS berstatus FINAL/LOCKED.</p>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Target koreksi</label>
+                <select className="mb-3 w-full rounded border border-gray-300 p-2 text-sm" value={correctionForm.ss_id} onChange={(e) => setCorrectionForm({ ...correctionForm, ss_id: e.target.value })}>
+                  <option value="">Result keseluruhan event</option>
+                  {stages.filter((stage) => ['FINAL', 'LOCKED'].includes(stage.result_status)).map((stage) => (
+                    <option key={stage.id} value={stage.id}>{stage.ss_name} · {stage.result_status} v{stage.result_version}</option>
+                  ))}
+                </select>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Alasan</label>
+                <textarea required rows="3" className="mb-3 w-full rounded border border-gray-300 p-2 text-sm" value={correctionForm.reason} onChange={(e) => setCorrectionForm({ ...correctionForm, reason: e.target.value })} placeholder="Jelaskan kesalahan yang ditemukan dan bukti pendukungnya." />
+                <label className="mb-1 block text-xs font-bold text-gray-600">Perubahan yang diusulkan</label>
+                <textarea rows="2" className="mb-4 w-full rounded border border-gray-300 p-2 text-sm" value={correctionForm.proposed_changes} onChange={(e) => setCorrectionForm({ ...correctionForm, proposed_changes: e.target.value })} placeholder="Contoh: koreksi finish no. 81 menjadi 13:25:00.5" />
+                <button disabled={isSavingGovernance} className="admin-btn-primary disabled:opacity-50">Kirim Permintaan</button>
+              </form>
+
+              <div className="rounded-xl border border-gray-200 p-5">
+                <h3 className="font-black text-gray-800">Permintaan Koreksi</h3>
+                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
+                  {correctionRequests.length === 0 && <p className="text-sm text-gray-500">Belum ada permintaan koreksi.</p>}
+                  {correctionRequests.map((request) => (
+                    <div key={request.id} className="rounded-lg border border-gray-200 p-3 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div><b>{request.ss_name || 'Result Event'}</b><p className="mt-1 text-gray-600">{request.reason}</p></div>
+                        <span className={`rounded px-2 py-1 text-[10px] font-black ${request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : request.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{request.status}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-400">{request.requested_by_username} · {new Date(request.created_at).toLocaleString('id-ID')}</p>
+                      {request.status === 'PENDING' && (
+                        <div className="mt-3 flex gap-2">
+                          <button type="button" onClick={() => reviewCorrection(request, 'approve')} className="admin-btn-edit">Setujui</button>
+                          <button type="button" onClick={() => reviewCorrection(request, 'reject')} className="admin-btn-delete">Tolak</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div><h3 className="font-black text-gray-800">Audit Trail</h3><p className="text-xs text-gray-500">100 aktivitas terbaru. Snapshot database tidak dapat diedit atau dihapus.</p></div>
+                <button type="button" onClick={loadGovernanceData} className="admin-btn-muted">Refresh</button>
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-gray-100 text-gray-600"><tr><th className="p-2">Waktu</th><th className="p-2">Pelaku</th><th className="p-2">Sumber</th><th className="p-2">Aksi</th><th className="p-2">Objek</th><th className="p-2">Detail</th></tr></thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-gray-100 align-top">
+                        <td className="whitespace-nowrap p-2">{new Date(log.created_at).toLocaleString('id-ID')}</td>
+                        <td className="p-2"><b>{log.actor_username}</b><br/><span className="text-gray-400">{log.actor_role}</span></td>
+                        <td className="p-2">{log.source}</td><td className="p-2 font-mono">{log.action}</td>
+                        <td className="p-2">{log.entity_type}<br/><span className="font-mono text-[10px] text-gray-400">{log.entity_id}</span></td>
+                        <td className="p-2"><details><summary className="cursor-pointer text-blue-600">Lihat data</summary><pre className="mt-2 max-w-lg overflow-auto rounded bg-slate-900 p-2 text-[10px] text-slate-100">{JSON.stringify({ before: log.before_data, after: log.after_data, metadata: log.metadata }, null, 2)}</pre></details></td>
+                      </tr>
+                    ))}
+                    {auditLogs.length === 0 && <tr><td colSpan="6" className="p-4 text-center text-gray-500">Belum ada audit log untuk event ini.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2187,7 +2352,7 @@ async function parseStartingListPDF(file) {
   installStartingListPDFCompatibility();
   const pdfjs = await import('pdfjs-dist');
   const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  pdfjs.GlobalWorkerOptions.workerSrc = `${worker.default}?v=20260926-1`;
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const parsedRows = [];
 

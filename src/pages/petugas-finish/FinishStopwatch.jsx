@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { OFFLINE_QUEUE_SYNC_EVENT, submitTimingRequest } from '../../services/offlineQueue';
+import { getSynchronizedNow, setTerminalContext } from '../../services/terminalMonitoring';
 import { useAuthStore } from '../../store/useAuthStore';
 import { formatClockCentiseconds, formatMs } from '../../utils/timeFormat';
+import TerminalClockStatus from '../../components/TerminalClockStatus';
 
 export default function FinishStopwatch() {
   const navigate = useNavigate();
@@ -27,10 +30,36 @@ export default function FinishStopwatch() {
   const decimalPlaces = event?.time_decimal_places ?? 2;
 
   useEffect(() => {
+    const sessionName = sessionMode === 'practice'
+      ? selectedPractice?.name || ''
+      : selectedStage ? `${selectedStage.is_shakedown ? 'Shakedown' : `SS ${selectedStage.ss_order}`} · ${selectedStage.ss_name}` : '';
+    setTerminalContext({
+      eventId: eventId || '',
+      sessionType: sessionMode === 'practice' ? 'practice' : sessionMode === 'shakedown' ? 'shakedown' : 'stage',
+      sessionId: selectedStageId,
+      sessionName,
+    });
+  }, [eventId, selectedPractice, selectedStage, selectedStageId, sessionMode]);
+
+  useEffect(() => {
     if (!eventId) return;
-    Promise.all([api.get('/events'), api.get(`/events/${eventId}/stages`), api.get(`/events/${eventId}/participants`), api.get(`/practices/events/${eventId}`)])
-      .then(([eventResponse, stageResponse, participantResponse, practiceResponse]) => {
-        setEvent((eventResponse.data.data || []).find((item) => item.id === eventId) || null);
+    api.get('/events')
+      .then(async (eventResponse) => {
+        const assignedEvent = (eventResponse.data.data || []).find((item) => item.id === eventId) || null;
+        if (!assignedEvent) {
+          setEvent(null);
+          setStages([]);
+          setParticipants([]);
+          setPractices([]);
+          setMessage('Event telah LOCKED dan hanya dapat diakses oleh Admin.');
+          return;
+        }
+        setEvent(assignedEvent);
+        const [stageResponse, participantResponse, practiceResponse] = await Promise.all([
+          api.get(`/events/${eventId}/stages`),
+          api.get(`/events/${eventId}/participants`),
+          api.get(`/practices/events/${eventId}`),
+        ]);
         setStages(stageResponse.data.data || []);
         setParticipants(participantResponse.data.data || []);
         setPractices(practiceResponse.data.data || []);
@@ -42,6 +71,32 @@ export default function FinishStopwatch() {
     if (!selectedStageId) return;
     localStorage.setItem(captureStorageKey(selectedStageId), JSON.stringify(captures));
   }, [captures, selectedStageId]);
+
+  useEffect(() => {
+    const handleSyncedInput = (syncEvent) => {
+      const queued = syncEvent.detail?.item;
+      if (!queued?.metadata?.captureId || queued.metadata.sessionId !== selectedStageId) return;
+      setCaptures((current) => current.map((row) => row.id === queued.metadata.captureId
+        ? { ...row, status: 'saved', record_id: syncEvent.detail?.response?.data?.id || '', error: '' }
+        : row));
+      if (queued.metadata.sessionType === 'practice') {
+        Promise.all([
+          api.get(`/practices/${selectedStageId}/entries`),
+          api.get(`/practices/${selectedStageId}/runs`),
+        ]).then(([entryResponse, runResponse]) => {
+          setPracticeEntries(entryResponse.data.data || []);
+          setPracticeRuns(runResponse.data.data || []);
+        }).catch(() => {});
+      } else {
+        api.get(`/timekeeping/stages/${selectedStageId}/records`)
+          .then((response) => setRecords(response.data.data || []))
+          .catch(() => {});
+      }
+      setMessage(`${queued.label} berhasil disinkronkan ke server.`);
+    };
+    window.addEventListener(OFFLINE_QUEUE_SYNC_EVENT, handleSyncedInput);
+    return () => window.removeEventListener(OFFLINE_QUEUE_SYNC_EVENT, handleSyncedInput);
+  }, [selectedStageId]);
 
   useEffect(() => {
     const handleShortcut = (keyboardEvent) => {
@@ -59,7 +114,9 @@ export default function FinishStopwatch() {
     setLoading(true);
     try {
       const response = await api.get(`/timekeeping/stages/${stageId}/records`);
-      setRecords(response.data.data || []);
+      const nextRecords = response.data.data || [];
+      setRecords(nextRecords);
+      reconcileQueuedCaptures(setCaptures, nextRecords, false);
     } catch (error) {
       setMessage(error.response?.data?.error || 'Gagal memuat data SS.');
     } finally {
@@ -76,7 +133,9 @@ export default function FinishStopwatch() {
         api.get(`/practices/${practiceId}/runs`),
       ]);
       setPracticeEntries(entryResponse.data.data || []);
-      setPracticeRuns(runResponse.data.data || []);
+      const nextRuns = runResponse.data.data || [];
+      setPracticeRuns(nextRuns);
+      reconcileQueuedCaptures(setCaptures, nextRuns, true);
     } catch (error) {
       setMessage(error.response?.data?.error || 'Gagal memuat data Practice.');
     } finally {
@@ -134,7 +193,18 @@ export default function FinishStopwatch() {
 
     setSavingId(row.id);
     try {
-      await api.post('/timekeeping/ss-records', { ss_id: selectedStageId, participant_id: participant.id, finish_time: row.finish_time });
+      const saveResponse = await submitTimingRequest({
+        method: 'post',
+        url: '/timekeeping/ss-records',
+        data: { ss_id: selectedStageId, participant_id: participant.id, finish_time: row.finish_time },
+        label: `FINISH mobil #${startNumber} · ${row.finish_time}`,
+        metadata: { captureId: row.id, sessionType: sessionMode, sessionId: selectedStageId, startNumber },
+      });
+      if (saveResponse.data?.queued) {
+        setCaptures((current) => current.map((item) => item.id === row.id ? { ...item, status: 'queued', error: '' } : item));
+        setMessage(`Finish mobil #${startNumber} aman tersimpan di perangkat dan menunggu sinkronisasi.`);
+        return;
+      }
       const response = await api.get(`/timekeeping/stages/${selectedStageId}/records`);
       const nextRecords = response.data.data || [];
       setRecords(nextRecords);
@@ -157,7 +227,18 @@ export default function FinishStopwatch() {
     if (!openRun) return markRowError(row.id, `Nomor Practice #${practiceNumber} belum memiliki Start yang menunggu Finish.`);
     setSavingId(row.id);
     try {
-      await api.post('/timekeeping/practice-runs/finish', { practice_id: selectedStageId, practice_start_number: practiceNumber, time: row.finish_time });
+      const saveResponse = await submitTimingRequest({
+        method: 'post',
+        url: '/timekeeping/practice-runs/finish',
+        data: { practice_id: selectedStageId, practice_start_number: practiceNumber, time: row.finish_time },
+        label: `FINISH Practice #${practiceNumber} · ${row.finish_time}`,
+        metadata: { captureId: row.id, sessionType: 'practice', sessionId: selectedStageId, startNumber: practiceNumber },
+      });
+      if (saveResponse.data?.queued) {
+        setCaptures((current) => current.map((item) => item.id === row.id ? { ...item, status: 'queued', error: '' } : item));
+        setMessage(`Finish Practice #${practiceNumber} aman tersimpan di perangkat dan menunggu sinkronisasi.`);
+        return;
+      }
       const runResponse = await api.get(`/practices/${selectedStageId}/runs`);
       const nextRuns = runResponse.data.data || [];
       setPracticeRuns(nextRuns);
@@ -176,7 +257,7 @@ export default function FinishStopwatch() {
   }
 
   function removePending(id) {
-    setCaptures((current) => current.filter((row) => row.id !== id || row.status === 'saved'));
+    setCaptures((current) => current.filter((row) => row.id !== id || row.status === 'saved' || row.status === 'queued'));
   }
 
   function handleLogout() {
@@ -203,14 +284,14 @@ export default function FinishStopwatch() {
   if (!eventId) return <MissingAssignment onLogout={handleLogout} />;
 
   return <div className="flex min-h-screen flex-col bg-gray-100">
-    <header className="border-b border-gray-200 bg-white px-5 py-4 shadow-sm"><div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-600">Compactindo Race Control</p><h1 className="mt-1 text-xl font-black uppercase text-gray-900">Finish Stopwatch</h1><p className="mt-1 text-xs font-bold text-gray-500">{eventName || event?.name || 'Event'}</p></div><div className="flex flex-wrap items-center gap-2"><select value={sessionMode} onChange={(changeEvent) => changeMode(changeEvent.target.value)} className="h-10 rounded-lg border border-red-300 bg-red-50 px-3 text-sm font-black text-red-700 outline-none"><option value="ss">SPECIAL STAGE</option><option value="shakedown">SHAKEDOWN</option><option value="practice">PRACTICE</option></select><select value={selectedStageId} onChange={(changeEvent) => changeStage(changeEvent.target.value)} className="h-10 min-w-64 rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm font-black outline-none focus:border-red-500"><option value="">-- PILIH SESI --</option>{sessionOptions.map((session) => <option key={session.id} value={session.id}>{sessionMode === 'practice' ? session.name : sessionMode === 'shakedown' ? `Shakedown · ${session.ss_name}` : `SS ${session.ss_order} · ${session.ss_name}`}{session.is_open ? ' (OPEN)' : ' (CLOSE)'}</option>)}</select><button type="button" onClick={() => sessionMode === 'practice' ? fetchPracticeData() : fetchRecords()} disabled={!selectedStageId || loading} className="h-10 rounded-lg border border-gray-300 px-4 text-xs font-black uppercase text-gray-700 hover:bg-gray-50 disabled:opacity-40">Refresh</button><button type="button" onClick={handleLogout} className="h-10 rounded-lg bg-gray-900 px-4 text-xs font-black uppercase text-white hover:bg-red-700">Logout</button></div></div></header>
+    <header className="border-b border-gray-200 bg-white px-5 py-4 shadow-sm"><div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-600">Compactindo Race Control</p><h1 className="mt-1 text-xl font-black uppercase text-gray-900">Finish Stopwatch</h1><p className="mt-1 text-xs font-bold text-gray-500">{event?.name || (message.includes('LOCKED') ? 'EVENT LOCKED' : eventName || 'Event')}</p></div><div className="flex flex-wrap items-center gap-2"><select value={sessionMode} onChange={(changeEvent) => changeMode(changeEvent.target.value)} className="h-10 rounded-lg border border-red-300 bg-red-50 px-3 text-sm font-black text-red-700 outline-none"><option value="ss">SPECIAL STAGE</option><option value="shakedown">SHAKEDOWN</option><option value="practice">PRACTICE</option></select><select value={selectedStageId} onChange={(changeEvent) => changeStage(changeEvent.target.value)} className="h-10 min-w-64 rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm font-black outline-none focus:border-red-500"><option value="">-- PILIH SESI --</option>{sessionOptions.map((session) => <option key={session.id} value={session.id}>{sessionMode === 'practice' ? session.name : sessionMode === 'shakedown' ? `Shakedown · ${session.ss_name}` : `SS ${session.ss_order} · ${session.ss_name}`}{session.is_open ? ' (OPEN)' : ' (CLOSE)'}</option>)}</select><button type="button" onClick={() => sessionMode === 'practice' ? fetchPracticeData() : fetchRecords()} disabled={!selectedStageId || loading} className="h-10 rounded-lg border border-gray-300 px-4 text-xs font-black uppercase text-gray-700 hover:bg-gray-50 disabled:opacity-40">Refresh</button><TerminalClockStatus /><button type="button" onClick={handleLogout} className="h-10 rounded-lg bg-gray-900 px-4 text-xs font-black uppercase text-white hover:bg-red-700">Logout</button></div></div></header>
 
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 p-4 lg:p-6">
       <section className="grid gap-3 lg:grid-cols-[1fr_auto]"><div className={`rounded-xl border p-4 ${selectedSession?.is_open === false ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}><p className="text-xs font-black uppercase tracking-widest text-gray-500">Sesi Aktif · {sessionMode}</p><p className="mt-1 text-xl font-black text-gray-900">{sessionTitle || 'Pilih sesi untuk mulai'}</p>{selectedSession?.is_open === false && <p className="mt-1 text-xs font-black text-red-600">SESI CLOSE — CAPTURE DIKUNCI</p>}</div><button type="button" onClick={captureFinish} disabled={!selectedStageId || selectedSession?.is_open === false} className="min-h-20 rounded-xl bg-red-600 px-10 text-lg font-black uppercase tracking-wider text-white shadow-lg shadow-red-200 transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"><span className="block">Capture Finish</span><span className="mt-1 block text-[10px] tracking-widest text-red-100">SPACE / F8</span></button></section>
 
       {message && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">{message}</div>}
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3"><div><h2 className="font-black text-gray-800">Capture Finish · {sessionMode === 'practice' ? 'Practice' : sessionMode === 'shakedown' ? 'Shakedown' : 'Special Stage'}</h2><p className="mt-1 text-xs text-gray-500">Tidak live · data sesi diperbarui hanya saat Refresh atau setelah nomor disimpan.</p></div><div className="flex gap-2 text-[10px] font-black uppercase"><span className="rounded bg-amber-100 px-3 py-1.5 text-amber-700">{rows.filter((row) => row.status !== 'saved').length} belum diberi nomor</span><span className="rounded bg-green-100 px-3 py-1.5 text-green-700">{rows.filter((row) => row.status === 'saved').length} tersimpan</span></div></div>
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b bg-gray-50 px-4 py-3"><div><h2 className="font-black text-gray-800">Capture Finish · {sessionMode === 'practice' ? 'Practice' : sessionMode === 'shakedown' ? 'Shakedown' : 'Special Stage'}</h2><p className="mt-1 text-xs text-gray-500">Tidak live · data sesi diperbarui hanya saat Refresh atau setelah nomor disimpan.</p></div><div className="flex gap-2 text-[10px] font-black uppercase"><span className="rounded bg-amber-100 px-3 py-1.5 text-amber-700">{rows.filter((row) => row.status === 'pending').length} belum diberi nomor</span><span className="rounded bg-blue-100 px-3 py-1.5 text-blue-700">{rows.filter((row) => row.status === 'queued').length} antre</span><span className="rounded bg-green-100 px-3 py-1.5 text-green-700">{rows.filter((row) => row.status === 'saved').length} tersimpan</span></div></div>
         <div className="overflow-x-auto"><table className="w-full min-w-[1250px] border-collapse text-sm"><thead className="bg-gray-900 text-xs uppercase tracking-wider text-gray-300"><tr><th className="p-3 text-center">{sessionMode === 'practice' ? 'Practice No' : 'No Start'}</th><th className="p-3 text-left">Driver / Navigator</th><th className="p-3 text-left">Entrant</th><th className="p-3 text-center">Class</th><th className="p-3 text-center">TC</th><th className="p-3 text-center">Start</th><th className="p-3 text-center text-red-300">Finish Capture</th><th className="p-3 text-center text-green-300">Total Time</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Aksi</th></tr></thead><tbody className="divide-y divide-gray-100">{!selectedStageId ? <tr><td colSpan="10" className="p-16 text-center text-gray-400">Pilih sesi untuk mulai menangkap waktu Finish.</td></tr> : rows.length === 0 ? <tr><td colSpan="10" className="p-16 text-center text-gray-400">Tekan SPACE atau F8 saat kendaraan melewati garis Finish.</td></tr> : rows.map((row, index) => <FinishCaptureRow key={row.id} row={row} mode={sessionMode} index={index} decimalPlaces={decimalPlaces} saving={savingId === row.id} onNumberChange={updateStartNumber} onAssign={assignParticipant} onRemove={removePending} />)}</tbody></table></div>
       </section>
     </main>
@@ -221,12 +302,29 @@ function FinishCaptureRow({ row, mode, index, decimalPlaces, saving, onNumberCha
   const record = row.record;
   const detail = mode === 'practice' ? row.entry : record;
   const saved = row.status === 'saved';
+  const queued = row.status === 'queued';
+  const locked = saved || queued;
   const totalTime = mode === 'practice' ? record?.elapsed_time_ms : record?.total_time_ms;
-  return <tr className={`${index % 2 ? 'bg-gray-50' : 'bg-white'} ${row.error ? 'bg-red-50' : ''}`}><td className="p-3 text-center align-top"><input autoFocus={index === 0 && !saved} type="number" min="1" disabled={saved || saving} value={row.start_number} onChange={(event) => onNumberChange(row.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAssign(row); } }} placeholder="NO" className={`w-24 rounded-lg border-2 px-2 py-2 text-center text-xl font-black outline-none ${saved ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-300 bg-white focus:border-red-600'}`} />{row.error && <p className="mt-2 max-w-44 text-left text-[10px] font-bold leading-tight text-red-600">{row.error}</p>}</td><td className="p-3 align-top"><p className="font-black text-gray-900">{detail?.driver_name || '-'}</p><p className="mt-0.5 text-xs font-semibold text-gray-500">{detail?.codriver_name || '-'}</p>{mode === 'practice' && record?.run_no && <p className="mt-1 text-[10px] font-black uppercase text-red-600">Run {record.run_no}</p>}</td><td className="p-3 text-xs font-bold uppercase text-gray-500">{mode === 'practice' ? detail?.entrant_name || '-' : detail?.team_name || '-'}</td><td className="p-3 text-center text-xs font-black text-gray-600">{detail?.class_name || '-'}</td><td className="p-3 text-center font-mono font-semibold text-gray-600">{mode === 'ss' ? record?.tc_time || '-' : '-'}</td><td className="p-3 text-center font-mono font-semibold text-gray-600">{record?.start_time || '-'}</td><td className="bg-red-50/60 p-3 text-center font-mono text-base font-black text-red-700">{formatClockCentiseconds(row.finish_time, decimalPlaces)}</td><td className="bg-green-50/60 p-3 text-center font-mono text-base font-black text-green-700">{record ? formatMs(totalTime, decimalPlaces) : '-'}</td><td className="p-3 text-center"><span className={`rounded px-2 py-1 text-[10px] font-black uppercase ${saved ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{saved ? record?.status || 'Tersimpan' : 'Menunggu No'}</span></td><td className="p-3 text-center">{saved ? <span className="text-[10px] font-black uppercase text-gray-400">Terkunci</span> : <div className="flex justify-center gap-1"><button type="button" disabled={saving || !row.start_number} onClick={() => onAssign(row)} className="rounded bg-green-600 px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-green-700 disabled:opacity-40">{saving ? 'Menyimpan' : 'Simpan'}</button><button type="button" disabled={saving} onClick={() => onRemove(row.id)} className="rounded bg-gray-200 px-3 py-2 text-[10px] font-black uppercase text-gray-600 hover:bg-red-100 hover:text-red-700">Hapus</button></div>}</td></tr>;
+  return <tr className={`${index % 2 ? 'bg-gray-50' : 'bg-white'} ${row.error ? 'bg-red-50' : ''}`}><td className="p-3 text-center align-top"><input autoFocus={index === 0 && !locked} type="number" min="1" disabled={locked || saving} value={row.start_number} onChange={(event) => onNumberChange(row.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); onAssign(row); } }} placeholder="NO" className={`w-24 rounded-lg border-2 px-2 py-2 text-center text-xl font-black outline-none ${saved ? 'border-green-200 bg-green-50 text-green-700' : queued ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-red-300 bg-white focus:border-red-600'}`} />{row.error && <p className="mt-2 max-w-44 text-left text-[10px] font-bold leading-tight text-red-600">{row.error}</p>}</td><td className="p-3 align-top"><p className="font-black text-gray-900">{detail?.driver_name || '-'}</p><p className="mt-0.5 text-xs font-semibold text-gray-500">{detail?.codriver_name || '-'}</p>{mode === 'practice' && record?.run_no && <p className="mt-1 text-[10px] font-black uppercase text-red-600">Run {record.run_no}</p>}</td><td className="p-3 text-xs font-bold uppercase text-gray-500">{mode === 'practice' ? detail?.entrant_name || '-' : detail?.team_name || '-'}</td><td className="p-3 text-center text-xs font-black text-gray-600">{detail?.class_name || '-'}</td><td className="p-3 text-center font-mono font-semibold text-gray-600">{mode === 'ss' ? record?.tc_time || '-' : '-'}</td><td className="p-3 text-center font-mono font-semibold text-gray-600">{record?.start_time || '-'}</td><td className="bg-red-50/60 p-3 text-center font-mono text-base font-black text-red-700">{formatClockCentiseconds(row.finish_time, decimalPlaces)}</td><td className="bg-green-50/60 p-3 text-center font-mono text-base font-black text-green-700">{record ? formatMs(totalTime, decimalPlaces) : '-'}</td><td className="p-3 text-center"><span className={`rounded px-2 py-1 text-[10px] font-black uppercase ${saved ? 'bg-green-100 text-green-700' : queued ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{saved ? record?.status || 'Tersimpan' : queued ? 'Antre Offline' : 'Menunggu No'}</span></td><td className="p-3 text-center">{locked ? <span className="text-[10px] font-black uppercase text-gray-400">{queued ? 'Menunggu Sync' : 'Terkunci'}</span> : <div className="flex justify-center gap-1"><button type="button" disabled={saving || !row.start_number} onClick={() => onAssign(row)} className="rounded bg-green-600 px-3 py-2 text-[10px] font-black uppercase text-white hover:bg-green-700 disabled:opacity-40">{saving ? 'Menyimpan' : 'Simpan'}</button><button type="button" disabled={saving} onClick={() => onRemove(row.id)} className="rounded bg-gray-200 px-3 py-2 text-[10px] font-black uppercase text-gray-600 hover:bg-red-100 hover:text-red-700">Hapus</button></div>}</td></tr>;
+}
+
+function reconcileQueuedCaptures(setCaptures, records, practice) {
+  setCaptures((current) => current.map((row) => {
+    if (row.status !== 'queued') return row;
+    const record = records.find((item) => Number(practice ? item.practice_start_number : item.start_number) === Number(row.start_number)
+      && clockKey(item.finish_time) === clockKey(row.finish_time));
+    return record ? { ...row, status: 'saved', record_id: record.id, error: '' } : row;
+  }));
+}
+
+function clockKey(value) {
+  const match = String(value || '').match(/^(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?/);
+  if (!match) return String(value || '');
+  return `${match[1]}:${match[2]}:${match[3]}.${String(match[4] || '0').padEnd(2, '0').slice(0, 2)}`;
 }
 
 function currentFinishClock() {
-  const now = new Date();
+  const now = getSynchronizedNow();
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
   const ss = String(now.getSeconds()).padStart(2, '0');

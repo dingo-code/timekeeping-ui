@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import { readBackupResultPdf } from '../../utils/backupResultPdf';
+import { detectSSSpreadsheetProfile, parseSSSpreadsheet } from '../../utils/backupSpreadsheet';
 import { formatMs } from '../../utils/timeFormat';
 
 const modeMap = {
-  ss: { label: 'Special Stage', start: [4, 5], finish: [7, 8, 9, 10] },
+  ss: { label: 'Special Stage' },
   practice: {
     label: 'Practice',
     runs: [
@@ -19,6 +20,7 @@ export default function BackupReconciliation() {
   const [events, setEvents] = useState([]), [eventId, setEventId] = useState('');
   const [mode, setMode] = useState('ss'), [sessions, setSessions] = useState([]), [sessionId, setSessionId] = useState('');
   const [workbook, setWorkbook] = useState(null), [sheetName, setSheetName] = useState('');
+  const [spreadsheetProfile, setSpreadsheetProfile] = useState(null);
   const [pdfResult, setPdfResult] = useState(null), [sourceKind, setSourceKind] = useState('');
   const [sourceFileName, setSourceFileName] = useState('');
   const [rows, setRows] = useState([]), [showOnlyIssues, setShowOnlyIssues] = useState(false);
@@ -66,26 +68,46 @@ export default function BackupReconciliation() {
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
         const result = await readBackupResultPdf(file);
+        const detectedSession = result.isShakedown
+          ? sessions.find((item) => item.is_shakedown)
+          : result.stageOrder
+            ? sessions.find((item) => Number(item.ss_order) === Number(result.stageOrder))
+            : null;
         setPdfResult(result);
         setWorkbook(null);
         setSheetName('');
+        setSpreadsheetProfile(null);
         setSourceKind('pdf');
         setSourceFileName(file.name);
-        setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca. Periksa preview lalu tekan Bandingkan Data.`);
+        if (detectedSession) setSessionId(detectedSession.id);
+        const detectedLabel = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : 'sesi belum terdeteksi';
+        setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca sebagai ${detectedLabel}. Periksa preview lalu tekan Bandingkan Data.`);
         return;
       }
 
       const XLSX = await import('xlsx');
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+      const preferredSheet = mode === 'ss'
+        ? wb.SheetNames.find((name) => {
+          const matrix = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false });
+          return detectSSSpreadsheetProfile(matrix).id === 'raw-ss-input';
+        }) || wb.SheetNames[0] || ''
+        : wb.SheetNames[0] || '';
+      const preferredMatrix = preferredSheet
+        ? XLSX.utils.sheet_to_json(wb.Sheets[preferredSheet], { header: 1, defval: '', raw: false })
+        : [];
       setWorkbook(wb);
-      setSheetName(wb.SheetNames[0] || '');
+      setSheetName(preferredSheet);
+      setSpreadsheetProfile(mode === 'ss' ? detectSSSpreadsheetProfile(preferredMatrix) : { id: 'practice', label: 'Spreadsheet Practice' });
       setPdfResult(null);
       setSourceKind('spreadsheet');
       setSourceFileName(file.name);
-      setMessage(`${file.name} berhasil dibaca. Pilih sheet dan tekan Bandingkan Data.`);
+      const detectedProfile = mode === 'ss' ? detectSSSpreadsheetProfile(preferredMatrix).label : 'Spreadsheet Practice';
+      setMessage(`${file.name} berhasil dibaca. Sheet ${preferredSheet || '-'} dipilih dengan profil ${detectedProfile}.`);
     } catch (error) {
       setWorkbook(null);
       setPdfResult(null);
+      setSpreadsheetProfile(null);
       setSourceKind('');
       setSourceFileName('');
       setMessage(error.message || 'File backup tidak dapat dibaca.');
@@ -100,6 +122,12 @@ export default function BackupReconciliation() {
     setMessage('');
     try {
       if (sourceKind === 'pdf' && mode !== 'ss') throw new Error('Profil PDF Result saat ini hanya dapat dibandingkan dengan Special Stage.');
+      if (sourceKind === 'pdf' && pdfResult.isShakedown && !selectedSession?.is_shakedown) {
+        throw new Error('PDF terdeteksi sebagai hasil Shakedown. Pilih sesi Shakedown sebelum membandingkan.');
+      }
+      if (sourceKind === 'pdf' && !pdfResult.isShakedown && selectedSession?.is_shakedown) {
+        throw new Error('PDF terdeteksi sebagai hasil Special Stage. Pilih SS yang sesuai, bukan Shakedown.');
+      }
       if (sourceKind === 'pdf' && pdfResult.stageOrder && Number(selectedSession?.ss_order) !== Number(pdfResult.stageOrder)) {
         throw new Error(`PDF terdeteksi sebagai SS${pdfResult.stageOrder}, tetapi sesi yang dipilih adalah SS${selectedSession?.ss_order || '-'}. Pilih SS yang sesuai.`);
       }
@@ -110,8 +138,14 @@ export default function BackupReconciliation() {
       } else {
         const XLSX = await import('xlsx');
         const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: false });
-        sourceRows = mode === 'practice' ? parsePractice(matrix) : parseSS(matrix);
-        if (!sourceRows.length) throw new Error('Tidak ditemukan baris dengan nomor start valid pada kolom C.');
+        if (mode === 'practice') {
+          sourceRows = parsePractice(matrix);
+        } else {
+          const parsed = parseSSSpreadsheet(matrix, { isShakedown: Boolean(selectedSession?.is_shakedown) });
+          sourceRows = parsed.rows;
+          setSpreadsheetProfile(parsed.profile);
+        }
+        if (!sourceRows.length) throw new Error(`Tidak ditemukan data SS yang dapat dibaca pada sheet ${sheetName}. Periksa sheet dan profil format file.`);
       }
 
       const webRows = mode === 'practice' ? await fetchPractice(sessionId) : await fetchSS(sessionId);
@@ -193,9 +227,9 @@ export default function BackupReconciliation() {
         <Field label="Event"><select value={eventId} onChange={(e) => setEventId(e.target.value)} className="field">{events.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label={modeMap[mode].label}><select value={sessionId} onChange={(e) => { setSessionId(e.target.value); setRows([]); }} className="field">{sessions.map((item) => <option key={item.id} value={item.id}>{sessionLabel(item, mode)}</option>)}</select></Field>
         <Field label="File Backup"><label className="flex h-11 cursor-pointer items-center justify-center rounded border-2 border-dashed border-gray-300 bg-gray-50 px-3 text-center text-xs font-black uppercase text-gray-600 hover:border-red-400">Pilih PDF / Excel / CSV<input className="hidden" type="file" accept=".pdf,.xlsx,.xls,.csv" onChange={(e) => { loadFile(e.target.files?.[0]); e.target.value = ''; }}/></label></Field>
-        {sourceKind === 'pdf' ? <Field label="Profil Parser"><div className="flex h-11 items-center rounded border bg-blue-50 px-3 text-xs font-black text-blue-700">{pdfResult?.profile || 'PDF Result'}</div></Field> : <Field label="Sheet"><select disabled={!workbook} value={sheetName} onChange={(e) => { setSheetName(e.target.value); setRows([]); }} className="field"><option value="">Pilih sheet</option>{workbook?.SheetNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></Field>}
+        {sourceKind === 'pdf' ? <Field label="Profil Parser"><div className="flex h-11 items-center rounded border bg-blue-50 px-3 text-xs font-black text-blue-700">{pdfResult?.profile || 'PDF Result'}</div></Field> : <Field label="Sheet"><select disabled={!workbook} value={sheetName} onChange={async (e) => { const name = e.target.value; setSheetName(name); setRows([]); if (name && mode === 'ss') { const XLSX = await import('xlsx'); const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '', raw: false }); setSpreadsheetProfile(detectSSSpreadsheetProfile(matrix)); } }} className="field"><option value="">Pilih sheet</option>{workbook?.SheetNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></Field>}
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={isLoading || !sourceReady || !sessionId} onClick={compare} className="admin-btn-primary">{isLoading ? 'Memproses...' : 'Bandingkan Data'}</button>{sourceFileName && <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">{sourceFileName}</span>}{message && <p className="text-sm font-semibold text-gray-600">{message}</p>}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={isLoading || !sourceReady || !sessionId} onClick={compare} className="admin-btn-primary">{isLoading ? 'Memproses...' : 'Bandingkan Data'}</button>{sourceFileName && <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">{sourceFileName}</span>}{sourceKind === 'spreadsheet' && spreadsheetProfile && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">{spreadsheetProfile.label}</span>}{message && <p className="text-sm font-semibold text-gray-600">{message}</p>}</div>
     </section>
 
     {pdfResult && <PdfPreview result={pdfResult} decimalPlaces={decimalPlaces}/>}
@@ -212,17 +246,8 @@ export default function BackupReconciliation() {
 }
 
 function PdfPreview({ result, decimalPlaces }) {
-  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - SS terdeteksi: {result.stageOrder || '-'} - tidak terbaca: {result.unreadableCount}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th><th className="p-2">Stage Time</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td><td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. TC, Start, dan Finish tidak tersedia pada format PDF contoh sehingga tidak dibandingkan.</p></section>;
-}
-
-function parseSS(matrix) {
-  return matrix.flatMap((row, index) => {
-    const number = positiveNumber(row[2]);
-    if (!number) return [];
-    const start = buildStart(row, modeMap.ss.start), finish = buildFinish(row, modeMap.ss.finish);
-    if (!start && !finish) return [];
-    return [{ key: String(number), number, runNo: 1, sourceRow: index + 1, start, finish, elapsedMs: elapsed(start, finish), readable: true, sourceKind: 'spreadsheet', available: { tc: false, start: Boolean(start), finish: Boolean(finish), elapsed: Boolean(start && finish), penalty: false, total: false, status: false } }];
-  });
+  const detectedSession = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : '-';
+  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession} - tidak terbaca: {result.unreadableCount}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th><th className="p-2">Stage Time</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td><td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. Hanya bidang yang tersedia pada PDF yang dibandingkan; TC, Start, Finish, Penalti, atau Total yang tidak tersedia akan ditandai N/A dan diabaikan.</p></section>;
 }
 
 function parsePractice(matrix) {
