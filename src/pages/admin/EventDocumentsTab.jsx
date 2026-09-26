@@ -67,16 +67,26 @@ export default function EventDocumentsTab({ eventId }) {
       return;
     }
 
-    const payload = new FormData();
-    Object.entries(form).forEach(([key, value]) => payload.append(key, String(value)));
-    if (file) payload.append('file', file);
+    const normalizedForm = {
+      ...form,
+      display_order: Math.max(0, Number(form.display_order) || 0),
+      is_published: Boolean(form.is_published),
+    };
+    let payload = normalizedForm;
+    let requestConfig;
+    if (form.source_type === 'FILE') {
+      payload = new FormData();
+      Object.entries(normalizedForm).forEach(([key, value]) => payload.append(key, String(value)));
+      if (file) payload.append('file', file);
+      requestConfig = { headers: { 'Content-Type': 'multipart/form-data' } };
+    }
 
     setIsSaving(true);
     try {
       if (editing) {
-        await api.put(`/admin/events/${eventId}/documents/${editing.id}`, payload);
+        await api.put(`/admin/events/${eventId}/documents/${editing.id}`, payload, requestConfig);
       } else {
-        await api.post(`/admin/events/${eventId}/documents`, payload);
+        await api.post(`/admin/events/${eventId}/documents`, payload, requestConfig);
       }
       resetForm();
       await fetchDocuments();
