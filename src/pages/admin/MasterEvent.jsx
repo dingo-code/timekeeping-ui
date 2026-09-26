@@ -271,6 +271,11 @@ export default function MasterEvent() {
                 placeholder="Default 5 menit, contoh 2.5"
               />
               <p className="mt-1 text-xs text-gray-500">DNS: BWTM + nilai 1 pos ini. Default 1 pos = 5 menit.</p>
+              {editingId && (
+                <p className="mt-2 rounded bg-amber-50 p-2 text-xs font-semibold leading-relaxed text-amber-800">
+                  Jika sebagian SS sudah FINAL/LOCKED, hanya aturan BWTM Dry/Wet dan DNS yang dapat diubah. Nilai baru berlaku untuk penerapan status berikutnya; waktu yang sudah tersimpan pada SS final tidak dihitung ulang otomatis.
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-gray-200 p-3">
               <div className="sm:col-span-2">
