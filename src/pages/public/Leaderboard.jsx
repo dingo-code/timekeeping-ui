@@ -573,6 +573,8 @@ function LeaderboardFooter({ sponsors, embedded }) {
 }
 
 function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect }) {
+  const officialStageCount = stages.filter((stage) => !stage.is_shakedown).length;
+
   if (isLoading) {
     return (
       <section className="mb-4 border border-neutral-200 bg-white p-3">
@@ -598,7 +600,7 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
             {selectedStageId === FINAL_STAGE_ID ? 'Final - Overall All Time' : selectedStage ? (selectedStage.is_shakedown ? 'SHAKEDOWN' : `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}`) : 'Pilih SS'}
           </h2>
         </div>
-        <span className="shrink-0 text-xs font-black text-neutral-500">{stages.length} SS + Final</span>
+        <span className="shrink-0 text-xs font-black text-neutral-500">{officialStageCount} SS + Final</span>
       </div>
       <div className="overflow-x-auto">
         <div className="flex min-w-max gap-0 px-3 py-3">

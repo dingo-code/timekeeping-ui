@@ -9,7 +9,6 @@ export default function UnofficialTimingNotice({ className = '' }) {
         <h2 className="text-xs font-black uppercase tracking-wide text-white sm:text-sm">Non Official Live Timing Result</h2>
         <div className="text-[10px] leading-tight md:text-right sm:text-xs">
           <p className="font-bold text-red-500">This live timing is unofficial and for reference only.</p>
-          <p className="mt-0.5 font-semibold text-white">For official result please contact the official event.</p>
         </div>
       </div>
     </section>
