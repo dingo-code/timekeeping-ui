@@ -7,6 +7,7 @@ import DataTableFooter from '../../components/DataTableFooter';
 import { tcStatusLabel } from '../../utils/tcDisplay';
 import PracticeManagement from './PracticeManagement';
 import SmartEntryListUpdate from './SmartEntryListUpdate';
+import EventDocumentsTab from './EventDocumentsTab';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 const RESULT_STATUS_STYLES = {
@@ -23,7 +24,7 @@ export default function MasterEventDetail() {
   const { id } = useParams(); // Mengambil ID Event dari URL
   const navigate = useNavigate();
   
-  // --- Tab State: 'stages' | 'participants' | 'penalties' ---
+  // --- Tab State: 'stages' | 'participants' | 'documents' | 'penalties' ---
   const [activeTab, setActiveTab] = useState('stages'); 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -1324,7 +1325,7 @@ export default function MasterEventDetail() {
           </button>
           <div>
             <h2 className="text-2xl font-black text-gray-800 uppercase italic tracking-tighter">Event Control Room</h2>
-            <p className="text-sm text-gray-500 mt-1">Kelola rute, peserta, dan regulasi penalti untuk event ini.</p>
+            <p className="text-sm text-gray-500 mt-1">Kelola rute, peserta, dokumen, dan regulasi untuk event ini.</p>
           </div>
         </div>
       </div>
@@ -1361,6 +1362,12 @@ export default function MasterEventDetail() {
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'penalties' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
             ⚠️ Regulasi Penalti
+          </button>
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'documents' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Dokumen & Regulasi
           </button>
           <button
             onClick={() => setActiveTab('tc')}
@@ -1458,6 +1465,8 @@ export default function MasterEventDetail() {
             <DataTableFooter totalItems={filteredStages.length} currentPage={safeStageCurrentPage} totalPages={stageTotalPages} pageSize={stageItemsPerPage} searchTerm={stageSearchTerm} onPageChange={setStageCurrentPage} />
           </div>
         )}
+
+        {activeTab === 'documents' && <EventDocumentsTab eventId={id} />}
 
         {activeTab === 'governance' && (
           <div className="space-y-6 p-6">

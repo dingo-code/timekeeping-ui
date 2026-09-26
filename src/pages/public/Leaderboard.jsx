@@ -5,7 +5,7 @@ import { formatMs as formatDurationMs } from '../../utils/timeFormat';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
-const EMBED_VIEWS = new Set(['stage-times', 'overall', 'stage-winners', 'starting-list', 'penalties', 'retirement', 'practice']);
+const EMBED_VIEWS = new Set(['stage-times', 'overall', 'stage-winners', 'starting-list', 'penalties', 'retirement', 'practice', 'documents']);
 
 export default function Leaderboard({ embedded = false }) {
   const query = new URLSearchParams(window.location.search);
@@ -18,6 +18,7 @@ export default function Leaderboard({ embedded = false }) {
   const [selectedStageId, setSelectedStageId] = useState('');
   const [selectedPracticeId, setSelectedPracticeId] = useState('');
   const [practiceResult, setPracticeResult] = useState(null);
+  const [documents, setDocuments] = useState([]);
   const [entries, setEntries] = useState([]);
   const [entriesByStage, setEntriesByStage] = useState({});
   const [stageRecordsById, setStageRecordsById] = useState({});
@@ -31,6 +32,7 @@ export default function Leaderboard({ embedded = false }) {
   const [isLoadingOverall, setIsLoadingOverall] = useState(false);
   const [isLoadingAllStages, setIsLoadingAllStages] = useState(false);
   const [isLoadingPractice, setIsLoadingPractice] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [error, setError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
   const reconnectTimerRef = useRef(null);
@@ -113,7 +115,8 @@ export default function Leaderboard({ embedded = false }) {
     setSelectedStageId('');
     setSelectedPracticeId('');
     setPracticeResult(null);
-    setResultCategory('stage-times');
+    setDocuments([]);
+    setResultCategory(EMBED_VIEWS.has(requestedView) ? requestedView : 'stage-times');
 
     if (!selectedEventId) {
       shouldReconnectRef.current = false;
@@ -125,6 +128,7 @@ export default function Leaderboard({ embedded = false }) {
     fetchStages(selectedEventId);
     fetchPractices(selectedEventId);
     fetchOverallResults(selectedEventId);
+    fetchDocuments(selectedEventId);
     connectWebsocket(selectedEventId);
 
     return () => {
@@ -238,6 +242,19 @@ export default function Leaderboard({ embedded = false }) {
       }
     } finally {
       if (requestId === practiceRequestRef.current) setIsLoadingPractice(false);
+    }
+  };
+
+  const fetchDocuments = async (eventId) => {
+    setIsLoadingDocuments(true);
+    try {
+      const response = await api.get(`/public/events/${eventId}/documents`);
+      setDocuments(response.data.data || []);
+    } catch (err) {
+      setDocuments([]);
+      setError(err.response?.data?.error || 'Gagal memuat dokumen event.');
+    } finally {
+      setIsLoadingDocuments(false);
     }
   };
 
@@ -405,7 +422,7 @@ export default function Leaderboard({ embedded = false }) {
 
         {resultCategory === 'practice' ? (
           <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
-        ) : (
+        ) : resultCategory !== 'documents' ? (
           <StageTabs
             stages={stages}
             selectedStageId={selectedStageId}
@@ -413,7 +430,7 @@ export default function Leaderboard({ embedded = false }) {
             isLoading={isLoadingStages}
             onSelect={setSelectedStageId}
           />
-        )}
+        ) : null}
 
         <main className="min-h-0 flex-1">
           {resultCategory === 'stage-times' && (
@@ -481,6 +498,10 @@ export default function Leaderboard({ embedded = false }) {
               isLoading={isLoadingPractice}
               timeDecimalPlaces={timeDecimalPlaces}
             />
+          )}
+
+          {resultCategory === 'documents' && (
+            <DocumentsSection documents={documents} isLoading={isLoadingDocuments} />
           )}
         </main>
       </div>
@@ -573,6 +594,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'penalties', label: 'Penalties' },
     { value: 'retirement', label: 'Retirement' },
     { value: 'practice', label: 'Practice' },
+    { value: 'documents', label: 'Dokumen & Regulasi' },
   ];
 
   return (
@@ -599,6 +621,95 @@ function ResultCategoryTabs({ value, onChange }) {
       </div>
     </section>
   );
+}
+
+function DocumentsSection({ documents, isLoading }) {
+  if (isLoading) {
+    return (
+      <section className="border border-neutral-200 bg-white p-5">
+        <div className="space-y-3">
+          {[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse bg-neutral-100" />)}
+        </div>
+      </section>
+    );
+  }
+
+  const groups = [
+    { key: 'REGULATION', label: 'Regulasi', entries: documents.filter((document) => document.category === 'REGULATION') },
+    { key: 'DOCUMENT', label: 'Dokumen Event', entries: documents.filter((document) => document.category !== 'REGULATION') },
+  ].filter((group) => group.entries.length > 0);
+
+  if (groups.length === 0) {
+    return (
+      <section className="border border-neutral-200 bg-white p-10 text-center">
+        <p className="text-sm font-black uppercase tracking-widest text-neutral-700">Belum ada dokumen</p>
+        <p className="mt-2 text-xs font-semibold text-neutral-500">Dokumen dan regulasi event akan ditampilkan di sini.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border border-neutral-200 bg-white">
+      <div className="border-b border-neutral-200 px-4 py-4 sm:px-5">
+        <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Dokumen & Regulasi</h2>
+        <p className="mt-1 text-xs font-semibold text-neutral-500">Informasi resmi, bulletin, dan regulasi untuk event ini.</p>
+      </div>
+      <div className="grid gap-6 p-4 lg:grid-cols-2 lg:p-5">
+        {groups.map((group) => (
+          <div key={group.key} className="min-w-0">
+            <div className="mb-3 flex items-center justify-between border-b border-neutral-200 pb-2">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-red-600">{group.label}</h3>
+              <span className="text-xs font-black text-neutral-400">{group.entries.length}</span>
+            </div>
+            <div className="space-y-3">
+              {group.entries.map((document) => {
+                const href = document.source_type === 'FILE' ? assetUrl(document.file_url) : document.external_url;
+                return (
+                  <article key={document.id} className="border border-neutral-200 bg-white p-4 transition hover:border-neutral-400">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-1 text-[9px] font-black uppercase tracking-widest ${document.category === 'REGULATION' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>{document.category === 'REGULATION' ? 'Regulasi' : 'Dokumen'}</span>
+                          <span className="bg-neutral-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-neutral-500">{document.source_type === 'FILE' ? fileTypeLabel(document) : 'Link'}</span>
+                        </div>
+                        <h4 className="mt-2 break-words text-base font-black text-neutral-950">{document.title}</h4>
+                        {document.description && <p className="mt-1 whitespace-pre-line text-xs font-semibold leading-relaxed text-neutral-500">{document.description}</p>}
+                        <p className="mt-2 break-all text-[10px] font-bold text-neutral-400">{document.source_type === 'FILE' ? `${document.original_file_name || 'Dokumen'} · ${formatDocumentSize(document.file_size_bytes)}` : externalDocumentHost(document.external_url)}</p>
+                      </div>
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0 border border-neutral-950 bg-neutral-950 px-4 py-2 text-center text-xs font-black uppercase tracking-widest text-white transition hover:bg-red-600">
+                        Buka
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function fileTypeLabel(document) {
+  const fileName = String(document.original_file_name || '');
+  const extension = fileName.includes('.') ? fileName.split('.').pop() : '';
+  return extension ? extension.toUpperCase() : 'File';
+}
+
+function formatDocumentSize(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function externalDocumentHost(value) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return 'Link eksternal';
+  }
 }
 
 function ResultsSection({ title, subtitle, entries, isLoading, emptyText, resultView, timeDecimalPlaces }) {
