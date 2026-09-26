@@ -1115,9 +1115,10 @@ function buildOverallEntries(entries, selectedStage) {
         ? stageTimes.find((stageTime) => numericMs(stageTime.ss_order) === finalStageOrder)
         : null;
       const tieBreakStageTime = isFinal
-        ? completedTimes.reduce((latest, stageTime) => (
-          !latest || numericMs(stageTime.ss_order) > numericMs(latest.ss_order) ? stageTime : latest
-        ), null)
+        ? completedTimes.reduce((latest, stageTime) => {
+          if (!stageTime.start_time) return latest;
+          return !latest || numericMs(stageTime.ss_order) > numericMs(latest.ss_order) ? stageTime : latest;
+        }, null)
         : selectedStageTime;
       const resolvedFinalStatus = finalStageTime?.status === 'DNS'
         ? 'NOT_FINISHER'
@@ -1299,12 +1300,14 @@ function parsePenaltyDetails(value) {
 }
 
 function resultStatusWeight(status) {
-  if (status === 'OK') return 1;
-  if (status === 'INCOMPLETE' || !status) return 2;
-  if (status === 'DSQ') return 3;
-  if (status === 'DNF') return 4;
-  if (status === 'DNS') return 5;
-  return 3;
+  if (status === 'OK') return 0;
+  if (status === 'INCOMPLETE' || !status) return 1;
+  if (status === 'DNS') return 2;
+  if (status === 'DNF') return 3;
+  if (status === 'NOT_FINISHER') return 4;
+  if (status === 'WITHDRAW') return 5;
+  if (status === 'DSQ') return 6;
+  return 7;
 }
 
 function renderPerson(name, regional) {

@@ -225,6 +225,11 @@ export default function PrintResults() {
       if (aOk && bOk && aTotal !== bTotal) {
         return aTotal - bTotal;
       }
+      if (aOk && bOk) {
+        const startTimeDelta = compareResultStartTimes(a.stageTime.start_time, b.stageTime.start_time);
+        if (startTimeDelta !== 0) return startTimeDelta;
+        return numericMs(a.entry.start_number) - numericMs(b.entry.start_number);
+      }
       const aStatusWeight = stageStatusWeight(a.stageTime.status);
       const bStatusWeight = stageStatusWeight(b.stageTime.status);
       if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight;
@@ -807,8 +812,52 @@ function sortFinalResultEntries(entries) {
     if (aRankable && Number(a.total_time_ms) !== Number(b.total_time_ms)) {
       return Number(a.total_time_ms) - Number(b.total_time_ms);
     }
+    if (aRankable && bRankable) {
+      const startTimeDelta = compareResultStartTimes(
+        latestCompletedStageStartTime(a),
+        latestCompletedStageStartTime(b),
+      );
+      if (startTimeDelta !== 0) return startTimeDelta;
+    }
+    const statusDelta = finalResultStatusWeight(a.status) - finalResultStatusWeight(b.status);
+    if (statusDelta !== 0) return statusDelta;
     return Number(a.start_number) - Number(b.start_number);
   });
+}
+
+function latestCompletedStageStartTime(entry) {
+  return (entry.stage_times || []).reduce((latest, stageTime) => {
+    if (Number(stageTime.total_time_ms) <= 0 || !stageTime.start_time) return latest;
+    if (!latest || Number(stageTime.ss_order) > Number(latest.ss_order)) return stageTime;
+    return latest;
+  }, null)?.start_time || '';
+}
+
+function resultClockTimeMs(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const fraction = String(match[4] || '').padEnd(3, '0').slice(0, 3);
+  return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
+}
+
+function compareResultStartTimes(a, b) {
+  const aStart = resultClockTimeMs(a);
+  const bStart = resultClockTimeMs(b);
+  if (aStart === bStart) return 0;
+  if (!Number.isFinite(aStart)) return 1;
+  if (!Number.isFinite(bStart)) return -1;
+  return aStart - bStart;
+}
+
+function finalResultStatusWeight(status) {
+  if (status === 'OK') return 0;
+  if (status === 'INCOMPLETE') return 1;
+  if (status === 'DNS') return 2;
+  if (status === 'DNF') return 3;
+  if (status === 'NOT_FINISHER') return 4;
+  if (status === 'WITHDRAW') return 5;
+  if (status === 'DSQ') return 6;
+  return 7;
 }
 
 function uniqueRemarks(values) {
