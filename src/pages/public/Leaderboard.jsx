@@ -594,7 +594,7 @@ function ResultCategoryTabs({ value, onChange }) {
     { value: 'penalties', label: 'Penalties' },
     { value: 'retirement', label: 'Retirement' },
     { value: 'practice', label: 'Practice' },
-    { value: 'documents', label: 'Dokumen & Regulasi' },
+    { value: 'documents', label: 'Documents & Regulations' },
   ];
 
   return (
@@ -651,7 +651,7 @@ function DocumentsSection({ documents, isLoading }) {
   return (
     <section className="border border-neutral-200 bg-white">
       <div className="border-b border-neutral-200 px-4 py-4 sm:px-5">
-        <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Dokumen & Regulasi</h2>
+        <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Documents & Regulations</h2>
         <p className="mt-1 text-xs font-semibold text-neutral-500">Informasi resmi, bulletin, dan regulasi untuk event ini.</p>
       </div>
       <div className="grid gap-6 p-4 lg:grid-cols-2 lg:p-5">

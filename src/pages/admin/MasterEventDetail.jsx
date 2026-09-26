@@ -1371,13 +1371,13 @@ export default function MasterEventDetail() {
             onClick={() => setActiveTab('penalties')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'penalties' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            ⚠️ Regulasi Penalti
+            ⚠️ Penalty Regulations
           </button>
           <button
             onClick={() => setActiveTab('documents')}
             className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'documents' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Dokumen & Regulasi
+            Documents & Regulations
           </button>
           <button
             onClick={() => setActiveTab('tc')}
@@ -1389,7 +1389,7 @@ export default function MasterEventDetail() {
             onClick={() => setActiveTab('governance')}
             className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'governance' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
-            Audit & Finalisasi
+            Audit & Finalization
           </button>
         </div>
 

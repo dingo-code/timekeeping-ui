@@ -178,7 +178,7 @@ export default function EventDocumentsTab({ eventId }) {
       <section className="min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-gray-800">Dokumen & Regulasi Publik</h3>
+            <h3 className="text-lg font-black text-gray-800">Public Documents & Regulations</h3>
             <p className="text-xs text-gray-500">Total {documents.length} dokumen pada event ini.</p>
           </div>
           <button type="button" onClick={fetchDocuments} className="admin-btn-muted">Refresh</button>
