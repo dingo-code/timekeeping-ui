@@ -44,11 +44,12 @@ export default function KamarHitung() {
   };
 
   const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
-  const canDeleteStageInput = Boolean(
+  const canEditStageInput = Boolean(
     selectedStage &&
     selectedStage.is_open !== false &&
     !['FINAL', 'LOCKED'].includes(String(selectedStage.result_status || '').toUpperCase())
   );
+  const canDeleteStageInput = canEditStageInput;
   const selectedPracticeData = practices.find((practice) => practice.id === selectedPractice) || null;
   const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
   const timeDecimalPlaces = selectedEventData?.time_decimal_places ?? 2;
@@ -439,7 +440,7 @@ export default function KamarHitung() {
 
   const renderEditableTimeCell = (record, field, displayValue, placeholder) => {
     const cellKey = `${record.id}:${field}`;
-    const canEdit = record.is_active && record.status === 'OK';
+    const canEdit = canEditStageInput && record.is_active && record.status === 'OK';
     return (
       <input
         type="text"
@@ -454,7 +455,7 @@ export default function KamarHitung() {
         onBlur={() => saveInlineTime(record, field)}
         onKeyDown={(event) => handleTimeInputKeyDown(event, record, field)}
         placeholder={displayValue || placeholder}
-        title={canEdit ? 'Klik untuk koreksi waktu' : 'Hanya record aktif OK yang bisa diedit inline'}
+        title={canEdit ? 'Klik untuk koreksi waktu' : 'Waktu hanya dapat diedit pada record aktif OK di SS yang masih RUNNING'}
       />
     );
   };
@@ -494,7 +495,7 @@ export default function KamarHitung() {
 
   const renderGivenTimeCell = (record) => {
     const cellKey = `${record.id}:elapsed_time_ms`;
-    const canEdit = record.is_active && record.status === 'OK';
+    const canEdit = canEditStageInput && record.is_active && record.status === 'OK';
     return <div className="flex min-w-32 flex-col items-center gap-1">
       <input
         type="text"
@@ -507,7 +508,7 @@ export default function KamarHitung() {
           if (event.key === 'Escape') { event.preventDefault(); updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces)); event.currentTarget.blur(); }
         }}
         className="w-28 rounded border border-transparent bg-transparent px-2 py-1 text-center font-mono text-xs font-bold text-blue-700 outline-none hover:border-blue-200 hover:bg-white focus:border-blue-500 focus:bg-white disabled:text-gray-400"
-        title={canEdit ? 'Edit langsung untuk memberikan Given Time official' : 'Hanya record aktif OK yang dapat diberi Given Time'}
+        title={canEdit ? 'Edit langsung untuk memberikan Given Time official' : 'Given Time hanya dapat diubah pada record aktif OK di SS yang masih RUNNING'}
       />
       {record.is_given_time && <span title={record.given_time_reason} className="cursor-help rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-orange-700">Given Time</span>}
     </div>;
@@ -798,7 +799,7 @@ export default function KamarHitung() {
                       
                       {/* KOLOM AKSI DIPERBARUI */}
                       <td className="w-44 p-2 align-top">
-                        {r.is_active && r.status === 'OK' && (
+                        {canEditStageInput && r.is_active && r.status === 'OK' && (
                           <div className="ml-auto grid w-40 grid-cols-2 gap-1 [&_button]:min-h-8 [&_button]:whitespace-normal [&_button]:px-1.5 [&_button]:py-1 [&_button]:text-[10px] [&_button]:font-black [&_button]:leading-tight">
                             {/* 1. TOMBOL + PENALTI SELALU MUNCUL AGAR BISA DITUMPUK */}
                             <button onClick={() => openPenaltyModal(r)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition">+ PENALTI</button>
@@ -816,7 +817,7 @@ export default function KamarHitung() {
                             )}
                           </div>
                         )}
-                        {r.is_active && r.status !== 'OK' && (
+                        {canEditStageInput && r.is_active && r.status !== 'OK' && (
                           <button onClick={() => handleSetStatus(r.id, 'OK')} className="ml-auto block w-40 rounded border border-gray-300 px-2 py-1.5 text-[10px] font-black uppercase text-gray-500 transition hover:text-green-600">Batal Status</button>
                         )}
                         {canDeleteStageInput && r.is_active && hasDeletableInput(r) && (

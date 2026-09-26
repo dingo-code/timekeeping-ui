@@ -19,6 +19,11 @@ const RESULT_STATUS_STYLES = {
 };
 const NEXT_RESULT_STATUS = { DRAFT: 'RUNNING', RUNNING: 'PROVISIONAL', PROVISIONAL: 'FINAL', FINAL: 'LOCKED' };
 const RESULT_ACTION_LABEL = { RUNNING: 'Mulai', PROVISIONAL: 'Tutup Sementara', FINAL: 'Finalkan', LOCKED: 'Kunci' };
+const isStageMutable = (stage) => Boolean(
+  stage &&
+  stage.is_open !== false &&
+  !['FINAL', 'LOCKED'].includes(String(stage.result_status || '').toUpperCase())
+);
 
 export default function MasterEventDetail() {
   const { id } = useParams(); // Mengambil ID Event dari URL
@@ -101,6 +106,7 @@ export default function MasterEventDetail() {
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
   const officialStages = stages.filter((stage) => !stage.is_shakedown);
   const selectedTCStage = officialStages.find((stage) => stage.id === selectedTCStageId);
+  const selectedTCStageIsMutable = isStageMutable(selectedTCStage);
   const shakedownCount = stages.length - officialStages.length;
 
   useEffect(() => {
@@ -1166,6 +1172,7 @@ export default function MasterEventDetail() {
 
   const handleSetWithdraw = async (participant) => {
     if (!selectedTCStageId) return alert('Pilih SS terlebih dahulu.');
+    if (!selectedTCStageIsMutable) return alert('WD hanya dapat diubah pada SS target yang masih RUNNING.');
     const stageLabel = selectedTCStage ? `SS ${selectedTCStage.ss_order} - ${selectedTCStage.ss_name}` : 'SS ini';
     const reason = window.prompt(`Alasan withdraw untuk #${participant.start_number} mulai ${stageLabel}:`, participant.withdraw_reason || '');
     if (reason === null) return;
@@ -1186,6 +1193,9 @@ export default function MasterEventDetail() {
   };
 
   const handleClearWithdraw = async (participant) => {
+    const withdrawStage = stages.find((stage) => stage.id === participant.withdraw_from_stage_id);
+    const withdrawStageIsMutable = isStageMutable(withdrawStage);
+    if (!withdrawStageIsMutable) return alert('WD tidak dapat dibatalkan karena SS asal sudah CLOSE, FINAL, atau LOCKED.');
     if (!window.confirm(`Batalkan status withdraw untuk #${participant.start_number}?`)) return;
 
     setSavingWithdrawParticipantId(participant.id);
@@ -1913,7 +1923,7 @@ export default function MasterEventDetail() {
                           {row.withdraw_from_stage_id ? (
                             <button
                               onClick={() => handleClearWithdraw(row)}
-                              disabled={savingWithdrawParticipantId === row.id}
+                              disabled={savingWithdrawParticipantId === row.id || !isStageMutable(stages.find((stage) => stage.id === row.withdraw_from_stage_id))}
                               className="admin-btn-muted"
                             >
                               {savingWithdrawParticipantId === row.id ? '...' : 'BATAL WD'}
@@ -1921,7 +1931,7 @@ export default function MasterEventDetail() {
                           ) : (
                             <button
                               onClick={() => handleSetWithdraw(row)}
-                              disabled={savingWithdrawParticipantId === row.id}
+                              disabled={savingWithdrawParticipantId === row.id || !selectedTCStageIsMutable}
                               className="admin-btn-dark"
                             >
                               {savingWithdrawParticipantId === row.id ? '...' : 'WD'}
