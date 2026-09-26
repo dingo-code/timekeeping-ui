@@ -413,7 +413,6 @@ export default function InputMonitoring() {
               <thead>
                 <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
                   <th className="p-3">Input</th>
-                  <th className="p-3">SS</th>
                   <th className="p-3 text-center">No</th>
                   <th className="p-3">Entrant</th>
                   <th className="p-3">Driver / Navigator</th>
@@ -428,7 +427,7 @@ export default function InputMonitoring() {
               <tbody>
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="h-[360px] p-10 text-center">
+                    <td colSpan="10" className="h-[360px] p-10 text-center">
                       <EmptyState searchQuery={searchQuery} />
                     </td>
                   </tr>
@@ -438,10 +437,6 @@ export default function InputMonitoring() {
                       <td className="p-3">
                         <div className="font-black text-white">{inputKind(record)}</div>
                         <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{inputTimeLabel(record)}</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="font-black text-white">{stageShortLabel(record)}</div>
-                        <div className="mt-0.5 text-xs font-bold text-gray-500">{record.ss_name || '-'}</div>
                       </td>
                       <td className="p-3 text-center">
                         <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{record.start_number}</span>
