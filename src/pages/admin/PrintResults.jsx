@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { assetUrl } from '../../services/api';
-import { formatClockCentiseconds, formatMs as formatDurationMs } from '../../utils/timeFormat';
+import { formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { compactTCPenaltyRemark } from '../../utils/tcDisplay';
 import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
@@ -416,7 +416,6 @@ export default function PrintResults() {
             formatMs={formatMs}
             stageRemark={stageRemark}
             resultRowClass={resultRowClass}
-            timeDecimalPlaces={timeDecimalPlaces}
             orientation={paperOrientation}
           />
         )}
@@ -641,25 +640,23 @@ function finalResultColumnWidths(stageCount, orientation = 'landscape') {
 function stageResultColumnWidths(orientation = 'landscape') {
   if (orientation === 'portrait') {
     return {
-      rank: '4%', noStart: '5%', entrant: '10%', driver: '8.5%', navigator: '8.5%',
-      regional: '5%', className: '4%', category: '4%', start: '6%', finish: '6%',
-      time: '7%', penalty: '6%', total: '7%', diffPrev: '5.5%', diffFirst: '5.5%', remark: '8%',
+      rank: '4%', noStart: '5%', entrant: '12%', driver: '10%', navigator: '10%',
+      regional: '5%', className: '4%', category: '4%', time: '8%', penalty: '7%',
+      total: '8%', diffPrev: '6%', diffFirst: '6%', remark: '11%',
     };
   }
   return {
     rank: '4%',
     noStart: '5%',
-    entrant: '11%',
-    driver: '9%',
-    navigator: '9%',
+    entrant: '13%',
+    driver: '11%',
+    navigator: '11%',
     regional: '6%',
     className: '4%',
     category: '4%',
-    start: '5.5%',
-    finish: '5.5%',
-    time: '6%',
-    penalty: '6%',
-    total: '6%',
+    time: '8%',
+    penalty: '7%',
+    total: '8%',
     diffPrev: '6%',
     diffFirst: '6%',
     remark: '7%',
@@ -870,7 +867,7 @@ function uniqueRemarks(values) {
   });
 }
 
-function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass, timeDecimalPlaces = 2, orientation }) {
+function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRemark, resultRowClass, orientation }) {
   const columnWidths = stageResultColumnWidths(orientation);
   if (stages.length === 0) {
     return <div className="p-10 text-center text-gray-500">Belum ada SS untuk dicetak.</div>;
@@ -901,8 +898,6 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                     <col style={{ width: columnWidths.regional }} />
                     <col style={{ width: columnWidths.className }} />
                     <col style={{ width: columnWidths.category }} />
-                    <col style={{ width: columnWidths.start }} />
-                    <col style={{ width: columnWidths.finish }} />
                     <col style={{ width: columnWidths.time }} />
                     <col style={{ width: columnWidths.penalty }} />
                     <col style={{ width: columnWidths.total }} />
@@ -920,8 +915,6 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                       <th className="border border-gray-300 p-2 text-center">Regional</th>
                       <th className="border border-gray-300 p-2 text-center">CLS</th>
                       <th className="border border-gray-300 p-2 text-center">CAT</th>
-                      <th className="border border-gray-300 p-2 text-center">Start</th>
-                      <th className="border border-gray-300 p-2 text-center">Finish</th>
                       <th className="border border-gray-300 p-2 text-center">Stage Time</th>
                       <th className="border border-gray-300 p-2 text-center">Penalties</th>
                       <th className="border border-gray-300 p-2 text-center">Total Time</th>
@@ -941,8 +934,6 @@ function StageResultReport({ stages, groups, entriesForStage, formatMs, stageRem
                         <td className="border border-gray-300 p-2">{entry.regional_name || '-'}</td>
                         <td className="border border-gray-300 p-2">{classCode(entry.class_name)}</td>
                         <td className="border border-gray-300 p-2">{categoryCode(entry.category_name)}</td>
-                        <td className="border border-gray-300 p-2 text-center font-mono">{stageTime.start_time || '-'}</td>
-                        <td className="border border-gray-300 p-2 text-center font-mono">{formatClockCentiseconds(stageTime.finish_time, timeDecimalPlaces)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.elapsed_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono">{formatMs(stageTime.penalty_time_ms)}</td>
                         <td className="border border-gray-300 p-2 text-right font-mono font-black">{formatMs(stageTime.total_time_ms)}</td>
