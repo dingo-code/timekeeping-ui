@@ -1055,6 +1055,22 @@ function normalizePenaltyDetails(details) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function clockTimeMs(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const fraction = String(match[4] || '').padEnd(3, '0').slice(0, 3);
+  return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
+}
+
+function compareStartTimes(a, b) {
+  const aStart = clockTimeMs(a);
+  const bStart = clockTimeMs(b);
+  if (aStart === bStart) return 0;
+  if (!Number.isFinite(aStart)) return 1;
+  if (!Number.isFinite(bStart)) return -1;
+  return aStart - bStart;
+}
+
 function buildOverallEntries(entries, selectedStage) {
   if (!selectedStage) return [];
 
@@ -1098,6 +1114,11 @@ function buildOverallEntries(entries, selectedStage) {
       const finalStageTime = isFinal
         ? stageTimes.find((stageTime) => numericMs(stageTime.ss_order) === finalStageOrder)
         : null;
+      const tieBreakStageTime = isFinal
+        ? completedTimes.reduce((latest, stageTime) => (
+          !latest || numericMs(stageTime.ss_order) > numericMs(latest.ss_order) ? stageTime : latest
+        ), null)
+        : selectedStageTime;
       const resolvedFinalStatus = finalStageTime?.status === 'DNS'
         ? 'NOT_FINISHER'
         : finalStageTime?.status === 'DNF'
@@ -1119,6 +1140,7 @@ function buildOverallEntries(entries, selectedStage) {
         penalty_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.penalty_time_ms), 0),
         total_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.total_time_ms), 0),
         status,
+        tie_break_start_time: tieBreakStageTime?.start_time || '',
         gap_ms: 0,
         diff_ms: 0,
         diff_first_ms: 0,
@@ -1131,6 +1153,10 @@ function buildOverallEntries(entries, selectedStage) {
     const bRankable = isRankableOverall(b);
     if (aRankable !== bRankable) return aRankable ? -1 : 1;
     if (aRankable && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
+    if (aRankable && bRankable) {
+      const startTimeDelta = compareStartTimes(a.tie_break_start_time, b.tie_break_start_time);
+      if (startTimeDelta !== 0) return startTimeDelta;
+    }
 
     const aWeight = resultStatusWeight(a.status);
     const bWeight = resultStatusWeight(b.status);
@@ -1163,12 +1189,6 @@ function normalizeStageEntries(records) {
     return Number.isFinite(numberValue) ? numberValue : 0;
   };
   const hasCompleteTime = (record) => Boolean(record.start_time) && Boolean(record.finish_time);
-  const clockTimeMs = (value) => {
-    const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?/);
-    if (!match) return Number.POSITIVE_INFINITY;
-    const fraction = String(match[4] || '').padEnd(3, '0').slice(0, 3);
-    return ((Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3] || 0)) * 1000) + Number(fraction || 0);
-  };
   const hasDisplayStatus = (record) => ['BWTM', 'DNF', 'DNS'].includes(record.status);
   const rawActiveRecords = records.filter((record) => (
     record.is_active !== false &&
@@ -1234,8 +1254,8 @@ function normalizeStageEntries(records) {
     const bTotal = numericMs(b.total_time_ms);
     if (hasStageResult(a) && aTotal !== bTotal) return aTotal - bTotal;
     if (hasStageResult(a) && hasStageResult(b)) {
-      const startTimeDelta = clockTimeMs(a.start_time) - clockTimeMs(b.start_time);
-      if (Number.isFinite(startTimeDelta) && startTimeDelta !== 0) return startTimeDelta;
+      const startTimeDelta = compareStartTimes(a.start_time, b.start_time);
+      if (startTimeDelta !== 0) return startTimeDelta;
       const startOrderDelta = numericMs(a.start_order) - numericMs(b.start_order);
       if (startOrderDelta !== 0) return startOrderDelta;
     }
