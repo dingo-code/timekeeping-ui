@@ -8,6 +8,7 @@ import { tcStatusLabel } from '../../utils/tcDisplay';
 import PracticeManagement from './PracticeManagement';
 import SmartEntryListUpdate from './SmartEntryListUpdate';
 import EventDocumentsTab from './EventDocumentsTab';
+import EventSponsorsTab from './EventSponsorsTab';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 const RESULT_STATUS_STYLES = {
@@ -1380,6 +1381,12 @@ export default function MasterEventDetail() {
             Documents & Regulations
           </button>
           <button
+            onClick={() => setActiveTab('sponsors')}
+            className={`min-w-32 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'sponsors' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Sponsors
+          </button>
+          <button
             onClick={() => setActiveTab('tc')}
             className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'tc' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
           >
@@ -1477,6 +1484,8 @@ export default function MasterEventDetail() {
         )}
 
         {activeTab === 'documents' && <EventDocumentsTab eventId={id} />}
+
+        {activeTab === 'sponsors' && <EventSponsorsTab eventId={id} />}
 
         {activeTab === 'governance' && (
           <div className="space-y-6 p-6">

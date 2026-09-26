@@ -19,6 +19,7 @@ export default function Leaderboard({ embedded = false }) {
   const [selectedPracticeId, setSelectedPracticeId] = useState('');
   const [practiceResult, setPracticeResult] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [sponsors, setSponsors] = useState([]);
   const [entries, setEntries] = useState([]);
   const [entriesByStage, setEntriesByStage] = useState({});
   const [stageRecordsById, setStageRecordsById] = useState({});
@@ -58,6 +59,10 @@ export default function Leaderboard({ embedded = false }) {
     [practices, selectedPracticeId]
   );
   const timeDecimalPlaces = selectedEvent?.time_decimal_places ?? 2;
+  const visibleSponsors = useMemo(
+    () => (embedded ? sponsors.filter((sponsor) => sponsor.show_in_embed !== false) : sponsors),
+    [embedded, sponsors]
+  );
 
   const overallForStage = useMemo(
     () => buildOverallEntries(overallEntries, selectedStage),
@@ -83,6 +88,16 @@ export default function Leaderboard({ embedded = false }) {
     () => buildRetirementRows(overallEntries, stages),
     [overallEntries, stages]
   );
+
+  async function fetchSponsors(eventId) {
+    try {
+      const response = await api.get(`/public/events/${eventId}/sponsors`);
+      setSponsors(response.data.data || []);
+    } catch {
+      // Sponsor bersifat pelengkap; kegagalan memuatnya tidak boleh menutup hasil lomba.
+      setSponsors([]);
+    }
+  }
 
   useEffect(() => {
     fetchEvents();
@@ -116,6 +131,7 @@ export default function Leaderboard({ embedded = false }) {
     setSelectedPracticeId('');
     setPracticeResult(null);
     setDocuments([]);
+    setSponsors([]);
     setResultCategory(EMBED_VIEWS.has(requestedView) ? requestedView : 'stage-times');
 
     if (!selectedEventId) {
@@ -129,6 +145,7 @@ export default function Leaderboard({ embedded = false }) {
     fetchPractices(selectedEventId);
     fetchOverallResults(selectedEventId);
     fetchDocuments(selectedEventId);
+    fetchSponsors(selectedEventId);
     connectWebsocket(selectedEventId);
 
     return () => {
@@ -410,6 +427,8 @@ export default function Leaderboard({ embedded = false }) {
           </div>
         </header>
 
+        <SponsorBar sponsors={visibleSponsors} embedded={embedded} />
+
         <UnofficialTimingNotice className="mb-4" />
 
         {error && (
@@ -506,6 +525,47 @@ export default function Leaderboard({ embedded = false }) {
         </main>
       </div>
     </div>
+  );
+}
+
+function SponsorBar({ sponsors, embedded }) {
+  if (sponsors.length === 0) return null;
+
+  return (
+    <section className={`mb-4 border border-neutral-200 bg-white ${embedded ? 'px-3 py-2' : 'px-4 py-3 sm:px-5'}`} aria-label="Event sponsors">
+      <div className="flex items-center gap-4">
+        <div className="shrink-0 border-r border-neutral-200 pr-4">
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400">Official</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-neutral-800">Partners</p>
+        </div>
+        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
+          <div className="flex min-w-max items-center gap-3 sm:gap-5">
+            {sponsors.map((sponsor) => {
+              const content = (
+                <>
+                  {sponsor.logo_url ? (
+                    <img
+                      src={assetUrl(sponsor.logo_url)}
+                      alt={sponsor.name}
+                      className={`${embedded ? 'h-7 max-w-24' : sponsor.sponsor_type === 'MAIN' ? 'h-10 max-w-36 sm:h-11' : 'h-8 max-w-28 sm:h-9 sm:max-w-32'} w-auto object-contain`}
+                    />
+                  ) : (
+                    <span className={`${sponsor.sponsor_type === 'MAIN' ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'} whitespace-nowrap font-black uppercase tracking-wide text-neutral-800`}>{sponsor.name}</span>
+                  )}
+                  <span className="sr-only">{sponsor.sponsor_type === 'MAIN' ? 'Main Sponsor' : sponsor.sponsor_type === 'SUPPORTING' ? 'Supporting Partner' : 'Official Partner'}</span>
+                </>
+              );
+              const className = `flex shrink-0 items-center justify-center border border-neutral-200 bg-white px-3 ${embedded ? 'h-10' : sponsor.sponsor_type === 'MAIN' ? 'h-14 sm:h-16' : 'h-12 sm:h-14'} transition hover:border-neutral-400`;
+              return sponsor.website_url ? (
+                <a key={sponsor.id} href={sponsor.website_url} target="_blank" rel="noopener noreferrer sponsored" title={sponsor.name} className={className}>{content}</a>
+              ) : (
+                <div key={sponsor.id} title={sponsor.name} className={className}>{content}</div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
