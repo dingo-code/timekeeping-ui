@@ -451,26 +451,38 @@ export default function Leaderboard({ embedded = false }) {
 
         <main className="min-h-0 flex-1">
           {resultCategory === 'stage-times' && (
-            <div className={`grid gap-5 ${selectedStage?.is_shakedown ? '' : 'xl:grid-cols-2'}`}>
+            selectedStageId === FINAL_STAGE_ID ? (
               <ResultsSection
-                title="Stage Times"
-                subtitle="Waktu tercepat pada SS yang dipilih"
-                entries={entries}
-                isLoading={isLoadingStages || isLoadingEntries}
-                emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
-                resultView="stage-times"
-                timeDecimalPlaces={timeDecimalPlaces}
-              />
-              {!selectedStage?.is_shakedown && <ResultsSection
                 title="Overall"
-                subtitle="Akumulasi total sampai SS yang dipilih"
+                subtitle="Overall all time"
                 entries={overallForStage}
                 isLoading={isLoadingStages || isLoadingOverall}
-                emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
+                emptyText="Belum ada data final overall."
                 resultView="overall"
                 timeDecimalPlaces={timeDecimalPlaces}
-              />}
-            </div>
+              />
+            ) : (
+              <div className={`grid gap-5 ${selectedStage?.is_shakedown ? '' : 'xl:grid-cols-2'}`}>
+                <ResultsSection
+                  title="Stage Times"
+                  subtitle="Waktu tercepat pada SS yang dipilih"
+                  entries={entries}
+                  isLoading={isLoadingStages || isLoadingEntries}
+                  emptyText={selectedStageId ? 'Belum ada data stage times untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
+                  resultView="stage-times"
+                  timeDecimalPlaces={timeDecimalPlaces}
+                />
+                {!selectedStage?.is_shakedown && <ResultsSection
+                  title="Overall"
+                  subtitle="Akumulasi total sampai SS yang dipilih"
+                  entries={overallForStage}
+                  isLoading={isLoadingStages || isLoadingOverall}
+                  emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
+                  resultView="overall"
+                  timeDecimalPlaces={timeDecimalPlaces}
+                />}
+              </div>
+            )
           )}
 
           {resultCategory === 'overall' && (
