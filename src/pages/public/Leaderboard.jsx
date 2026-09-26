@@ -794,9 +794,11 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
     ? selectedClass
     : 'all';
   const visibleEntries = useMemo(
-    () => activeClass === 'all'
-      ? entries
-      : entries.filter((entry) => String(entry.class_name || '').trim() === activeClass),
+    () => {
+      if (activeClass === 'all') return entries;
+      const classEntries = entries.filter((entry) => String(entry.class_name || '').trim() === activeClass);
+      return rerankFilteredEntries(classEntries, 'total_time_ms');
+    },
     [activeClass, entries]
   );
 
@@ -923,10 +925,14 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
   );
   const activeClass = selectedClass === 'all' || classOptions.includes(selectedClass) ? selectedClass : 'all';
   const visibleEntries = useMemo(
-    () => activeClass === 'all' ? entries : entries.filter((entry) => String(entry.class_name || '').trim() === activeClass),
+    () => {
+      if (activeClass === 'all') return entries;
+      const classEntries = entries.filter((entry) => String(entry.class_name || '').trim() === activeClass);
+      return rerankFilteredEntries(classEntries, 'best_time_ms');
+    },
     [activeClass, entries]
   );
-  const bestTime = entries.find((entry) => Number(entry.best_time_ms) > 0)?.best_time_ms || 0;
+  const bestTime = visibleEntries.find((entry) => Number(entry.best_time_ms) > 0)?.best_time_ms || 0;
   const maxRuns = Number(result?.practice?.max_runs || practice?.max_runs || 0);
   const runColumns = Array.from({ length: maxRuns }, (_, index) => index + 1);
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
@@ -1472,6 +1478,32 @@ function resultStatusWeight(status) {
   if (status === 'WITHDRAW') return 5;
   if (status === 'DSQ') return 6;
   return 7;
+}
+
+function rerankFilteredEntries(entries, timeField) {
+  let rank = 1;
+  let firstTime = 0;
+  let previousTime = 0;
+
+  return entries.map((entry) => {
+    const time = Number(entry[timeField] || 0);
+    const isRanked = Number.isFinite(Number(entry.rank)) && Number.isFinite(time) && time > 0;
+    if (!isRanked) {
+      return { ...entry, rank: '-', gap_ms: 0, diff_ms: 0, diff_first_ms: 0 };
+    }
+
+    if (!firstTime) firstTime = time;
+    const rankedEntry = {
+      ...entry,
+      rank,
+      gap_ms: previousTime ? time - previousTime : 0,
+      diff_ms: firstTime ? time - firstTime : 0,
+      diff_first_ms: firstTime ? time - firstTime : 0,
+    };
+    rank += 1;
+    previousTime = time;
+    return rankedEntry;
+  });
 }
 
 function renderPerson(name, regional) {
