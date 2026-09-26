@@ -831,9 +831,6 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         </div>
       </div>
 
-      <p className="border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:hidden">
-        Geser tabel ke samping untuk melihat seluruh kolom
-      </p>
       <div className="overflow-x-auto [scrollbar-width:thin]">
         <table className={`${isOverall ? 'min-w-[860px]' : 'min-w-[620px]'} w-full border-collapse text-[10px] transition-opacity duration-200 sm:text-xs ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
@@ -946,7 +943,6 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
           {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
         </div>
       </div>
-      <p className="border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:hidden">Geser tabel ke samping untuk melihat seluruh run</p>
       <div className="overflow-x-auto [scrollbar-width:thin]">
         <table className={`w-full min-w-[980px] border-collapse text-xs sm:text-sm ${isLoading ? 'opacity-70' : ''}`}>
           <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Pos</th><th className="p-4 text-center">Practice No</th><th className="p-4 text-center">Race No</th><th className="p-4">Driver / Navigator</th><th className="p-4">Car / Class</th>{runColumns.map((runNo) => <th key={runNo} className="p-4 text-right">Run {runNo}</th>)}<th className="p-4 text-center">Best Run</th><th className="p-4 text-right">Best Time</th><th className="p-4 text-right">Diff 1st</th></tr></thead>
