@@ -831,32 +831,35 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
         </div>
       </div>
 
-      <div className="hidden overflow-x-auto lg:block">
-        <table className={`w-full border-collapse text-xs transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+      <p className="border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:hidden">
+        Geser tabel ke samping untuk melihat seluruh kolom
+      </p>
+      <div className="overflow-x-auto [scrollbar-width:thin]">
+        <table className={`${isOverall ? 'min-w-[860px]' : 'min-w-[620px]'} w-full border-collapse text-[10px] transition-opacity duration-200 sm:text-xs ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
-            <tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-wider text-neutral-500">
+            <tr className="whitespace-nowrap bg-neutral-100 text-left text-[9px] uppercase tracking-wider text-neutral-500 sm:text-[10px]">
               {isOverall ? (
                 <>
-                  <th className="p-3 text-center">Pos</th>
-                  <th className="p-3 text-center">Car No</th>
-                  <th className="p-3">Driver/Reg</th>
-                  <th className="p-3">Navigator/Reg</th>
-                  <th className="p-3">Car</th>
-                  <th className="p-3">Class</th>
-                  <th className="p-3 text-right">Penalties</th>
-                  <th className="p-3 text-right">Total</th>
-                  <th className="p-3 text-right">Diff</th>
-                  <th className="p-3 text-right">Diff 1st</th>
+                  <th className="p-2 text-center sm:p-3">Pos</th>
+                  <th className="p-2 text-center sm:p-3">Car No</th>
+                  <th className="p-2 sm:p-3">Driver/Reg</th>
+                  <th className="p-2 sm:p-3">Navigator/Reg</th>
+                  <th className="p-2 sm:p-3">Car</th>
+                  <th className="p-2 sm:p-3">Class</th>
+                  <th className="p-2 text-right sm:p-3">Penalties</th>
+                  <th className="p-2 text-right sm:p-3">Total</th>
+                  <th className="p-2 text-right sm:p-3">Diff</th>
+                  <th className="p-2 text-right sm:p-3">Diff 1st</th>
                 </>
               ) : (
                 <>
-                  <th className="p-3 text-center">Pos</th>
-                  <th className="p-3 text-center">No</th>
-                  <th className="p-3">Driver / Navigator</th>
-                  <th className="p-3">Class</th>
-                  <th className="p-3 text-right">Time</th>
-                  <th className="p-3 text-right">Diff</th>
-                  <th className="p-3 text-right">Diff 1st</th>
+                  <th className="p-2 text-center sm:p-3">Pos</th>
+                  <th className="p-2 text-center sm:p-3">No</th>
+                  <th className="p-2 sm:p-3">Driver / Navigator</th>
+                  <th className="p-2 sm:p-3">Class</th>
+                  <th className="p-2 text-right sm:p-3">Time</th>
+                  <th className="p-2 text-right sm:p-3">Diff</th>
+                  <th className="p-2 text-right sm:p-3">Diff 1st</th>
                 </>
               )}
             </tr>
@@ -871,34 +874,34 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                 <tr key={entry.id || entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
                   {isOverall ? (
                     <>
-                      <td className="p-3 text-center">{entry.rank}</td>
-                      <td className="p-3 text-center">
-                        <span className="inline-flex min-w-10 justify-center border border-neutral-300 bg-white px-2 py-1">{entry.start_number}</span>
+                      <td className="p-2 text-center font-black sm:p-3">{entry.rank}</td>
+                      <td className="p-2 text-center sm:p-3">
+                        <span className="inline-flex min-w-9 justify-center border border-neutral-300 bg-white px-2 py-1 font-black sm:min-w-10">{entry.start_number}</span>
                       </td>
-                      <td className="p-3">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
-                      <td className="p-3">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
-                      <td className="p-3">{carName(entry)}</td>
-                      <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
-                      <td className="p-3 text-right font-mono font-black text-red-600">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
-                      <td className="p-3 text-right font-mono">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
-                      <td className="p-3 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="p-3 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="min-w-36 p-2 sm:p-3">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td>
+                      <td className="min-w-36 p-2 sm:p-3">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
+                      <td className="min-w-28 p-2 sm:p-3">{carName(entry)}</td>
+                      <td className="whitespace-nowrap p-2 font-bold text-neutral-700 sm:p-3">{entry.class_name || '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono font-black text-red-600 sm:p-3">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono font-black sm:p-3">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   ) : (
                     <>
-                      <td className="p-3 text-center">{entry.rank}</td>
-                      <td className="p-3 text-center">
-                        <span className="inline-flex min-w-10 justify-center border border-neutral-300 bg-white px-2 py-1">{entry.start_number}</span>
+                      <td className="p-2 text-center font-black sm:p-3">{entry.rank}</td>
+                      <td className="p-2 text-center sm:p-3">
+                        <span className="inline-flex min-w-9 justify-center border border-neutral-300 bg-white px-2 py-1 font-black sm:min-w-10">{entry.start_number}</span>
                       </td>
-                      <td className="p-3">
+                      <td className="min-w-44 p-2 sm:p-3">
                         <div className="font-black text-neutral-950">{entry.driver_name}</div>
-                        <div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
-                        <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">{entry.team_name || '-'}</div>
+                        <div className="mt-0.5 font-bold text-neutral-600">{entry.codriver_name || '-'}</div>
+                        <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:text-[10px]">{entry.team_name || '-'}</div>
                       </td>
-                      <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
-                      <td className="p-3 text-right font-mono">{formatMs(entry.total_time_ms)}</td>
-                      <td className="p-3 text-right font-mono">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="p-3 text-right font-mono">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 font-bold text-neutral-700 sm:p-3">{entry.class_name || '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono font-black sm:p-3">{formatMs(entry.total_time_ms)}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
                     </>
                   )}
                 </tr>
@@ -906,14 +909,6 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
             )}
           </tbody>
         </table>
-      </div>
-
-      <div className="space-y-3 p-3 lg:hidden">
-        {visibleEntries.length === 0 ? (
-          <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{visibleEmptyText}</div>
-        ) : (
-          visibleEntries.map((entry) => <LeaderboardCard key={entry.id || entry.participant_id} entry={entry} resultView={resultView} timeDecimalPlaces={timeDecimalPlaces} />)
-        )}
       </div>
     </section>
   );
@@ -951,8 +946,9 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
           {isLoading && <span className="text-xs font-black uppercase text-red-600">Memuat...</span>}
         </div>
       </div>
-      <div className="hidden overflow-x-auto lg:block">
-        <table className={`w-full border-collapse text-sm ${isLoading ? 'opacity-70' : ''}`}>
+      <p className="border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-neutral-400 sm:hidden">Geser tabel ke samping untuk melihat seluruh run</p>
+      <div className="overflow-x-auto [scrollbar-width:thin]">
+        <table className={`w-full min-w-[980px] border-collapse text-xs sm:text-sm ${isLoading ? 'opacity-70' : ''}`}>
           <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Pos</th><th className="p-4 text-center">Practice No</th><th className="p-4 text-center">Race No</th><th className="p-4">Driver / Navigator</th><th className="p-4">Car / Class</th>{runColumns.map((runNo) => <th key={runNo} className="p-4 text-right">Run {runNo}</th>)}<th className="p-4 text-center">Best Run</th><th className="p-4 text-right">Best Time</th><th className="p-4 text-right">Diff 1st</th></tr></thead>
           <tbody>{visibleEntries.length === 0 ? <tr><td colSpan={8 + runColumns.length} className="p-10 text-center font-bold text-neutral-500">{entries.length ? `Tidak ada peserta pada class ${activeClass}.` : 'Belum ada hasil Practice.'}</td></tr> : visibleEntries.map((entry) => {
             const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
@@ -960,10 +956,6 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
           })}</tbody>
         </table>
       </div>
-      <div className="space-y-3 p-3 lg:hidden">{visibleEntries.length === 0 ? <div className="border border-neutral-200 bg-neutral-50 p-6 text-center text-sm font-bold text-neutral-500">{entries.length ? `Tidak ada peserta pada class ${activeClass}.` : 'Belum ada hasil Practice.'}</div> : visibleEntries.map((entry) => {
-        const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
-        return <article key={entry.id} className="border border-neutral-200 bg-white p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank || '-'}</div><h2 className="mt-1 text-xl font-black">{entry.driver_name || '-'}</h2><p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p><p className="mt-1 text-[11px] font-bold uppercase text-neutral-500">{entry.vehicle_name || '-'} · {entry.class_name || '-'}</p></div><div className="border border-neutral-300 px-3 py-2 text-center"><div className="text-[9px] font-black uppercase text-neutral-500">Practice</div><div className="text-2xl font-black">{entry.practice_start_number}</div><div className="text-[9px] font-bold text-neutral-500">Race #{entry.race_start_number || '-'}</div></div></div><div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); return <MiniMetric key={runNo} label={`Run ${runNo}`} value={<PracticeRunValue run={run} formatMs={formatMs} />} highlight={entry.best_run_no === runNo} />; })}</div><div className="grid grid-cols-3 gap-2"><MiniMetric label="Best Run" value={entry.best_run_no ? `Run ${entry.best_run_no}` : '-'} /><MiniMetric label="Best Time" value={formatMs(entry.best_time_ms)} highlight /><MiniMetric label="Diff 1st" value={diff > 0 ? `+${formatMs(diff)}` : '-'} /></div></article>;
-      })}</div>
     </section>
   );
 }
@@ -1500,50 +1492,6 @@ function carName(entry) {
 function formatClock(value) {
   if (!value) return '-';
   return String(value).slice(0, 8);
-}
-
-function LeaderboardCard({ entry, resultView, timeDecimalPlaces }) {
-  const isOverall = resultView === 'overall';
-  const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
-
-  return (
-    <article className={`border border-neutral-200 p-4 ${rowClass(entry.status) || 'bg-white'}`}>
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-black uppercase tracking-widest text-neutral-500">Rank #{entry.rank}</div>
-          <h2 className="mt-1 break-words text-xl font-black text-neutral-950">{entry.driver_name}</h2>
-          <p className="text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{carName(entry)}</p>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-red-600">Class {entry.class_name || '-'}</p>
-        </div>
-        <div className="border border-neutral-300 bg-white px-3 py-2 text-center">
-          <div className="text-[9px] font-black uppercase text-neutral-500">No</div>
-          <div className="text-2xl font-black text-neutral-950">{entry.start_number}</div>
-        </div>
-      </div>
-      {isOverall ? (
-        <div className="grid grid-cols-2 gap-2 text-xs font-bold text-neutral-600">
-          <MiniMetric label="Total" value={formatMs(entry.total_time_ms)} highlight />
-          <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2 text-xs font-bold text-neutral-600">
-          <MiniMetric label="Time" value={entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)} highlight />
-          <MiniMetric label="Diff" value={entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'} />
-          <MiniMetric label="Diff 1st" value={entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'} />
-        </div>
-      )}
-    </article>
-  );
-}
-
-function MiniMetric({ label, value, highlight = false }) {
-  return (
-    <div className="bg-neutral-100 p-3">
-      <p className="text-[9px] uppercase tracking-widest text-neutral-500">{label}</p>
-      <p className={`mt-1 font-mono text-sm font-black ${highlight ? 'text-neutral-950' : 'text-neutral-600'}`}>{value}</p>
-    </div>
-  );
 }
 
 function ConnectionBadge({ state }) {
