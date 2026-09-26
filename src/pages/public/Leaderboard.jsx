@@ -68,6 +68,10 @@ export default function Leaderboard({ embedded = false }) {
     () => buildOverallEntries(overallEntries, selectedStage),
     [overallEntries, selectedStage]
   );
+  const finalOverallEntries = useMemo(
+    () => buildOverallEntries(overallEntries, { id: FINAL_STAGE_ID }),
+    [overallEntries]
+  );
   const stageWinners = useMemo(
     () => buildStageWinners(stages, entriesByStage),
     [stages, entriesByStage]
@@ -437,9 +441,7 @@ export default function Leaderboard({ embedded = false }) {
 
         <ResultCategoryTabs value={resultCategory} onChange={setResultCategory} />
 
-        {resultCategory === 'practice' ? (
-          <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
-        ) : resultCategory !== 'documents' ? (
+        {resultCategory === 'stage-times' ? (
           <StageTabs
             stages={stages}
             selectedStageId={selectedStageId}
@@ -447,6 +449,8 @@ export default function Leaderboard({ embedded = false }) {
             isLoading={isLoadingStages}
             onSelect={setSelectedStageId}
           />
+        ) : resultCategory === 'practice' ? (
+          <PracticeTabs practices={practices} selectedPracticeId={selectedPracticeId} selectedPractice={selectedPractice} onSelect={setSelectedPracticeId} />
         ) : null}
 
         <main className="min-h-0 flex-1">
@@ -488,10 +492,10 @@ export default function Leaderboard({ embedded = false }) {
           {resultCategory === 'overall' && (
             <ResultsSection
               title="Overall"
-              subtitle={selectedStageId === FINAL_STAGE_ID ? 'Overall all time' : 'Akumulasi total sampai SS yang dipilih'}
-              entries={overallForStage}
+              subtitle="Overall all time"
+              entries={finalOverallEntries}
               isLoading={isLoadingStages || isLoadingOverall}
-              emptyText={selectedStageId ? 'Belum ada data overall untuk SS ini.' : 'Pilih event dan SS untuk melihat Live Timing.'}
+              emptyText="Belum ada data final overall."
               resultView="overall"
               timeDecimalPlaces={timeDecimalPlaces}
             />
