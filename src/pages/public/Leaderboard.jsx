@@ -870,7 +870,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
               </tr>
             ) : (
               visibleEntries.map((entry) => (
-                <tr key={entry.id || entry.participant_id} className={`border-t border-neutral-200 ${rowClass(entry.status)}`}>
+                <tr key={entry.id || entry.participant_id} className="border-t border-neutral-200 bg-white">
                   {isOverall ? (
                     <>
                       <td className="p-2 text-center font-black sm:p-3">{entry.rank}</td>
@@ -1506,13 +1506,6 @@ function ConnectionBadge({ state }) {
       <span className="text-xs font-black uppercase tracking-widest text-neutral-950">{config[1]}</span>
     </div>
   );
-}
-
-function rowClass(status) {
-  if (status === 'DNF') return 'bg-orange-50';
-  if (status === 'DNS') return 'bg-yellow-50';
-  if (status === 'DSQ') return 'bg-red-50';
-  return '';
 }
 
 function formatEventDate(event) {
