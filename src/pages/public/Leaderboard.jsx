@@ -26,7 +26,7 @@ export default function Leaderboard({ embedded = false }) {
   const [startingListsByStage, setStartingListsByStage] = useState({});
   const [overallEntries, setOverallEntries] = useState([]);
   const [resultCategory, setResultCategory] = useState(() => (EMBED_VIEWS.has(requestedView) ? requestedView : 'stage-times'));
-  const [startingListMode, setStartingListMode] = useState('stage-list');
+  const [startingListMode, setStartingListMode] = useState('entry-list');
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isLoadingStages, setIsLoadingStages] = useState(false);
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
@@ -80,10 +80,6 @@ export default function Leaderboard({ embedded = false }) {
     () => buildStartingList(overallEntries),
     [overallEntries]
   );
-  const selectedStageStartingList = useMemo(
-    () => (selectedStageId === FINAL_STAGE_ID ? [] : (startingListsByStage[selectedStageId] || [])),
-    [startingListsByStage, selectedStageId]
-  );
   const penalties = useMemo(
     () => buildPenaltyRows(stages, stageRecordsById),
     [stages, stageRecordsById]
@@ -136,6 +132,7 @@ export default function Leaderboard({ embedded = false }) {
     setPracticeResult(null);
     setDocuments([]);
     setSponsors([]);
+    setStartingListMode('entry-list');
     setResultCategory(EMBED_VIEWS.has(requestedView) ? requestedView : 'stage-times');
 
     if (!selectedEventId) {
@@ -508,8 +505,8 @@ export default function Leaderboard({ embedded = false }) {
           {resultCategory === 'starting-list' && (
             <StartingListSection
               entries={startingList}
-              stageEntries={selectedStageStartingList}
-              selectedStage={selectedStage}
+              stages={stages}
+              startingListsByStage={startingListsByStage}
               mode={startingListMode}
               onModeChange={setStartingListMode}
               isLoading={isLoadingOverall || isLoadingAllStages}
@@ -1022,22 +1019,30 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
   );
 }
 
-function StartingListSection({ entries, stageEntries, selectedStage, mode, onModeChange, isLoading }) {
-  const isStageMode = mode === 'stage-list';
-  const displayEntries = isStageMode ? buildStageStartingList(stageEntries) : entries;
-  const emptyText = isStageMode && selectedStage?.id === FINAL_STAGE_ID
-    ? 'Starting list per SS tidak tersedia untuk Final.'
-    : 'Belum ada starting list.';
+function StartingListSection({ entries, stages, startingListsByStage, mode, onModeChange, isLoading }) {
+  const officialStages = stages
+    .filter((stage) => !stage.is_shakedown)
+    .sort((a, b) => Number(a.ss_order) - Number(b.ss_order));
+  const selectedListStage = officialStages.find((stage) => stage.id === mode);
+  const activeMode = mode === 'entry-list' || selectedListStage ? mode : 'entry-list';
+  const isStageMode = activeMode !== 'entry-list';
+  const displayEntries = isStageMode
+    ? buildStageStartingList(startingListsByStage[activeMode] || [])
+    : entries;
+  const emptyText = isStageMode
+    ? `Belum ada starting list untuk SS ${selectedListStage?.ss_order || ''}.`
+    : 'Belum ada entry list.';
+  const tabs = [
+    { value: 'entry-list', label: 'Entry List' },
+    ...officialStages.map((stage) => ({ value: stage.id, label: `Starting SS${stage.ss_order}` })),
+  ];
 
   return (
     <SimpleSection title="Starting List" subtitle="Entry list dan urutan start per SS" count={displayEntries.length} isLoading={isLoading} emptyText={emptyText} showChildrenWhenEmpty>
       <div className="border-b border-neutral-200 bg-neutral-50 px-3 py-3">
         <div className="flex flex-wrap gap-2">
-          {[
-            { value: 'entry-list', label: 'Entry List' },
-            { value: 'stage-list', label: selectedStage?.id === FINAL_STAGE_ID ? 'Starting List per SS' : `Starting List SS ${selectedStage?.ss_order || ''}` },
-          ].map((tab) => {
-            const active = mode === tab.value;
+          {tabs.map((tab) => {
+            const active = activeMode === tab.value;
             return (
               <button
                 key={tab.value}
