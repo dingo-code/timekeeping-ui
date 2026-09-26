@@ -57,7 +57,8 @@ function AppRoutes() {
   const fieldTerminalPaths = ['/marshal', '/pos-start', '/pos-finish', '/pos-tc', '/flying-finish'];
   const isFieldTerminal = fieldTerminalPaths.includes(location.pathname);
   const isEmbedPage = location.pathname.startsWith('/embed/');
-  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login' || isFieldTerminal || isEmbedPage;
+  const isLiveTimingPage = location.pathname === '/live-timing' || location.pathname === '/leaderboard';
+  const usesEmbeddedFooter = location.pathname.startsWith('/admin') || location.pathname === '/login' || isFieldTerminal || isEmbedPage || isLiveTimingPage;
 
   return (
     <div className={`flex min-h-screen flex-col ${usesEmbeddedFooter ? '' : 'pb-12'}`}>

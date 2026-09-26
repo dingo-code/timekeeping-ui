@@ -383,7 +383,7 @@ export default function Leaderboard({ embedded = false }) {
 
   return (
     <div className={`${embedded ? 'min-h-full' : 'min-h-screen'} bg-[#f4f4f4] text-neutral-950`} style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className={`flex w-full flex-col ${embedded ? 'min-h-full px-2 py-2 sm:px-3' : 'min-h-screen px-3 py-4 sm:px-6 lg:px-8'}`}>
+      <div className={`flex w-full flex-col ${embedded ? 'min-h-full px-2 pt-2 sm:px-3' : 'min-h-screen px-3 pb-24 pt-4 sm:px-6 lg:px-8'}`}>
         <header className="mb-4 border-b border-neutral-200 bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -426,8 +426,6 @@ export default function Leaderboard({ embedded = false }) {
             </div>
           </div>
         </header>
-
-        <SponsorBar sponsors={visibleSponsors} embedded={embedded} />
 
         <UnofficialTimingNotice className="mb-4" />
 
@@ -523,49 +521,54 @@ export default function Leaderboard({ embedded = false }) {
             <DocumentsSection documents={documents} isLoading={isLoadingDocuments} />
           )}
         </main>
+
+        <LeaderboardFooter sponsors={visibleSponsors} embedded={embedded} />
       </div>
     </div>
   );
 }
 
-function SponsorBar({ sponsors, embedded }) {
-  if (sponsors.length === 0) return null;
-
+function LeaderboardFooter({ sponsors, embedded }) {
   return (
-    <section className={`mb-4 border border-neutral-200 bg-white ${embedded ? 'px-3 py-2' : 'px-4 py-3 sm:px-5'}`} aria-label="Event sponsors">
-      <div className="flex items-center gap-4">
-        <div className="shrink-0 border-r border-neutral-200 pr-4">
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400">Official</p>
-          <p className="text-[10px] font-black uppercase tracking-widest text-neutral-800">Partners</p>
-        </div>
-        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
-          <div className="flex min-w-max items-center gap-3 sm:gap-5">
-            {sponsors.map((sponsor) => {
-              const content = (
-                <>
-                  {sponsor.logo_url ? (
-                    <img
-                      src={assetUrl(sponsor.logo_url)}
-                      alt={sponsor.name}
-                      className={`${embedded ? 'h-7 max-w-24' : sponsor.sponsor_type === 'MAIN' ? 'h-10 max-w-36 sm:h-11' : 'h-8 max-w-28 sm:h-9 sm:max-w-32'} w-auto object-contain`}
-                    />
-                  ) : (
-                    <span className={`${sponsor.sponsor_type === 'MAIN' ? 'text-sm sm:text-base' : 'text-xs sm:text-sm'} whitespace-nowrap font-black uppercase tracking-wide text-neutral-800`}>{sponsor.name}</span>
-                  )}
-                  <span className="sr-only">{sponsor.sponsor_type === 'MAIN' ? 'Main Sponsor' : sponsor.sponsor_type === 'SUPPORTING' ? 'Supporting Partner' : 'Official Partner'}</span>
-                </>
-              );
-              const className = `flex shrink-0 items-center justify-center border border-neutral-200 bg-white px-3 ${embedded ? 'h-10' : sponsor.sponsor_type === 'MAIN' ? 'h-14 sm:h-16' : 'h-12 sm:h-14'} transition hover:border-neutral-400`;
-              return sponsor.website_url ? (
-                <a key={sponsor.id} href={sponsor.website_url} target="_blank" rel="noopener noreferrer sponsored" title={sponsor.name} className={className}>{content}</a>
-              ) : (
-                <div key={sponsor.id} title={sponsor.name} className={className}>{content}</div>
-              );
-            })}
-          </div>
+    <footer className={`no-print z-30 border-t border-neutral-200 bg-white shadow-[0_-1px_4px_rgba(0,0,0,0.04)] ${embedded ? 'sticky bottom-0 mt-4' : 'fixed inset-x-0 bottom-0'}`}>
+      <div className={`flex items-stretch ${embedded ? 'min-h-12' : 'min-h-16'}`}>
+        <section className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden px-3 sm:px-5" aria-label="Event sponsors">
+          {sponsors.length > 0 && (
+            <>
+              <div className="hidden shrink-0 sm:block">
+                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-neutral-400">Official</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-neutral-800">Partners</p>
+              </div>
+              <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
+                <div className={`flex min-w-max items-center ${embedded ? 'gap-3' : 'gap-4 sm:gap-6'}`}>
+                  {sponsors.map((sponsor) => {
+                    const content = sponsor.logo_url ? (
+                      <img
+                        src={assetUrl(sponsor.logo_url)}
+                        alt={sponsor.name}
+                        className={`${embedded ? 'h-6 max-w-20' : sponsor.sponsor_type === 'MAIN' ? 'h-9 max-w-32' : 'h-7 max-w-24 sm:max-w-28'} w-auto object-contain`}
+                      />
+                    ) : (
+                      <span className={`${sponsor.sponsor_type === 'MAIN' ? 'text-xs sm:text-sm' : 'text-[10px] sm:text-xs'} whitespace-nowrap font-black uppercase tracking-wide text-neutral-800`}>{sponsor.name}</span>
+                    );
+                    const className = `flex shrink-0 items-center justify-center py-1 transition hover:opacity-70 ${embedded ? 'h-10' : 'h-12'}`;
+                    return sponsor.website_url ? (
+                      <a key={sponsor.id} href={sponsor.website_url} target="_blank" rel="noopener noreferrer sponsored" title={sponsor.name} className={className}>{content}</a>
+                    ) : (
+                      <div key={sponsor.id} title={sponsor.name} className={className}>{content}</div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+
+        <div className={`flex shrink-0 items-center justify-end border-l border-neutral-200 px-3 text-right font-bold text-neutral-500 sm:px-5 ${embedded ? 'text-[8px] sm:text-[9px]' : 'text-[9px] sm:text-xs'}`}>
+          <span className="whitespace-nowrap">&copy; 2026 Cyverra Studio.<span className="hidden sm:inline"> All rights reserved.</span></span>
         </div>
       </div>
-    </section>
+    </footer>
   );
 }
 
