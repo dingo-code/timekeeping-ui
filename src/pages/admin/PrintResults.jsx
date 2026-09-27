@@ -266,6 +266,13 @@ export default function PrintResults() {
   const printDateText = formatPrintDate(new Date());
   const selectedStageLabel = reportScope === 'final'
     ? 'Final Result'
+    : reportScope === 'dns-dnf'
+      ? selectedStageId === 'all'
+        ? 'DNS & DNF Recap'
+        : (() => {
+            const stage = report.stages.find((item) => item.id === selectedStageId);
+            return stage ? `DNS & DNF · SS ${stage.ss_order}` : 'DNS & DNF Recap';
+          })()
     : selectedStageId === 'all'
       ? 'Semua SS'
       : (() => {
@@ -308,6 +315,7 @@ export default function PrintResults() {
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500" value={reportScope} onChange={(e) => setReportScope(e.target.value)}>
                 <option value="final">Final Result</option>
                 <option value="stage">Setiap SS</option>
+                <option value="dns-dnf">Rekap DNS &amp; DNF</option>
               </select>
             </div>
             <div>
@@ -362,7 +370,7 @@ export default function PrintResults() {
               <label className="block text-xs font-bold text-gray-500 mb-1">SS</label>
               <select className="w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm font-bold outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50" value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} disabled={reportScope === 'final'}>
                 <option value="all">Semua SS</option>
-                {report.stages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order}</option>)}
+                {report.stages.filter((stage) => reportScope !== 'dns-dnf' || !stage.is_shakedown).map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order}</option>)}
               </select>
             </div>
             <div>
@@ -408,7 +416,7 @@ export default function PrintResults() {
             excludedStatuses={excludedFinalStatuses}
             orientation={paperOrientation}
           />
-        ) : (
+        ) : reportScope === 'stage' ? (
           <StageResultReport
             stages={printableStages}
             groups={printableGroups}
@@ -416,6 +424,14 @@ export default function PrintResults() {
             formatMs={formatMs}
             stageRemark={stageRemark}
             resultRowClass={resultRowClass}
+            orientation={paperOrientation}
+          />
+        ) : (
+          <DnsDnfReport
+            groups={printableGroups}
+            stages={printableStages.filter((stage) => !stage.is_shakedown)}
+            stageTimeFor={stageTimeFor}
+            formatMs={formatMs}
             orientation={paperOrientation}
           />
         )}
@@ -776,6 +792,71 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
                 <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(entry.diff_prev_ms, formatMs)}</td>
                 <td className="border border-gray-300 p-2 text-right font-mono">{formatDiffMs(entry.diff_first_ms, formatMs)}</td>
                 <td className="border border-gray-300 p-2">{finalRemark(entry)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  ));
+}
+
+function DnsDnfReport({ groups, stages, stageTimeFor, formatMs, orientation }) {
+  const rowsByStage = stages.map((stage) => ({
+    stage,
+    rows: groups.flatMap((group) => group.entries
+      .map((entry) => ({ entry, stageTime: stageTimeFor(entry, stage.id) }))
+      .filter(({ stageTime }) => ['DNS', 'DNF'].includes(stageTime?.status)))
+      .sort((a, b) => Number(a.entry.start_number || 0) - Number(b.entry.start_number || 0)),
+  })).filter(({ rows }) => rows.length > 0);
+  const count = rowsByStage.reduce((total, item) => total + item.rows.length, 0);
+
+  if (count === 0) {
+    return <div className="p-10 text-center font-bold text-gray-500">Belum ada peserta berstatus DNS atau DNF.</div>;
+  }
+
+  const columnWidths = orientation === 'portrait'
+    ? { no: '8%', entrant: '16%', driver: '19%', navigator: '19%', className: '10%', status: '12%', time: '16%' }
+    : { no: '7%', entrant: '18%', driver: '20%', navigator: '20%', className: '10%', status: '11%', time: '14%' };
+
+  return rowsByStage.map(({ stage, rows }) => (
+    <section key={stage.id} className="print-group mb-8">
+      <div className="print-group-title mb-2 flex items-center justify-between">
+        <h2 className="text-lg font-black uppercase text-gray-800">SS {stage.ss_order} - {stage.ss_name}</h2>
+        <span className="text-xs font-bold text-gray-500">{rows.length} peserta</span>
+      </div>
+      <div className="print-table-wrap overflow-x-auto">
+        <table className="uniform-result-table w-full border-collapse text-[11px]">
+          <colgroup>
+            <col style={{ width: columnWidths.no }} />
+            <col style={{ width: columnWidths.entrant }} />
+            <col style={{ width: columnWidths.driver }} />
+            <col style={{ width: columnWidths.navigator }} />
+            <col style={{ width: columnWidths.className }} />
+            <col style={{ width: columnWidths.status }} />
+            <col style={{ width: columnWidths.time }} />
+          </colgroup>
+          <thead>
+            <tr className="bg-slate-300 text-center text-slate-900">
+              <th className="border border-gray-300 p-2">Car No</th>
+              <th className="border border-gray-300 p-2">Entrant</th>
+              <th className="border border-gray-300 p-2">Driver</th>
+              <th className="border border-gray-300 p-2">Navigator</th>
+              <th className="border border-gray-300 p-2">Class</th>
+              <th className="border border-gray-300 p-2">Status</th>
+              <th className="border border-gray-300 p-2">Result Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ entry, stageTime }) => (
+              <tr key={`${stage.id}-${entry.participant_id}`}>
+                <td className="border border-gray-300 p-2 text-center font-black">{entry.start_number}</td>
+                <td className="border border-gray-300 p-2">{entry.entrant_name || entry.team_name || '-'}</td>
+                <td className="border border-gray-300 p-2">{entry.driver_name || '-'}</td>
+                <td className="border border-gray-300 p-2">{entry.codriver_name || '-'}</td>
+                <td className="border border-gray-300 p-2 text-center">{classCode(entry.class_name)}</td>
+                <td className="border border-gray-300 p-2 text-center font-black">{stageTime.status}</td>
+                <td className="border border-gray-300 p-2 text-right font-mono font-black">{Number(stageTime.total_time_ms) > 0 ? formatMs(stageTime.total_time_ms) : '-'}</td>
               </tr>
             ))}
           </tbody>
