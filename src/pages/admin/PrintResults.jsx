@@ -894,6 +894,10 @@ function sortFinalResultEntries(entries) {
       return Number(a.total_time_ms) - Number(b.total_time_ms);
     }
     if (aRankable && bRankable) {
+      const aSS1Time = finalSS1TimeMs(a);
+      const bSS1Time = finalSS1TimeMs(b);
+      if ((aSS1Time !== null) !== (bSS1Time !== null)) return aSS1Time !== null ? -1 : 1;
+      if (aSS1Time !== null && bSS1Time !== null && aSS1Time !== bSS1Time) return aSS1Time - bSS1Time;
       const startTimeDelta = compareResultStartTimes(
         latestCompletedStageStartTime(a),
         latestCompletedStageStartTime(b),
@@ -904,6 +908,13 @@ function sortFinalResultEntries(entries) {
     if (statusDelta !== 0) return statusDelta;
     return Number(a.start_number) - Number(b.start_number);
   });
+}
+
+function finalSS1TimeMs(entry) {
+  const stageTime = entry.stage_times?.find((item) => (
+    Number(item.ss_order) === 1 && !item.is_shakedown && item.status !== 'DNS' && Number(item.total_time_ms) > 0
+  ));
+  return stageTime ? Number(stageTime.total_time_ms) : null;
 }
 
 function latestCompletedStageStartTime(entry) {

@@ -1288,6 +1288,12 @@ function buildOverallEntries(entries, selectedStage) {
   const terminalStatus = (stageTimes) => (
     stageTimes.find((stageTime) => ['DNF', 'DNS', 'DSQ'].includes(stageTime.status))?.status || ''
   );
+  const ss1Time = (stageTimes) => {
+    const stageTime = stageTimes.find((item) => (
+      Number(item.ss_order) === 1 && !item.is_shakedown && item.status !== 'DNS' && numericMs(item.total_time_ms) > 0
+    ));
+    return stageTime ? numericMs(stageTime.total_time_ms) : null;
+  };
   const isRankableOverall = (entry) => (
     numericMs(entry.total_time_ms) > 0 && ['OK', 'BWTM', 'DNF', 'DNS'].includes(entry.status)
   );
@@ -1318,6 +1324,7 @@ function buildOverallEntries(entries, selectedStage) {
           return !latest || numericMs(stageTime.ss_order) > numericMs(latest.ss_order) ? stageTime : latest;
         }, null)
         : selectedStageTime;
+      const ss1TieBreakTimeMs = isFinal ? ss1Time(stageTimes) : null;
       const resolvedFinalStatus = entry.parc_ferme_closed
         ? (entry.parc_ferme_confirmed ? 'OK' : 'NOT_FINISHER')
         : finalStageTime?.status === 'DNS'
@@ -1342,6 +1349,7 @@ function buildOverallEntries(entries, selectedStage) {
         total_time_ms: completedTimes.reduce((total, stageTime) => total + numericMs(stageTime.total_time_ms), 0),
         status,
         tie_break_start_time: tieBreakStageTime?.start_time || '',
+        tie_break_ss1_time_ms: ss1TieBreakTimeMs,
         gap_ms: 0,
         diff_ms: 0,
         diff_first_ms: 0,
@@ -1355,6 +1363,14 @@ function buildOverallEntries(entries, selectedStage) {
     if (aRankable !== bRankable) return aRankable ? -1 : 1;
     if (aRankable && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
     if (aRankable && bRankable) {
+      if (isFinal) {
+        const aHasSS1 = a.tie_break_ss1_time_ms !== null;
+        const bHasSS1 = b.tie_break_ss1_time_ms !== null;
+        if (aHasSS1 !== bHasSS1) return aHasSS1 ? -1 : 1;
+        if (aHasSS1 && a.tie_break_ss1_time_ms !== b.tie_break_ss1_time_ms) {
+          return a.tie_break_ss1_time_ms - b.tie_break_ss1_time_ms;
+        }
+      }
       const startTimeDelta = compareStartTimes(a.tie_break_start_time, b.tie_break_start_time);
       if (startTimeDelta !== 0) return startTimeDelta;
     }
