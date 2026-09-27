@@ -7,7 +7,7 @@ const CLOCK_STATE_KEY = 'timekeeping_server_clock_v1';
 const CHANGE_EVENT = 'timekeeping:terminal-clock-change';
 const HEARTBEAT_INTERVAL_MS = 15000;
 const CLOCK_WARNING_MS = 1000;
-const operationalRoles = new Set(['admin', 'kamar_hitung', 'petugas_start', 'petugas_finish', 'flying_finish', 'petugas_tc']);
+const operationalRoles = new Set(['admin', 'kamar_hitung', 'petugas_start', 'petugas_finish', 'flying_finish', 'petugas_tc', 'petugas_parc_ferme']);
 
 let initialized = false;
 let sending = false;

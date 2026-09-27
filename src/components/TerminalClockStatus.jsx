@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { getTerminalClockSnapshot, sendTerminalHeartbeat, TERMINAL_CLOCK_CHANGE_EVENT } from '../services/terminalMonitoring';
 
-const visibleRoles = new Set(['admin', 'kamar_hitung', 'petugas_start', 'petugas_finish', 'flying_finish', 'petugas_tc']);
+const visibleRoles = new Set(['admin', 'kamar_hitung', 'petugas_start', 'petugas_finish', 'flying_finish', 'petugas_tc', 'petugas_parc_ferme']);
 
 export default function TerminalClockStatus({ variant = 'header' }) {
   const role = useAuthStore((state) => state.role);

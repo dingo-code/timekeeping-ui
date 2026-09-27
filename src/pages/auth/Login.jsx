@@ -40,6 +40,9 @@ export default function Login() {
         case 'flying_finish':
           navigate('/flying-finish', { replace: true });
           break;
+        case 'petugas_parc_ferme':
+          navigate('/parc-ferme', { replace: true });
+          break;
         default:
           setErrorMsg('Role tidak dikenali oleh sistem.');
           useAuthStore.getState().logout();

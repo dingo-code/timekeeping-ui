@@ -29,6 +29,7 @@ import FinishStopwatch from './pages/petugas-finish/FinishStopwatch';
 import BackupReconciliation from './pages/admin/BackupReconciliation';
 import OfflineQueueStatus from './components/OfflineQueueStatus';
 import TerminalMonitoring from './pages/admin/TerminalMonitoring';
+import ParcFerme from './pages/parc-ferme/ParcFerme';
 
 // ---> TAMBAHKAN IMPORT INI <---
 import KamarHitung from './pages/admin/KamarHitung';
@@ -54,7 +55,7 @@ const MarshalPage = () => {
 
 function AppRoutes() {
   const location = useLocation();
-  const fieldTerminalPaths = ['/marshal', '/pos-start', '/pos-finish', '/pos-tc', '/flying-finish'];
+  const fieldTerminalPaths = ['/marshal', '/pos-start', '/pos-finish', '/pos-tc', '/flying-finish', '/parc-ferme'];
   const isFieldTerminal = fieldTerminalPaths.includes(location.pathname);
   const isEmbedPage = location.pathname.startsWith('/embed/');
   const isLiveTimingPage = location.pathname === '/live-timing' || location.pathname === '/leaderboard';
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="/pos-finish" element={<ProtectedRoute allowedRoles={['petugas_finish']}><TimekeepingTerminal /></ProtectedRoute>} />
         <Route path="/flying-finish" element={<ProtectedRoute allowedRoles={['flying_finish']}><FinishStopwatch /></ProtectedRoute>} />
         <Route path="/pos-tc" element={<ProtectedRoute allowedRoles={['petugas_tc']}><TimekeepingTerminal /></ProtectedRoute>} />
+        <Route path="/parc-ferme" element={<ProtectedRoute allowedRoles={['petugas_parc_ferme', 'admin']}><ParcFerme /></ProtectedRoute>} />
         </Routes>
       </main>
       {!usesEmbeddedFooter && <AppFooter />}

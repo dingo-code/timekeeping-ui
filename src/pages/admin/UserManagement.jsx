@@ -9,6 +9,7 @@ const ROLES = [
   { value: 'petugas_finish', label: 'Petugas Finish' },
   { value: 'flying_finish', label: 'Flying Finish' },
   { value: 'petugas_tc', label: 'Petugas TC' },
+  { value: 'petugas_parc_ferme', label: 'Petugas Parc Fermé' },
 ];
 
 const emptyForm = { username: '', password: '', role: 'petugas_start', event_id: '' };

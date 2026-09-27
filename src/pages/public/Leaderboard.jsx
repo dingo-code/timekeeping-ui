@@ -1318,11 +1318,13 @@ function buildOverallEntries(entries, selectedStage) {
           return !latest || numericMs(stageTime.ss_order) > numericMs(latest.ss_order) ? stageTime : latest;
         }, null)
         : selectedStageTime;
-      const resolvedFinalStatus = finalStageTime?.status === 'DNS'
-        ? 'NOT_FINISHER'
-        : finalStageTime?.status === 'DNF'
-          ? numericMs(finalStageTime.total_time_ms) > 0 ? 'DNF' : 'NOT_FINISHER'
-          : entry.status;
+      const resolvedFinalStatus = entry.parc_ferme_closed
+        ? (entry.parc_ferme_confirmed ? 'OK' : 'NOT_FINISHER')
+        : finalStageTime?.status === 'DNS'
+          ? 'NOT_FINISHER'
+          : finalStageTime?.status === 'DNF'
+            ? numericMs(finalStageTime.total_time_ms) > 0 ? 'DNF' : 'NOT_FINISHER'
+            : entry.status;
       const status = isFinal
         ? (resolvedFinalStatus || stageStatus || 'OK')
         : hasSelectedResult

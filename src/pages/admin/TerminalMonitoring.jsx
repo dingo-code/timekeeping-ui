@@ -234,7 +234,7 @@ function ageLabel(ms) {
   return `${Math.floor(hours / 24)} hari`;
 }
 function roleLabel(role) {
-  return ({ petugas_start: 'Petugas Start', petugas_finish: 'Petugas Finish', flying_finish: 'Flying Finish', petugas_tc: 'Petugas TC', kamar_hitung: 'Kamar Hitung', admin: 'Admin' })[role] || role || '-';
+  return ({ petugas_start: 'Petugas Start', petugas_finish: 'Petugas Finish', flying_finish: 'Flying Finish', petugas_tc: 'Petugas TC', petugas_parc_ferme: 'Petugas Parc Fermé', kamar_hitung: 'Kamar Hitung', admin: 'Admin' })[role] || role || '-';
 }
 function browserLabel(userAgent) {
   const ua = String(userAgent || '');

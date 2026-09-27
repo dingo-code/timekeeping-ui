@@ -867,6 +867,9 @@ function DnsDnfReport({ groups, stages, stageTimeFor, formatMs, orientation }) {
 }
 
 function normalizeFinalEntryStatus(entry, lastStage) {
+  if (entry.parc_ferme_closed) {
+    return { ...entry, status: entry.parc_ferme_confirmed ? 'OK' : 'NOT_FINISHER' };
+  }
   if (!lastStage) return entry;
   const lastStageTime = entry.stage_times?.find((stageTime) => stageTime.ss_id === lastStage.id);
   if (lastStageTime?.status === 'DNS') return { ...entry, status: 'NOT_FINISHER' };
