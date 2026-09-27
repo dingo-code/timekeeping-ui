@@ -1101,7 +1101,7 @@ function StartingListSection({ entries, stages, startingListsByStage, mode, onMo
 function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
-    <SimpleSection title="Penalties" subtitle="Penalti manual, TC, DNF, dan DNS pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
+    <SimpleSection title="Penalties" subtitle="Penalti manual dan TC pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
       <table className="w-full min-w-[1050px] border-collapse text-sm">
         <thead>
           <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
@@ -1113,7 +1113,7 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
             <th className="p-4">Class</th>
             <th className="p-4">Category</th>
             <th className="p-4">Reason</th>
-            <th className="p-4 text-right">Penalty / Given Time</th>
+            <th className="p-4 text-right">Penalties</th>
           </tr>
         </thead>
         <tbody>
@@ -1129,11 +1129,7 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
               <td className="p-4">{entry.class_name || '-'}</td>
               <td className="p-4">{entry.category_name || '-'}</td>
               <td className="p-4 font-bold">{entry.penalty_name}</td>
-              <td className="p-4 text-right font-mono font-black text-red-600">
-                {entry.is_given_time
-                  ? (entry.penalty_time_ms > 0 ? formatMs(entry.penalty_time_ms) : '-')
-                  : `+${formatMs(entry.penalty_time_ms)}`}
-              </td>
+              <td className="p-4 text-right font-mono font-black text-red-600">+{formatMs(entry.penalty_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -1228,19 +1224,8 @@ function buildPenaltyRows(stages, stageRecordsById) {
             ...participantDetails,
             penalty_name: penalty.name || 'Penalty',
             penalty_time_ms: Number(penalty.time_ms || 0),
-            is_given_time: false,
           });
         });
-
-        if (record.status === 'DNF' || record.status === 'DNS') {
-          rows.push({
-            key: `${stage.id}-${record.id}-status-${record.status}`,
-            ...participantDetails,
-            penalty_name: record.status,
-            penalty_time_ms: Number(record.total_time_ms || 0),
-            is_given_time: true,
-          });
-        }
       });
   });
   return rows.sort((a, b) => {
