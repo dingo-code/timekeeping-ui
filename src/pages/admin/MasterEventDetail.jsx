@@ -2123,6 +2123,9 @@ export default function MasterEventDetail() {
                 required
               />
             </div>
+            <p className="col-span-2 text-xs font-medium text-violet-700">
+              Navigator yang sama pada beberapa mobil di event ini otomatis memakai toleransi TC Join Car.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

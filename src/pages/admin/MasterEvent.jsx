@@ -310,7 +310,7 @@ export default function MasterEvent() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-gray-600">Toleransi join car menit</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Toleransi join car / navigator (menit)</label>
                 <input
                   type="number"
                   min="1"
@@ -320,7 +320,7 @@ export default function MasterEvent() {
                   onChange={e => setFormData({...formData, join_car_tc_tolerance_minutes: e.target.value})}
                 />
               </div>
-              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal cepat/telat 15 menit. Join car: peserta pertama tetap pakai target TC normal; peserta kedua diberi toleransi 22 menit dari start peserta pertama.</p>
+              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal cepat/telat 15 menit. Join car dan join navigator memakai toleransi yang sama: peserta pertama tetap pakai target TC normal; peserta berikutnya mendapat toleransi dari start peserta pertama.</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-bold text-gray-700">Decimal Time</label>

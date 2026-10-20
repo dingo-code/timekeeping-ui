@@ -527,6 +527,7 @@ export default function KamarHitung() {
         record.attempt_no ? `attempt ${record.attempt_no}` : '',
         record.attempt_no ? `#${record.attempt_no}` : '',
         record.join_car_with_start_number ? `join car with ${record.join_car_with_start_number}` : '',
+        record.join_navigator_with_start_numbers ? `join navigator with ${record.join_navigator_with_start_numbers}` : '',
         getJoinedByStartNumbers(record).length ? `joined by ${getJoinedByStartNumbers(record).join(' ')}` : '',
       ].join(' ').toLowerCase().includes(normalizedRecordSearch))
     : records;
@@ -736,6 +737,11 @@ export default function KamarHitung() {
                           {Number(r.join_car_with_start_number) > 0 && (
                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800">
                               Join car with #{r.join_car_with_start_number}
+                            </span>
+                          )}
+                          {r.join_navigator_with_start_numbers && (
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-violet-100 text-violet-800">
+                              Join navigator with #{r.join_navigator_with_start_numbers}
                             </span>
                           )}
                           {joinedByStartNumbers.length > 0 && (
