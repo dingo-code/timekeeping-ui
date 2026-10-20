@@ -167,9 +167,16 @@ export default function MasterEvent() {
             )}
             <div className="flex items-start justify-between gap-3">
               <h3 className="text-lg font-extrabold text-gray-900">{event.name}</h3>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black uppercase ${event.is_active ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
-                {event.is_active ?? true ? 'Aktif' : 'Tidak aktif'}
-              </span>
+              <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${event.is_active ?? true ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                  {event.is_active ?? true ? 'Aktif' : 'Tidak aktif'}
+                </span>
+                {String(event.result_status || '').toUpperCase() === 'COMPLETED' && (
+                  <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black uppercase text-blue-700">
+                    Selesai
+                  </span>
+                )}
+              </div>
             </div>
             <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
             <div className="mt-4 pt-4 border-t text-xs font-bold text-gray-700">Jadwal: {event.start_date.split('T')[0]}</div>
