@@ -28,7 +28,7 @@ export default function ParcFerme() {
   }, [isAdmin]);
 
   const selectedEvent = useMemo(() => events.find((event) => event.id === selectedEventId), [events, selectedEventId]);
-  const locked = String(selectedEvent?.result_status || '').toUpperCase() === 'LOCKED';
+  const locked = ['LOCKED', 'COMPLETED'].includes(String(selectedEvent?.result_status || '').toUpperCase());
 
   const refresh = useCallback(async (silent = false) => {
     if (!selectedEventId) {
@@ -125,7 +125,7 @@ export default function ParcFerme() {
           </label>
         </section>
 
-        {locked && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900">Event sudah LOCKED. Konfirmasi Parc Fermé tidak dapat diubah.</div>}
+        {locked && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900">Event sudah {String(selectedEvent?.result_status || '').toUpperCase()}. Konfirmasi Parc Fermé tidak dapat diubah.</div>}
         {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">{error}</div>}
 
         <section className="space-y-3">

@@ -17,9 +17,11 @@ const RESULT_STATUS_STYLES = {
   PROVISIONAL: 'bg-amber-100 text-amber-700',
   FINAL: 'bg-blue-100 text-blue-700',
   LOCKED: 'bg-purple-100 text-purple-700',
+  COMPLETED: 'bg-green-100 text-green-700',
 };
-const NEXT_RESULT_STATUS = { DRAFT: 'RUNNING', RUNNING: 'PROVISIONAL', PROVISIONAL: 'FINAL', FINAL: 'LOCKED' };
-const RESULT_ACTION_LABEL = { RUNNING: 'Mulai', PROVISIONAL: 'Tutup Sementara', FINAL: 'Finalkan', LOCKED: 'Kunci' };
+const NEXT_STAGE_RESULT_STATUS = { DRAFT: 'RUNNING', RUNNING: 'PROVISIONAL', PROVISIONAL: 'FINAL', FINAL: 'LOCKED' };
+const NEXT_EVENT_RESULT_STATUS = { ...NEXT_STAGE_RESULT_STATUS, LOCKED: 'COMPLETED' };
+const RESULT_ACTION_LABEL = { RUNNING: 'Mulai', PROVISIONAL: 'Tutup Sementara', FINAL: 'Finalkan', LOCKED: 'Kunci', COMPLETED: 'Selesaikan' };
 const isStageMutable = (stage) => Boolean(
   stage &&
   stage.is_open !== false &&
@@ -107,6 +109,9 @@ export default function MasterEventDetail() {
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
   const officialStages = stages.filter((stage) => !stage.is_shakedown);
   const selectedTCStage = officialStages.find((stage) => stage.id === selectedTCStageId);
+  const allOfficialStagesLocked = officialStages.length > 0 && officialStages.every(
+    (stage) => String(stage.result_status || '').toUpperCase() === 'LOCKED',
+  );
   const selectedTCStageIsMutable = isStageMutable(selectedTCStage);
   const shakedownCount = stages.length - officialStages.length;
 
@@ -565,7 +570,7 @@ export default function MasterEventDetail() {
   };
 
   const changeResultStatus = async ({ stage = null, currentStatus, name }) => {
-    const nextStatus = NEXT_RESULT_STATUS[currentStatus];
+    const nextStatus = (stage ? NEXT_STAGE_RESULT_STATUS : NEXT_EVENT_RESULT_STATUS)[currentStatus];
     if (!nextStatus) return;
     const reason = window.prompt(`Alasan ${RESULT_ACTION_LABEL[nextStatus].toLowerCase()} ${name}:`);
     if (!reason?.trim()) return;
@@ -1466,9 +1471,9 @@ export default function MasterEventDetail() {
                         </span>
                       </td>
                       <td className="p-3 text-right space-x-3">
-                        {NEXT_RESULT_STATUS[ss.result_status] && (
+                        {NEXT_STAGE_RESULT_STATUS[ss.result_status] && (
                           <button disabled={isSavingGovernance} onClick={() => changeResultStatus({ stage: ss, currentStatus: ss.result_status, name: ss.ss_name })} className="admin-btn-muted disabled:opacity-50">
-                            {RESULT_ACTION_LABEL[NEXT_RESULT_STATUS[ss.result_status]]}
+                            {RESULT_ACTION_LABEL[NEXT_STAGE_RESULT_STATUS[ss.result_status]]}
                           </button>
                         )}
                         <button onClick={() => openStageModal(ss)} className="admin-btn-edit">Edit</button>
@@ -1500,17 +1505,20 @@ export default function MasterEventDetail() {
                     {eventGovernance?.status_reason && <span className="text-sm text-gray-600">{eventGovernance.status_reason}</span>}
                   </div>
                 </div>
-                {NEXT_RESULT_STATUS[eventGovernance?.result_status] && (
+                {NEXT_EVENT_RESULT_STATUS[eventGovernance?.result_status] && (
                   <button
-                    disabled={isSavingGovernance}
+                    disabled={isSavingGovernance || (NEXT_EVENT_RESULT_STATUS[eventGovernance.result_status] === 'COMPLETED' && !allOfficialStagesLocked)}
                     onClick={() => changeResultStatus({ currentStatus: eventGovernance.result_status, name: eventGovernance.name || 'event' })}
-                    className="admin-btn-primary disabled:opacity-50"
+                    title={NEXT_EVENT_RESULT_STATUS[eventGovernance.result_status] === 'COMPLETED' && !allOfficialStagesLocked ? 'Kunci semua SS resmi terlebih dahulu.' : undefined}
+                    className="admin-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {RESULT_ACTION_LABEL[NEXT_RESULT_STATUS[eventGovernance.result_status]]} Result Event
+                    {NEXT_EVENT_RESULT_STATUS[eventGovernance.result_status] === 'COMPLETED'
+                      ? 'Selesaikan Event'
+                      : `${RESULT_ACTION_LABEL[NEXT_EVENT_RESULT_STATUS[eventGovernance.result_status]]} Result Event`}
                   </button>
                 )}
               </div>
-              <p className="mt-4 text-xs text-gray-500">Event hanya dapat menjadi FINAL setelah seluruh SS resmi FINAL/LOCKED. Status LOCKED hanya dapat dibuka melalui koreksi yang disetujui.</p>
+              <p className="mt-4 text-xs text-gray-500">Event hanya dapat menjadi FINAL setelah seluruh SS resmi FINAL/LOCKED, dan hanya dapat diselesaikan setelah seluruh SS resmi berstatus LOCKED. Event yang selesai tidak lagi tersedia di akun petugas; halaman result publik tetap dapat diakses. Status LOCKED/COMPLETED hanya dapat dibuka melalui koreksi yang disetujui.</p>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
