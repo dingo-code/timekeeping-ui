@@ -27,6 +27,7 @@ export default function MasterEvent() {
     tc_early_penalty_seconds_per_minute: 60,
     tc_max_delta_minutes: 15,
     join_car_tc_tolerance_minutes: 22,
+    multi_class_driver_tc_tolerance_enabled: false,
     time_decimal_places: 2,
     is_active: true
   });
@@ -84,6 +85,7 @@ export default function MasterEvent() {
         tc_early_penalty_seconds_per_minute: event.tc_early_penalty_seconds_per_minute ?? 60,
         tc_max_delta_minutes: event.tc_max_delta_minutes ?? 15,
         join_car_tc_tolerance_minutes: event.join_car_tc_tolerance_minutes ?? 22,
+        multi_class_driver_tc_tolerance_enabled: event.multi_class_driver_tc_tolerance_enabled ?? false,
         time_decimal_places: event.time_decimal_places ?? 2,
         is_active: event.is_active ?? true
       });
@@ -104,6 +106,7 @@ export default function MasterEvent() {
         tc_early_penalty_seconds_per_minute: 60,
         tc_max_delta_minutes: 15,
         join_car_tc_tolerance_minutes: 22,
+        multi_class_driver_tc_tolerance_enabled: false,
         time_decimal_places: 2,
         is_active: true
       });
@@ -317,7 +320,7 @@ export default function MasterEvent() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-gray-600">Toleransi join car / navigator (menit)</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Toleransi grup khusus (menit)</label>
                 <input
                   type="number"
                   min="1"
@@ -327,7 +330,22 @@ export default function MasterEvent() {
                   onChange={e => setFormData({...formData, join_car_tc_tolerance_minutes: e.target.value})}
                 />
               </div>
-              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal cepat/telat 15 menit. Join car dan join navigator memakai toleransi yang sama: peserta pertama tetap pakai target TC normal; peserta berikutnya mendapat toleransi dari start peserta pertama.</p>
+              <label className="sm:col-span-2 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <span>
+                  <span className="block text-sm font-bold text-gray-700">Toleransi TC driver lintas kelas</span>
+                  <span className="block text-xs text-gray-500">Khusus Speed Offroad: driver yang sama di kelas berbeda mendapat toleransi TC yang sama.</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2 text-sm font-bold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.multi_class_driver_tc_tolerance_enabled)}
+                    onChange={e => setFormData({...formData, multi_class_driver_tc_tolerance_enabled: e.target.checked})}
+                    className="h-5 w-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                  />
+                  Aktif
+                </span>
+              </label>
+              <p className="sm:col-span-2 text-xs text-gray-500">Default: telat 10 detik/menit, cepat 60 detik/menit, maksimal cepat/telat 15 menit. Join car dan join navigator selalu memakai toleransi ini. Jika opsi Speed Offroad diaktifkan, entri berikutnya dari driver yang sama di kelas berbeda juga mendapat toleransi dari start entri pertama.</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-bold text-gray-700">Decimal Time</label>
