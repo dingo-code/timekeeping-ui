@@ -1020,25 +1020,33 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
 }
 
 function StartingListSection({ entries, stages, startingListsByStage, mode, onModeChange, isLoading }) {
-  const officialStages = stages
-    .filter((stage) => !stage.is_shakedown)
-    .sort((a, b) => Number(a.ss_order) - Number(b.ss_order));
-  const selectedListStage = officialStages.find((stage) => stage.id === mode);
+  const startingListStages = stages
+    .filter((stage) => !stage.is_shakedown || (startingListsByStage[stage.id] || []).length > 0)
+    .sort((a, b) => {
+      if (Boolean(a.is_shakedown) !== Boolean(b.is_shakedown)) return a.is_shakedown ? -1 : 1;
+      return Number(a.ss_order) - Number(b.ss_order);
+    });
+  const selectedListStage = startingListStages.find((stage) => stage.id === mode);
   const activeMode = mode === 'entry-list' || selectedListStage ? mode : 'entry-list';
   const isStageMode = activeMode !== 'entry-list';
   const displayEntries = isStageMode
     ? buildStageStartingList(startingListsByStage[activeMode] || [])
     : entries;
   const emptyText = isStageMode
-    ? `Belum ada starting list untuk SS ${selectedListStage?.ss_order || ''}.`
+    ? selectedListStage?.is_shakedown
+      ? 'Belum ada starting list untuk Shakedown.'
+      : `Belum ada starting list untuk SS ${selectedListStage?.ss_order || ''}.`
     : 'Belum ada entry list.';
   const tabs = [
     { value: 'entry-list', label: 'Entry List' },
-    ...officialStages.map((stage) => ({ value: stage.id, label: `Starting SS${stage.ss_order}` })),
+    ...startingListStages.map((stage) => ({
+      value: stage.id,
+      label: stage.is_shakedown ? 'Starting Shakedown' : `Starting SS${stage.ss_order}`,
+    })),
   ];
 
   return (
-    <SimpleSection title="Starting List" subtitle="Entry list dan urutan start per SS" count={displayEntries.length} isLoading={isLoading} emptyText={emptyText} showChildrenWhenEmpty>
+    <SimpleSection title="Starting List" subtitle="Entry list dan urutan start SS / Shakedown" count={displayEntries.length} isLoading={isLoading} emptyText={emptyText} showChildrenWhenEmpty>
       <div className="border-b border-neutral-200 bg-neutral-50 px-3 py-3">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => {

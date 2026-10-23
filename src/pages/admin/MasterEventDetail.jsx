@@ -100,6 +100,7 @@ export default function MasterEventDetail() {
   const [isSavingStartingList, setIsSavingStartingList] = useState(false);
   const [isGeneratingTC, setIsGeneratingTC] = useState(false);
   const [startingListImportSummary, setStartingListImportSummary] = useState('');
+  const [shakedownParticipantIds, setShakedownParticipantIds] = useState([]);
 
   // --- State Search & Pagination (Peserta) ---
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,7 +110,12 @@ export default function MasterEventDetail() {
 
   const getTimecardUrl = (participant) => `${window.location.origin}/timecard/${id}/${participant.id}`;
   const officialStages = stages.filter((stage) => !stage.is_shakedown);
-  const selectedTCStage = officialStages.find((stage) => stage.id === selectedTCStageId);
+  const startingListStages = [...stages].sort((a, b) => {
+    if (Boolean(a.is_shakedown) !== Boolean(b.is_shakedown)) return a.is_shakedown ? -1 : 1;
+    return Number(a.ss_order) - Number(b.ss_order);
+  });
+  const selectedTCStage = startingListStages.find((stage) => stage.id === selectedTCStageId);
+  const selectedStageIsShakedown = Boolean(selectedTCStage?.is_shakedown);
   const allOfficialStagesLocked = officialStages.length > 0 && officialStages.every(
     (stage) => String(stage.result_status || '').toUpperCase() === 'LOCKED',
   );
@@ -123,7 +129,10 @@ export default function MasterEventDetail() {
 
   useEffect(() => {
     if (activeTab !== 'tc') return;
-    const selectableTCStages = stages.filter((stage) => !stage.is_shakedown);
+    const selectableTCStages = [...stages].sort((a, b) => {
+      if (Boolean(a.is_shakedown) !== Boolean(b.is_shakedown)) return a.is_shakedown ? -1 : 1;
+      return Number(a.ss_order) - Number(b.ss_order);
+    });
     if (selectedTCStageId && !selectableTCStages.some((stage) => stage.id === selectedTCStageId)) {
       setSelectedTCStageId(selectableTCStages[0]?.id || '');
       return;
@@ -216,19 +225,26 @@ export default function MasterEventDetail() {
       setStartingListOrder(nextList.map((entry) => entry.participant_id));
       setStartOrderDrafts(Object.fromEntries(nextList.map((entry) => [entry.participant_id, entry.start_order || entry.start_number])));
       setTcTargetDrafts(Object.fromEntries(nextList.filter((entry) => entry.target_tc_time).map((entry) => [entry.participant_id, entry.target_tc_time.slice(0, 8)])));
+      const stage = stages.find((item) => item.id === stageId);
+      setShakedownParticipantIds(stage?.is_shakedown ? nextList.map((entry) => entry.participant_id) : []);
     } catch (e) {
       console.error('Gagal memuat starting list');
       setStartingList([]);
       setStartingListOrder([]);
       setStartOrderDrafts({});
+      setTcTargetDrafts({});
+      setShakedownParticipantIds([]);
     }
   };
 
   const refreshTCSetup = async (stageId) => {
-    await Promise.all([
-      fetchTCRecords(stageId),
-      fetchStartingList(stageId),
-    ]);
+    const stage = stages.find((item) => item.id === stageId);
+    if (stage?.is_shakedown) {
+      setTcRecords([]);
+      await fetchStartingList(stageId);
+      return;
+    }
+    await Promise.all([fetchTCRecords(stageId), fetchStartingList(stageId)]);
   };
 
   const handleSaveTCTarget = async (participantId) => {
@@ -250,7 +266,10 @@ export default function MasterEventDetail() {
   };
 
   const startingListPayload = () => {
-    const rows = tcRows.map((row, index) => ({
+    const selectedRows = selectedStageIsShakedown
+      ? tcRows.filter((row) => shakedownParticipantIds.includes(row.id))
+      : tcRows;
+    const rows = selectedRows.map((row, index) => ({
       participant_id: row.id,
       start_order: Number(startOrderDrafts[row.id] ?? row.start_order ?? row.start_number),
       list_position: index + 1,
@@ -268,7 +287,7 @@ export default function MasterEventDetail() {
   };
 
   const saveStartingList = async ({ silent = false } = {}) => {
-    if (!selectedTCStageId) throw new Error('Pilih SS terlebih dahulu.');
+    if (!selectedTCStageId) throw new Error('Pilih SS atau Shakedown terlebih dahulu.');
     const entries = startingListPayload();
     setIsSavingStartingList(true);
     try {
@@ -289,10 +308,12 @@ export default function MasterEventDetail() {
   };
 
   const handleGenerateTCTargets = async () => {
-    if (!selectedTCStageId) return alert('Pilih SS terlebih dahulu.');
+    if (!selectedTCStageId) return alert('Pilih SS atau Shakedown terlebih dahulu.');
     if (!tcGenerateForm.first_target_tc_time) return alert('Jam TC peserta pertama wajib diisi.');
     if (!Number(tcGenerateForm.interval_minutes) || Number(tcGenerateForm.interval_minutes) <= 0) return alert('Interval harus lebih besar dari 0 menit.');
-    if (!window.confirm('Generate jadwal TC akan menimpa target TC pada SS ini sesuai starting list. Lanjutkan?')) return;
+    if (selectedStageIsShakedown && shakedownParticipantIds.length === 0) return alert('Pilih minimal satu peserta Shakedown terlebih dahulu.');
+    const scheduleLabel = selectedStageIsShakedown ? 'jadwal start Shakedown' : 'target TC pada SS ini';
+    if (!window.confirm(`Generate jadwal akan menimpa ${scheduleLabel} sesuai starting list. Lanjutkan?`)) return;
 
     setIsGeneratingTC(true);
     try {
@@ -302,7 +323,7 @@ export default function MasterEventDetail() {
         interval_minutes: Number(tcGenerateForm.interval_minutes),
       });
       await refreshTCSetup(selectedTCStageId);
-      alert('Jadwal TC berhasil digenerate.');
+      alert(selectedStageIsShakedown ? 'Jadwal start Shakedown berhasil digenerate.' : 'Jadwal TC berhasil digenerate.');
     } catch (err) {
       alert(err.response?.data?.error || err.message || 'Gagal generate jadwal TC.');
     } finally {
@@ -314,6 +335,7 @@ export default function MasterEventDetail() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!selectedTCStageId) return alert('Pilih SS atau Shakedown terlebih dahulu.');
 
     try {
       const isPDF = file.name.toLowerCase().endsWith('.pdf');
@@ -365,12 +387,17 @@ export default function MasterEventDetail() {
 
       setStartOrderDrafts(nextStartOrderDrafts);
       setTcTargetDrafts(nextTCTargetDrafts);
-      const remainingParticipantIds = startingListOrder
-        .filter((participantId) => !importedParticipantIdSet.has(participantId));
-      const remainingNewParticipantIds = participants
-        .map((participant) => participant.id)
-        .filter((participantId) => !importedParticipantIdSet.has(participantId) && !remainingParticipantIds.includes(participantId));
-      setStartingListOrder([...importedParticipantIds, ...remainingParticipantIds, ...remainingNewParticipantIds]);
+      if (selectedStageIsShakedown) {
+        setShakedownParticipantIds(importedParticipantIds);
+        setStartingListOrder(importedParticipantIds);
+      } else {
+        const remainingParticipantIds = startingListOrder
+          .filter((participantId) => !importedParticipantIdSet.has(participantId));
+        const remainingNewParticipantIds = participants
+          .map((participant) => participant.id)
+          .filter((participantId) => !importedParticipantIdSet.has(participantId) && !remainingParticipantIds.includes(participantId));
+        setStartingListOrder([...importedParticipantIds, ...remainingParticipantIds, ...remainingNewParticipantIds]);
+      }
       const summary = `${imported.length} peserta diimport dari ${file.name}${unmatched.length ? `, ${unmatched.length} CAR NO tidak cocok` : ''}.`;
       setStartingListImportSummary(summary);
       alert(summary);
@@ -380,10 +407,14 @@ export default function MasterEventDetail() {
   };
 
   const handleDownloadStartingListTemplate = async () => {
+    if (!selectedTCStageId) return alert('Pilih SS atau Shakedown terlebih dahulu.');
     try {
       const XLSX = await import('xlsx');
       const headers = ['CAR NO', 'START KE', 'TC TIME'];
-      const rows = tcRows.map((participant, index) => [
+      const templateRows = selectedStageIsShakedown && shakedownParticipantIds.length > 0
+        ? tcRows.filter((participant) => shakedownParticipantIds.includes(participant.id))
+        : tcRows;
+      const rows = templateRows.map((participant, index) => [
         participant.start_number,
         startOrderDrafts[participant.id] || index + 1,
         tcTargetDrafts[participant.id] || '',
@@ -394,8 +425,9 @@ export default function MasterEventDetail() {
         ['2', 'START KE wajib berupa angka bulat positif dan harus menunjukkan urutan start.'],
         ['3', 'TC TIME opsional. Format yang disarankan HH:MM:SS, contoh 08:01:00.'],
         ['4', 'Import hanya mengisi draft. Tekan Simpan Starting List untuk menyimpan urutan.'],
-        ['5', 'Pilih SS yang benar sebelum mengunduh dan mengimport template.'],
-        ['6', 'Urutan baris pada file akan dipertahankan apa adanya dan tidak di-sort otomatis.'],
+        ['5', 'Pilih SS atau Shakedown yang benar sebelum mengunduh dan mengimport template.'],
+        ['6', 'Untuk Shakedown, hapus peserta yang tidak ikut dari file sebelum import.'],
+        ['7', 'Urutan baris pada file akan dipertahankan apa adanya dan tidak di-sort otomatis.'],
       ];
       const workbook = XLSX.utils.book_new();
       const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -405,7 +437,7 @@ export default function MasterEventDetail() {
       instructionSheet['!cols'] = [{ wch: 5 }, { wch: 100 }];
       XLSX.utils.book_append_sheet(workbook, templateSheet, 'STARTING LIST');
       XLSX.utils.book_append_sheet(workbook, instructionSheet, 'PETUNJUK');
-      const stageLabel = selectedTCStage?.ss_order ? `-ss-${selectedTCStage.ss_order}` : '';
+      const stageLabel = selectedStageIsShakedown ? '-shakedown' : selectedTCStage?.ss_order ? `-ss-${selectedTCStage.ss_order}` : '';
       XLSX.writeFile(workbook, `template-starting-list${stageLabel}.xlsx`);
     } catch (err) {
       alert(err.message || 'Gagal membuat template Starting List.');
@@ -490,6 +522,31 @@ export default function MasterEventDetail() {
       tc_delta_ms: record?.tc_delta_ms || 0,
     };
   });
+  const toggleShakedownParticipant = (participantId) => {
+    if (shakedownParticipantIds.includes(participantId)) {
+      setShakedownParticipantIds(shakedownParticipantIds.filter((id) => id !== participantId));
+      setStartingListOrder(startingListOrder.filter((id) => id !== participantId));
+      return;
+    }
+    const nextOrder = Math.max(
+      0,
+      ...shakedownParticipantIds.map((id) => Number(startOrderDrafts[id]) || 0),
+    ) + 1;
+    setShakedownParticipantIds([...shakedownParticipantIds, participantId]);
+    setStartingListOrder([...startingListOrder.filter((id) => id !== participantId), participantId]);
+    setStartOrderDrafts({ ...startOrderDrafts, [participantId]: nextOrder });
+  };
+  const selectAllShakedownParticipants = () => {
+    const participantIds = tcRows.map((row) => row.id);
+    setShakedownParticipantIds(participantIds);
+    setStartingListOrder(participantIds);
+    setStartOrderDrafts(Object.fromEntries(participantIds.map((participantId, index) => [participantId, index + 1])));
+  };
+  const clearShakedownParticipants = () => {
+    setShakedownParticipantIds([]);
+    setStartingListOrder([]);
+    setStartingListImportSummary('');
+  };
   const normalizedTCSearch = tcSearchTerm.trim().toLowerCase();
   const filteredTCRows = tcRows.filter((row) => (
     [
@@ -1770,17 +1827,24 @@ export default function MasterEventDetail() {
           <div className="p-6">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Starting List per SS</h3>
-                <p className="text-xs text-gray-500">Atur starting list per SS lalu generate target TC otomatis berdasarkan interval.</p>
+                <h3 className="text-lg font-bold text-gray-800">Starting List SS / Shakedown</h3>
+                <p className="text-xs text-gray-500">Starting List Shakedown bersifat opsional dan hanya berisi peserta yang dipilih.</p>
               </div>
               <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto xl:grid-cols-[220px_260px_110px]">
                 <select
                   className="w-full p-2 border border-gray-300 rounded text-sm outline-none bg-white focus:ring-1 focus:ring-red-500"
                   value={selectedTCStageId}
-                  onChange={(e) => setSelectedTCStageId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTCStageId(e.target.value);
+                    setStartingListImportSummary('');
+                  }}
                 >
-                  <option value="">-- Pilih SS --</option>
-                  {officialStages.map((stage) => <option key={stage.id} value={stage.id}>SS {stage.ss_order} : {stage.ss_name}</option>)}
+                  <option value="">-- Pilih SS / Shakedown --</option>
+                  {startingListStages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.is_shakedown ? `SHAKEDOWN : ${stage.ss_name}` : `SS ${stage.ss_order} : ${stage.ss_name}`}
+                    </option>
+                  ))}
                 </select>
                 <input
                   type="text"
@@ -1804,8 +1868,12 @@ export default function MasterEventDetail() {
 
             <div className="mb-4 grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
               <div className="md:col-span-2 xl:col-span-4">
-                <p className="text-sm font-black text-gray-800 uppercase">Generate Jadwal TC</p>
-                <p className="mt-1 text-xs text-gray-500">Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.</p>
+                <p className="text-sm font-black text-gray-800 uppercase">{selectedStageIsShakedown ? 'Starting List Shakedown' : 'Generate Jadwal TC'}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {selectedStageIsShakedown
+                    ? 'Pilih peserta yang ikut, atur urutan, lalu isi atau generate jadwal start. Kosongkan semua peserta untuk menghapus list.'
+                    : 'Simpan urutan start, isi jam TC peserta pertama, lalu generate sesuai interval.'}
+                </p>
                 {startingListImportSummary && <p className="mt-2 text-xs font-bold text-green-700">{startingListImportSummary}</p>}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1826,9 +1894,15 @@ export default function MasterEventDetail() {
                 >
                   Download Template
                 </button>
+                {selectedStageIsShakedown && (
+                  <>
+                    <button type="button" onClick={selectAllShakedownParticipants} className="admin-btn-muted flex-1 whitespace-nowrap">Pilih Semua</button>
+                    <button type="button" onClick={clearShakedownParticipants} className="admin-btn-muted flex-1 whitespace-nowrap">Kosongkan</button>
+                  </>
+                )}
               </div>
               <label>
-                <span className="mb-1 block text-xs font-bold text-gray-500">TC peserta pertama</span>
+                <span className="mb-1 block text-xs font-bold text-gray-500">{selectedStageIsShakedown ? 'Jadwal peserta pertama' : 'TC peserta pertama'}</span>
                 <input
                   type="time"
                   step="1"
@@ -1862,7 +1936,7 @@ export default function MasterEventDetail() {
                   disabled={!selectedTCStageId || isGeneratingTC}
                   className="admin-btn-primary flex-1 whitespace-nowrap"
                 >
-                  {isGeneratingTC ? 'Generate...' : 'Generate TC'}
+                  {isGeneratingTC ? 'Generate...' : selectedStageIsShakedown ? 'Generate Jadwal' : 'Generate TC'}
                 </button>
               </div>
             </div>
@@ -1871,25 +1945,38 @@ export default function MasterEventDetail() {
               <table className="w-full text-left border-collapse border border-gray-200">
                 <thead className="bg-gray-100 text-sm">
                   <tr>
+                    {selectedStageIsShakedown && <th className="p-3 text-center">Ikut</th>}
                     <th className="p-3 text-center">Start Ke</th>
                     <th className="p-3 text-center">No Start</th>
                     <th className="p-3">Peserta</th>
-                    <th className="p-3 text-center">Target TC</th>
-                    <th className="p-3 text-center">Aktual TC</th>
-                    <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-center">Withdraw</th>
-                    <th className="p-3 text-right">Aksi</th>
+                    <th className="p-3 text-center">{selectedStageIsShakedown ? 'Jadwal Start' : 'Target TC'}</th>
+                    {!selectedStageIsShakedown && <th className="p-3 text-center">Aktual TC</th>}
+                    {!selectedStageIsShakedown && <th className="p-3 text-center">Status</th>}
+                    {!selectedStageIsShakedown && <th className="p-3 text-center">Withdraw</th>}
+                    {!selectedStageIsShakedown && <th className="p-3 text-right">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {!selectedTCStageId ? (
-                    <tr><td colSpan="8" className="text-center p-8 text-gray-500">Pilih SS untuk mengatur starting list.</td></tr>
+                    <tr><td colSpan={selectedStageIsShakedown ? 5 : 8} className="text-center p-8 text-gray-500">Pilih SS atau Shakedown untuk mengatur starting list.</td></tr>
                   ) : currentTCRows.length === 0 ? (
-                    <tr><td colSpan="8" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
+                    <tr><td colSpan={selectedStageIsShakedown ? 5 : 8} className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr>
                   ) : currentTCRows.map((row) => {
                     const isWithdrawActive = isWithdrawActiveOnSelectedStage(row);
+                    const isIncludedInShakedown = shakedownParticipantIds.includes(row.id);
                     return (
-                    <tr key={row.id} className={`border-b border-gray-100 transition ${isWithdrawActive ? 'bg-gray-100 text-gray-500' : 'hover:bg-gray-50'}`}>
+                    <tr key={row.id} className={`border-b border-gray-100 transition ${isWithdrawActive || (selectedStageIsShakedown && !isIncludedInShakedown) ? 'bg-gray-100 text-gray-500' : 'hover:bg-gray-50'}`}>
+                      {selectedStageIsShakedown && (
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-red-600"
+                            checked={isIncludedInShakedown}
+                            onChange={() => toggleShakedownParticipant(row.id)}
+                            aria-label={`Sertakan nomor start ${row.start_number} dalam Shakedown`}
+                          />
+                        </td>
+                      )}
                       <td className="p-3 text-center">
                         <input
                           type="number"
@@ -1897,6 +1984,7 @@ export default function MasterEventDetail() {
                           className="w-20 rounded border border-gray-300 p-2 text-center text-sm font-black outline-none focus:ring-1 focus:ring-red-500"
                           value={startOrderDrafts[row.id] ?? row.start_order ?? ''}
                           onChange={(e) => setStartOrderDrafts({ ...startOrderDrafts, [row.id]: e.target.value })}
+                          disabled={selectedStageIsShakedown && !isIncludedInShakedown}
                         />
                       </td>
                       <td className="p-3 text-center">
@@ -1919,19 +2007,19 @@ export default function MasterEventDetail() {
                           className="w-36 p-2 border border-gray-300 rounded font-mono text-sm outline-none focus:ring-1 focus:ring-red-500"
                           value={(row.target_tc_time || '').slice(0, 8)}
                           onChange={(e) => setTcTargetDrafts({ ...tcTargetDrafts, [row.id]: e.target.value })}
-                          disabled={isWithdrawActive}
+                          disabled={isWithdrawActive || (selectedStageIsShakedown && !isIncludedInShakedown)}
                         />
                       </td>
-                      <td className="p-3 text-center font-mono text-gray-700">{row.tc_time || '-'}</td>
-                      <td className="p-3 text-center">
+                      {!selectedStageIsShakedown && <td className="p-3 text-center font-mono text-gray-700">{row.tc_time || '-'}</td>}
+                      {!selectedStageIsShakedown && <td className="p-3 text-center">
                         <span className={`px-2 py-1 text-[10px] font-black uppercase rounded ${getTCStatusClass(row.tc_status)}`}>
                           {getTCStatusLabel(row.tc_status)}
                         </span>
                         {(row.tc_status === 'EARLY' || row.tc_status === 'LATE') && (
                           <div className="mt-1 text-[11px] font-bold text-gray-500">{formatTCDelta(row.tc_delta_ms)}</div>
                         )}
-                      </td>
-                      <td className="p-3 text-center">
+                      </td>}
+                      {!selectedStageIsShakedown && <td className="p-3 text-center">
                         {row.withdraw_from_stage_id ? (
                           <span className={`rounded px-2 py-1 text-[10px] font-black uppercase ${isWithdrawActive ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                             {isWithdrawActive ? 'WITHDRAW' : 'AKAN WD'}
@@ -1939,8 +2027,8 @@ export default function MasterEventDetail() {
                         ) : (
                           <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-black uppercase text-green-700">Aktif</span>
                         )}
-                      </td>
-                      <td className="p-3 text-right">
+                      </td>}
+                      {!selectedStageIsShakedown && <td className="p-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleSaveTCTarget(row.id)}
@@ -1967,7 +2055,7 @@ export default function MasterEventDetail() {
                             </button>
                           )}
                         </div>
-                      </td>
+                      </td>}
                     </tr>
                   );})}
                 </tbody>
