@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import api from '../../services/api';
+import { parseEntryListPDF } from '../../utils/entryListPdf';
 
 const DEFAULT_DOB = '1900-01-01';
 
@@ -17,7 +18,7 @@ export default function SmartEntryListUpdate({ eventId, participants, racers, te
     if (!file) return;
     setBusy(true);
     try {
-      const rows = file.name.toLowerCase().endsWith('.pdf') ? await parsePDF(file) : await parseWorkbook(file);
+      const rows = file.name.toLowerCase().endsWith('.pdf') ? await parseEntryListPDF(file) : await parseWorkbook(file);
       if (!rows.length) throw new Error('Tidak ditemukan baris Entry List yang dapat dibaca.');
       setFileName(file.name); setSourceRows(rows); setMatches([]); setStep('review');
     } catch (error) { alert(error.message || 'File tidak dapat dibaca.'); }
@@ -126,29 +127,6 @@ async function parseWorkbook(file) {
   const XLSX = await import('xlsx'), wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }), sheet = wb.Sheets[wb.SheetNames[0]], rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
   return rows.map((row) => ({ participantId: cell(row, ['PARTICIPANT ID','ENTRY ID']), startNumber: number(cell(row, ['NO START','CAR NO','START NO'])), entrant: text(cell(row, ['ENTRANT','TEAM','TIM'])), driver: text(cell(row, ['DRIVER','NAMA DRIVER'])), driverRegion: text(cell(row, ['DRIVER REGION','REG DRIVER'])), navigator: text(cell(row, ['NAVIGATOR','CODRIVER','CO DRIVER'])), navigatorRegion: text(cell(row, ['NAVIGATOR REGION','REG NAVIGATOR'])), classCode: text(cell(row, ['CLASS','CLS'])), categoryCode: text(cell(row, ['CATEGORY','CAT'])), car: text(cell(row, ['BRAND','MERK'])) || text(cell(row, ['CAR','VEHICLE','KENDARAAN'])), type: text(cell(row, ['TYPE','TIPE'])) })).filter(validSourceRow);
 }
-async function parsePDF(file) {
-  installPDFCompatibility();
-  const pdfjs = await import('pdfjs-dist'); const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url'); pdfjs.GlobalWorkerOptions.workerSrc = `${worker.default}?v=20260926-1`;
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise, result = [];
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
-    const content = await (await pdf.getPage(pageNo)).getTextContent(), lines = new Map();
-    content.items.filter((item) => text(item.str)).forEach((item) => { const y = Math.round(item.transform[5] / 3) * 3; lines.set(y, [...(lines.get(y) || []), { value: text(item.str), x: item.transform[4] }]); });
-    [...lines.entries()].sort((a,b) => b[0]-a[0]).forEach(([, items]) => { const cols = {}; items.sort((a,b) => a.x-b.x).forEach((item) => { const key = pdfColumn(item.x); if (key) cols[key] = cols[key] ? `${cols[key]} ${item.value}` : item.value; }); const row = { startNumber: number(cols.startNumber), entrant: cols.entrant || '', driver: cols.driver || '', driverRegion: cols.driverRegion || '', navigator: cols.navigator || '', navigatorRegion: cols.navigatorRegion || '', classCode: cols.classCode || '', categoryCode: cols.categoryCode || '', car: cols.car || '', type: cols.type || '' }; if (validSourceRow(row)) result.push(row); });
-  }
-  return result;
-}
-function installPDFCompatibility() {
-  if (!Promise.withResolvers) {
-    Promise.withResolvers = () => {
-      let resolve, reject;
-      const promise = new Promise((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise; });
-      return { promise, resolve, reject };
-    };
-  }
-  if (!Array.prototype.at) Object.defineProperty(Array.prototype, 'at', { configurable: true, writable: true, value(index) { const position = Number(index); return this[position < 0 ? this.length + position : position]; } });
-  if (!String.prototype.at) Object.defineProperty(String.prototype, 'at', { configurable: true, writable: true, value(index) { const position = Number(index); return this[position < 0 ? this.length + position : position]; } });
-}
-function pdfColumn(x) { if (x >= 25 && x < 50) return 'startNumber'; if (x >= 50 && x < 190) return 'entrant'; if (x >= 190 && x < 280) return 'driver'; if (x >= 280 && x < 315) return 'driverRegion'; if (x >= 315 && x < 395) return 'navigator'; if (x >= 395 && x < 425) return 'navigatorRegion'; if (x >= 425 && x < 455) return 'classCode'; if (x >= 455 && x < 480) return 'categoryCode'; if (x >= 480 && x < 520) return 'car'; if (x >= 520) return 'type'; return ''; }
 function validSourceRow(row) { return row.startNumber > 0 && row.driver && row.navigator && row.classCode && row.categoryCode; }
 function cell(row, headers) { for (const [key,value] of Object.entries(row || {})) if (headers.some((h) => norm(h) === norm(key))) return value; return ''; }
 function norm(value) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim(); }

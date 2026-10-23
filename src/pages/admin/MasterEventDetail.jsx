@@ -9,6 +9,7 @@ import PracticeManagement from './PracticeManagement';
 import SmartEntryListUpdate from './SmartEntryListUpdate';
 import EventDocumentsTab from './EventDocumentsTab';
 import EventSponsorsTab from './EventSponsorsTab';
+import { entryListPDFRowsToImportRows, parseEntryListPDF } from '../../utils/entryListPdf';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 const RESULT_STATUS_STYLES = {
@@ -698,19 +699,24 @@ export default function MasterEventDetail() {
     } catch (err) { alert('Gagal menyimpan peserta'); }
   };
 
-  const handleImportEntryListExcel = async (event) => {
+  const handleImportEntryListFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
 
     setIsImportingEntryList(true);
     try {
-      const XLSX = await import('xlsx');
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-      if (rows.length === 0) return alert('File Excel kosong.');
+      let rows;
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        rows = entryListPDFRowsToImportRows(await parseEntryListPDF(file));
+      } else {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      }
+      if (rows.length === 0) return alert('File Entry List kosong atau tidak memiliki baris yang dapat dibaca.');
 
       let nextRacers = [...racers];
       let nextTeams = [...teams];
@@ -1048,7 +1054,7 @@ export default function MasterEventDetail() {
       setEntryListImportSummary(`${file.name}: ${summary}.`);
       alert(errors.length ? `${summary}.\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? '\n...' : ''}` : `Import selesai: ${summary}.`);
     } catch (err) {
-      alert(err.message || 'Gagal membaca file Excel entry list.');
+      alert(err.message || 'Gagal membaca file Entry List.');
     } finally {
       setIsImportingEntryList(false);
     }
@@ -1617,13 +1623,13 @@ export default function MasterEventDetail() {
                   </select>
                 </div>
                 <label className={`admin-btn-muted whitespace-nowrap cursor-pointer ${isImportingEntryList ? 'opacity-60 pointer-events-none' : ''}`}>
-                  {isImportingEntryList ? 'Import...' : 'Import Excel'}
+                  {isImportingEntryList ? 'Import...' : 'Import Excel / PDF'}
                   <input
                     type="file"
-                    accept=".xlsx,.xls,.csv"
+                    accept=".pdf,.xlsx,.xls,.csv"
                     className="hidden"
                     disabled={isImportingEntryList}
-                    onChange={handleImportEntryListExcel}
+                    onChange={handleImportEntryListFile}
                   />
                 </label>
                 <button
