@@ -1,13 +1,13 @@
-export default function UnofficialTimingNotice({ className = '' }) {
+export default function UnofficialTimingNotice({ className = '', compact = false }) {
   return (
-    <section className={`border border-red-500/40 bg-[#111111] px-3 py-2 shadow-sm ${className}`}>
-      <div className="flex flex-col items-center justify-between gap-2 text-center md:flex-row md:text-left">
+    <section className={`border border-red-500/40 bg-[#111111] shadow-sm ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'} ${className}`}>
+      <div className={`flex flex-col items-center justify-between text-center md:flex-row md:text-left ${compact ? 'gap-1.5' : 'gap-2'}`}>
         <div className="flex shrink-0 items-center gap-2 text-red-500">
-          <NoticeIcon />
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] sm:text-xs">Under Development</span>
+          <NoticeIcon small={compact} />
+          <span className={`${compact ? 'text-[8px] sm:text-[9px]' : 'text-[10px] sm:text-xs'} font-black uppercase tracking-[0.18em]`}>Under Development</span>
         </div>
-        <h2 className="text-xs font-black uppercase tracking-wide text-white sm:text-sm">Non Official Live Timing Result</h2>
-        <div className="text-[10px] leading-tight md:text-right sm:text-xs">
+        <h2 className={`${compact ? 'text-[10px] sm:text-[11px]' : 'text-xs sm:text-sm'} font-black uppercase tracking-wide text-white`}>Non Official Live Timing Result</h2>
+        <div className={`${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'} leading-tight md:text-right`}>
           <p className="font-bold text-red-500">This live timing is unofficial and for reference only.</p>
         </div>
       </div>

@@ -428,7 +428,7 @@ export default function Leaderboard({ embedded = false }) {
           </div>
         </header>
 
-        <UnofficialTimingNotice className="mb-4" />
+        <UnofficialTimingNotice compact className="mb-4" />
 
         {error && (
           <div className="mb-4 border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
