@@ -397,10 +397,10 @@ export default function Leaderboard({ embedded = false }) {
               )}
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-red-600">Live Rally Timing</p>
-                <h1 className="mt-1 break-words text-2xl font-black uppercase leading-tight text-neutral-950 sm:text-4xl">
+                <h1 className="mt-1 break-words text-xl font-black uppercase leading-tight text-neutral-950 sm:text-3xl">
                   {selectedEvent?.name || 'Live Timing'}
                 </h1>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-neutral-500 sm:text-sm">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-neutral-500 sm:text-xs">
                   <span>{formatEventDate(selectedEvent)}</span>
                   <span>{selectedEvent?.location || '-'}</span>
                 </div>
@@ -414,7 +414,7 @@ export default function Leaderboard({ embedded = false }) {
                   value={selectedEventId}
                   onChange={(event) => setSelectedEventId(event.target.value)}
                   disabled={isLoadingEvents || events.length === 0}
-                  className="w-full border border-neutral-300 bg-white px-3 py-3 text-sm font-black text-neutral-950 outline-none focus:border-red-600 disabled:opacity-50"
+                  className="w-full border border-neutral-300 bg-white px-3 py-2.5 text-xs font-black text-neutral-950 outline-none focus:border-red-600 disabled:opacity-50"
                 >
                   {events.length === 0 ? (
                     <option value="">Belum ada event</option>
@@ -431,7 +431,7 @@ export default function Leaderboard({ embedded = false }) {
         <UnofficialTimingNotice className="mb-4" />
 
         {error && (
-          <div className="mb-4 border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+          <div className="mb-4 border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
             {error}
           </div>
         )}
@@ -609,11 +609,11 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
       <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Stage</p>
-          <h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">
+          <h2 className="truncate text-xs font-black uppercase tracking-widest text-neutral-950">
             {selectedStageId === FINAL_STAGE_ID ? 'Final - Overall All Time' : selectedStage ? (selectedStage.is_shakedown ? 'SHAKEDOWN' : `SS ${selectedStage.ss_order} - ${selectedStage.ss_name}`) : 'Pilih SS'}
           </h2>
         </div>
-        <span className="shrink-0 text-xs font-black text-neutral-500">{officialStageCount} SS + Final</span>
+        <span className="shrink-0 text-[11px] font-black text-neutral-500">{officialStageCount} SS + Final</span>
       </div>
       <div className="overflow-x-auto">
         <div className="flex min-w-max gap-0 px-3 py-3">
@@ -625,15 +625,15 @@ function StageTabs({ stages, selectedStageId, selectedStage, isLoading, onSelect
                 key={stage.id}
                 type="button"
                 onClick={() => onSelect(stage.id)}
-                className={`relative min-w-20 border px-4 py-3 text-left transition ${
+                className={`relative min-w-20 border px-3 py-2.5 text-left transition ${
                   active
                     ? 'border-neutral-200 bg-white text-neutral-950'
                     : 'border-neutral-200 bg-white text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'
                 }`}
               >
                 {active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}
-                <span className="block text-xs font-black uppercase tracking-widest">{isFinal ? 'Final' : stage.is_shakedown ? 'SHAKEDOWN' : `SS ${stage.ss_order}`}</span>
-                {!stage.is_shakedown && <span className={`mt-1 block max-w-32 truncate text-[11px] font-bold ${active ? 'text-neutral-700' : 'text-neutral-500'}`}>{stage.ss_name}</span>}
+                <span className="block text-[11px] font-black uppercase tracking-widest">{isFinal ? 'Final' : stage.is_shakedown ? 'SHAKEDOWN' : `SS ${stage.ss_order}`}</span>
+                {!stage.is_shakedown && <span className={`mt-1 block max-w-32 truncate text-[10px] font-bold ${active ? 'text-neutral-700' : 'text-neutral-500'}`}>{stage.ss_name}</span>}
               </button>
             );
           })}
@@ -650,13 +650,13 @@ function PracticeTabs({ practices, selectedPracticeId, selectedPractice, onSelec
   return (
     <section className="mb-4 overflow-hidden border border-neutral-200 bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
-        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Practice</p><h2 className="truncate text-sm font-black uppercase tracking-widest text-neutral-950">{selectedPractice?.name || 'Pilih Practice'}</h2></div>
-        <span className="shrink-0 text-xs font-black text-neutral-500">{practices.length} sesi</span>
+        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.24em] text-red-600">Select Practice</p><h2 className="truncate text-xs font-black uppercase tracking-widest text-neutral-950">{selectedPractice?.name || 'Pilih Practice'}</h2></div>
+        <span className="shrink-0 text-[11px] font-black text-neutral-500">{practices.length} sesi</span>
       </div>
       <div className="overflow-x-auto"><div className="flex min-w-max px-3 py-3">
         {practices.map((practice) => {
           const active = practice.id === selectedPracticeId;
-          return <button key={practice.id} type="button" onClick={() => onSelect(practice.id)} className={`relative min-w-36 border px-4 py-3 text-left transition ${active ? 'border-neutral-200 text-neutral-950' : 'border-neutral-200 text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'}`}>{active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}<span className="block text-xs font-black uppercase tracking-widest">{practice.name}</span><span className="mt-1 block text-[11px] font-bold text-neutral-500">Best of {practice.max_runs} run</span></button>;
+          return <button key={practice.id} type="button" onClick={() => onSelect(practice.id)} className={`relative min-w-36 border px-3 py-2.5 text-left transition ${active ? 'border-neutral-200 text-neutral-950' : 'border-neutral-200 text-neutral-500 hover:border-neutral-950 hover:text-neutral-950'}`}>{active && <span className="absolute inset-x-0 bottom-0 h-1 bg-red-600" />}<span className="block text-[11px] font-black uppercase tracking-widest">{practice.name}</span><span className="mt-1 block text-[10px] font-bold text-neutral-500">Best of {practice.max_runs} run</span></button>;
         })}
       </div></div>
     </section>
@@ -686,7 +686,7 @@ function ResultCategoryTabs({ value, onChange }) {
               key={tab.value}
               type="button"
               onClick={() => onChange(tab.value)}
-              className={`relative border-r border-neutral-200 px-5 py-4 text-sm font-black uppercase tracking-widest transition ${
+              className={`relative border-r border-neutral-200 px-4 py-3 text-xs font-black uppercase tracking-widest transition ${
                 active ? 'bg-white text-neutral-950' : 'bg-white text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950'
               }`}
             >
@@ -720,7 +720,7 @@ function DocumentsSection({ documents, isLoading }) {
   if (groups.length === 0) {
     return (
       <section className="border border-neutral-200 bg-white p-10 text-center">
-        <p className="text-sm font-black uppercase tracking-widest text-neutral-700">Belum ada dokumen</p>
+        <p className="text-xs font-black uppercase tracking-widest text-neutral-700">Belum ada dokumen</p>
         <p className="mt-2 text-xs font-semibold text-neutral-500">Dokumen dan regulasi event akan ditampilkan di sini.</p>
       </section>
     );
@@ -729,8 +729,8 @@ function DocumentsSection({ documents, isLoading }) {
   return (
     <section className="border border-neutral-200 bg-white">
       <div className="border-b border-neutral-200 px-4 py-4 sm:px-5">
-        <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Documents & Regulations</h2>
-        <p className="mt-1 text-xs font-semibold text-neutral-500">Informasi resmi, bulletin, dan regulasi untuk event ini.</p>
+        <h2 className="text-xs font-black uppercase tracking-widest text-neutral-950">Documents & Regulations</h2>
+        <p className="mt-1 text-[11px] font-semibold text-neutral-500">Informasi resmi, bulletin, dan regulasi untuk event ini.</p>
       </div>
       <div className="grid gap-6 p-4 lg:grid-cols-2 lg:p-5">
         {groups.map((group) => (
@@ -750,7 +750,7 @@ function DocumentsSection({ documents, isLoading }) {
                           <span className={`px-2 py-1 text-[9px] font-black uppercase tracking-widest ${document.category === 'REGULATION' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>{document.category === 'REGULATION' ? 'Regulasi' : 'Dokumen'}</span>
                           <span className="bg-neutral-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-neutral-500">{document.source_type === 'FILE' ? fileTypeLabel(document) : 'Link'}</span>
                         </div>
-                        <h4 className="mt-2 break-words text-base font-black text-neutral-950">{document.title}</h4>
+                        <h4 className="mt-2 break-words text-sm font-black text-neutral-950">{document.title}</h4>
                         {document.description && <p className="mt-1 whitespace-pre-line text-xs font-semibold leading-relaxed text-neutral-500">{document.description}</p>}
                         <p className="mt-2 break-all text-[10px] font-bold text-neutral-400">{document.source_type === 'FILE' ? `${document.original_file_name || 'Dokumen'} · ${formatDocumentSize(document.file_size_bytes)}` : externalDocumentHost(document.external_url)}</p>
                       </div>
@@ -823,8 +823,8 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
     <section className="overflow-hidden border border-neutral-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
+          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-950">{title}</h2>
+          <p className="mt-0.5 text-[11px] font-semibold text-neutral-500">{subtitle}</p>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500" htmlFor={`${resultView}-class-filter`}>
@@ -849,7 +849,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
       </div>
 
       <div className="overflow-x-auto [scrollbar-width:thin]">
-        <table className={`${isOverall ? 'min-w-[860px]' : 'min-w-[620px]'} w-full border-collapse text-[10px] transition-opacity duration-200 sm:text-xs ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
+        <table className={`${isOverall ? 'min-w-[860px]' : 'min-w-[620px]'} w-full border-collapse text-[10px] transition-opacity duration-200 sm:text-[11px] ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
           <thead>
             <tr className="whitespace-nowrap bg-neutral-100 text-left text-[9px] uppercase tracking-wider text-neutral-500 sm:text-[10px]">
               {isOverall ? (
@@ -881,7 +881,7 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
           <tbody>
             {visibleEntries.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} className="p-10 text-center text-sm font-bold text-neutral-500">{visibleEmptyText}</td>
+                <td colSpan={colSpan} className="p-10 text-center text-xs font-bold text-neutral-500">{visibleEmptyText}</td>
               </tr>
             ) : (
               visibleEntries.map((entry) => (
@@ -952,7 +952,7 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
   return (
     <section className="overflow-hidden border border-neutral-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">Practice Live Timing</h2><p className="mt-0.5 text-xs font-semibold text-neutral-500">{practice?.name || 'Practice'} · Ranking berdasarkan best run</p></div>
+        <div><h2 className="text-xs font-black uppercase tracking-widest text-neutral-950">Practice Live Timing</h2><p className="mt-0.5 text-[11px] font-semibold text-neutral-500">{practice?.name || 'Practice'} · Ranking berdasarkan best run</p></div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           <span className="inline-flex items-center gap-1.5 border border-green-200 bg-green-50 px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-green-700"><span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />Auto-refresh 3 detik</span>
           <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500" htmlFor="practice-class-filter">Class</label>
@@ -965,11 +965,11 @@ function PracticeLeaderboardSection({ result, practice, isLoading, timeDecimalPl
         </div>
       </div>
       <div className="overflow-x-auto [scrollbar-width:thin]">
-        <table className={`w-full min-w-[980px] border-collapse text-xs sm:text-sm ${isLoading ? 'opacity-70' : ''}`}>
-          <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Pos</th><th className="p-4 text-center">Practice No</th><th className="p-4 text-center">Race No</th><th className="p-4">Driver / Navigator</th><th className="p-4">Car / Class</th>{runColumns.map((runNo) => <th key={runNo} className="p-4 text-right">Run {runNo}</th>)}<th className="p-4 text-center">Best Run</th><th className="p-4 text-right">Best Time</th><th className="p-4 text-right">Diff 1st</th></tr></thead>
+        <table className={`w-full min-w-[980px] border-collapse text-[11px] sm:text-xs ${isLoading ? 'opacity-70' : ''}`}>
+          <thead><tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-widest text-neutral-500"><th className="p-3 text-center">Pos</th><th className="p-3 text-center">Practice No</th><th className="p-3 text-center">Race No</th><th className="p-3">Driver / Navigator</th><th className="p-3">Car / Class</th>{runColumns.map((runNo) => <th key={runNo} className="p-3 text-right">Run {runNo}</th>)}<th className="p-3 text-center">Best Run</th><th className="p-3 text-right">Best Time</th><th className="p-3 text-right">Diff 1st</th></tr></thead>
           <tbody>{visibleEntries.length === 0 ? <tr><td colSpan={8 + runColumns.length} className="p-10 text-center font-bold text-neutral-500">{entries.length ? `Tidak ada peserta pada class ${activeClass}.` : 'Belum ada hasil Practice.'}</td></tr> : visibleEntries.map((entry) => {
             const diff = bestTime && entry.best_time_ms ? Number(entry.best_time_ms) - Number(bestTime) : 0;
-            return <tr key={entry.id} className="border-t border-neutral-200"><td className="p-4 text-center font-bold">{entry.rank || '-'}</td><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 px-3 py-1 font-black">{entry.practice_start_number}</span></td><td className="p-4 text-center font-bold text-neutral-600">{entry.race_start_number}</td><td className="p-4"><div className="font-black">{entry.driver_name || '-'}</div><div className="mt-0.5 text-xs font-bold text-neutral-600">{entry.codriver_name || '-'}</div><div className="mt-1 text-[11px] font-bold uppercase text-neutral-400">{entry.entrant_name || '-'}</div></td><td className="p-4"><div className="font-bold text-neutral-700">{entry.vehicle_name || '-'}</div><div className="text-xs font-bold text-neutral-500">{entry.class_name || '-'}</div></td>{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); const isBest = entry.best_run_no === runNo; return <td key={runNo} className={`p-4 text-right font-mono font-black ${isBest ? 'bg-green-50 text-green-700' : 'text-neutral-700'}`}><PracticeRunValue run={run} formatMs={formatMs} /></td>; })}<td className="p-4 text-center font-black">{entry.best_run_no ? `Run ${entry.best_run_no}` : '-'}</td><td className="p-4 text-right font-mono text-lg font-black">{formatMs(entry.best_time_ms)}</td><td className="p-4 text-right font-mono font-black text-neutral-500">{diff > 0 ? `+${formatMs(diff)}` : '-'}</td></tr>;
+            return <tr key={entry.id} className="border-t border-neutral-200"><td className="p-3 text-center font-bold">{entry.rank || '-'}</td><td className="p-3 text-center"><span className="inline-flex min-w-10 justify-center border border-neutral-300 px-2 py-1 font-black">{entry.practice_start_number}</span></td><td className="p-3 text-center font-bold text-neutral-600">{entry.race_start_number}</td><td className="p-3"><div className="font-black">{entry.driver_name || '-'}</div><div className="mt-0.5 text-[10px] font-bold text-neutral-600">{entry.codriver_name || '-'}</div><div className="mt-1 text-[9px] font-bold uppercase text-neutral-400">{entry.entrant_name || '-'}</div></td><td className="p-3"><div className="font-bold text-neutral-700">{entry.vehicle_name || '-'}</div><div className="text-[10px] font-bold text-neutral-500">{entry.class_name || '-'}</div></td>{runColumns.map((runNo) => { const run = (entry.runs || []).find((item) => item.run_no === runNo); const isBest = entry.best_run_no === runNo; return <td key={runNo} className={`p-3 text-right font-mono font-black ${isBest ? 'bg-green-50 text-green-700' : 'text-neutral-700'}`}><PracticeRunValue run={run} formatMs={formatMs} /></td>; })}<td className="p-3 text-center font-black">{entry.best_run_no ? `Run ${entry.best_run_no}` : '-'}</td><td className="p-3 text-right font-mono text-sm font-black">{formatMs(entry.best_time_ms)}</td><td className="p-3 text-right font-mono font-black text-neutral-500">{diff > 0 ? `+${formatMs(diff)}` : '-'}</td></tr>;
           })}</tbody>
         </table>
       </div>
@@ -1010,7 +1010,7 @@ function StageWinnersSection({ entries, isLoading, timeDecimalPlaces }) {
               <td className="p-3">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td>
               <td className="p-3">{carName(entry)}</td>
               <td className="p-3 font-bold text-neutral-700">{entry.class_name || '-'}</td>
-              <td className="p-3 text-right font-mono text-sm font-black">{formatMs(entry.total_time_ms)}</td>
+              <td className="p-3 text-right font-mono text-xs font-black">{formatMs(entry.total_time_ms)}</td>
             </tr>
           ))}
         </tbody>
@@ -1059,9 +1059,9 @@ function StartingListSection({ entries, stages, startingListsByStage, mode, onMo
           })}
         </div>
       </div>
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-xs">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
+          <tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-widest text-neutral-500">
             <th className="p-4 text-center">{isStageMode ? 'Start' : 'No'}</th>
             <th className="p-4 text-center">Car No.</th>
             <th className="p-4">Driver / Reg</th>
@@ -1075,12 +1075,12 @@ function StartingListSection({ entries, stages, startingListsByStage, mode, onMo
         <tbody>
           {displayEntries.length === 0 && (
             <tr>
-              <td colSpan={isStageMode ? 8 : 7} className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</td>
+              <td colSpan={isStageMode ? 8 : 7} className="p-10 text-center text-xs font-bold text-neutral-500">{emptyText}</td>
             </tr>
           )}
           {displayEntries.map((entry, index) => (
             <tr key={`${entry.participant_id}-${entry.id || 'entry'}`} className="border-t border-neutral-200">
-              <td className="p-4 text-center text-lg">{isStageMode ? (entry.start_order || index + 1) : index + 1}</td>
+              <td className="p-4 text-center text-sm">{isStageMode ? (entry.start_order || index + 1) : index + 1}</td>
               <td className="p-4 text-center">
                 <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
               </td>
@@ -1102,9 +1102,9 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
   const formatMs = (value) => formatDurationMs(value, timeDecimalPlaces);
   return (
     <SimpleSection title="Penalties" subtitle="Penalti manual dan TC pada semua SS" count={entries.length} isLoading={isLoading} emptyText="Belum ada penalti.">
-      <table className="w-full min-w-[1050px] border-collapse text-sm">
+      <table className="w-full min-w-[1050px] border-collapse text-xs">
         <thead>
-          <tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500">
+          <tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-widest text-neutral-500">
             <th className="p-4 text-center">Stage</th>
             <th className="p-4 text-center">Car No.</th>
             <th className="p-4">Driver / Reg</th>
@@ -1141,8 +1141,8 @@ function PenaltiesSection({ entries, isLoading, timeDecimalPlaces }) {
 function RetirementSection({ entries, isLoading }) {
   return (
     <SimpleSection title="Retirement" subtitle="Peserta yang menyatakan Withdraw (WD)" count={entries.length} isLoading={isLoading} emptyText="Belum ada peserta yang melakukan WD.">
-      <table className="w-full min-w-[900px] border-collapse text-sm">
-        <thead><tr className="bg-neutral-100 text-left text-[11px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Car No.</th><th className="p-4">Driver / Reg</th><th className="p-4">Navigator / Reg</th><th className="p-4">Car</th><th className="p-4">Class</th><th className="p-4">Retirement From</th><th className="p-4">Reason</th><th className="p-4 text-center">Status</th></tr></thead>
+      <table className="w-full min-w-[900px] border-collapse text-xs">
+        <thead><tr className="bg-neutral-100 text-left text-[10px] uppercase tracking-widest text-neutral-500"><th className="p-4 text-center">Car No.</th><th className="p-4">Driver / Reg</th><th className="p-4">Navigator / Reg</th><th className="p-4">Car</th><th className="p-4">Class</th><th className="p-4">Retirement From</th><th className="p-4">Reason</th><th className="p-4 text-center">Status</th></tr></thead>
         <tbody>{entries.map((entry) => <tr key={entry.participant_id} className="border-t border-neutral-200"><td className="p-4 text-center"><span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1 font-black text-neutral-950">{entry.start_number}</span></td><td className="p-4">{renderPerson(entry.driver_name, entry.regional_name || entry.driver_regional_name)}</td><td className="p-4">{renderPerson(entry.codriver_name || '-', entry.codriver_regional_name)}</td><td className="p-4 font-bold text-neutral-700">{carName(entry)}</td><td className="p-4 font-bold text-neutral-700">{entry.class_name || '-'}</td><td className="p-4 font-black text-neutral-950">{entry.withdraw_stage_label}</td><td className="p-4 font-bold text-neutral-700">{entry.withdraw_reason || '-'}</td><td className="p-4 text-center"><span className="inline-flex bg-red-100 px-3 py-1 text-xs font-black text-red-700">WD</span></td></tr>)}</tbody>
       </table>
     </SimpleSection>
@@ -1154,8 +1154,8 @@ function SimpleSection({ title, subtitle, count, isLoading, emptyText, children,
     <section className="overflow-hidden border border-neutral-200 bg-white">
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-neutral-950">{title}</h2>
-          <p className="mt-0.5 text-xs font-semibold text-neutral-500">{subtitle}</p>
+          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-950">{title}</h2>
+          <p className="mt-0.5 text-[11px] font-semibold text-neutral-500">{subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs font-black uppercase text-neutral-500">{count}</span>
@@ -1164,7 +1164,7 @@ function SimpleSection({ title, subtitle, count, isLoading, emptyText, children,
       </div>
       <div className={`overflow-x-auto transition-opacity duration-200 ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
         {count === 0 && !showChildrenWhenEmpty ? (
-          <div className="p-10 text-center text-sm font-bold text-neutral-500">{emptyText}</div>
+          <div className="p-10 text-center text-xs font-bold text-neutral-500">{emptyText}</div>
         ) : children}
       </div>
     </section>
@@ -1556,7 +1556,7 @@ function renderPerson(name, regional) {
   return (
     <div>
       <div className="font-black text-neutral-950">{name || '-'}</div>
-      <div className="mt-0.5 text-xs font-bold uppercase tracking-wider text-neutral-500">{regional || '-'}</div>
+      <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500 sm:text-[10px]">{regional || '-'}</div>
     </div>
   );
 }
@@ -1579,9 +1579,9 @@ function ConnectionBadge({ state }) {
   }[state] || ['bg-gray-500', 'IDLE'];
 
   return (
-    <div className="flex h-12 items-center justify-center gap-2 border border-neutral-300 bg-white px-4">
-      <span className={`h-2.5 w-2.5 rounded-full ${config[0]}`} />
-      <span className="text-xs font-black uppercase tracking-widest text-neutral-950">{config[1]}</span>
+    <div className="flex h-11 items-center justify-center gap-2 border border-neutral-300 bg-white px-3">
+      <span className={`h-2 w-2 rounded-full ${config[0]}`} />
+      <span className="text-[10px] font-black uppercase tracking-widest text-neutral-950">{config[1]}</span>
     </div>
   );
 }
