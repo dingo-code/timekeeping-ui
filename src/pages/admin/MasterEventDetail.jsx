@@ -1337,6 +1337,12 @@ export default function MasterEventDetail() {
     return 'bg-gray-100 text-gray-600';
   };
 
+  const eventTabClass = (tab, widthClass) => `${widthClass} flex-1 whitespace-nowrap border-t-[3px] px-3 py-3 text-center text-xs font-bold leading-tight transition-colors ${
+    activeTab === tab
+      ? 'border-red-600 bg-white text-red-600'
+      : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+  }`;
+
   return (
     <div className="flex flex-col min-h-full space-y-6">
       {/* Header Halaman */}
@@ -1357,55 +1363,55 @@ export default function MasterEventDetail() {
         <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50">
           <button 
             onClick={() => setActiveTab('stages')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'stages' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('stages', 'min-w-36')}
           >
             🚩 Special Stages (SS)
           </button>
           <button
             onClick={() => setActiveTab('participants')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'participants' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('participants', 'min-w-28')}
           >
             🏎️ Entry List
           </button>
           <button
             onClick={() => setActiveTab('entry-update')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'entry-update' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('entry-update', 'min-w-32')}
           >
             🔄 Update Entry
           </button>
           <button
             onClick={() => setActiveTab('practice')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'practice' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('practice', 'min-w-24')}
           >
             Practice
           </button>
           <button 
             onClick={() => setActiveTab('penalties')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'penalties' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('penalties', 'min-w-44')}
           >
             ⚠️ Penalty Regulations
           </button>
           <button
             onClick={() => setActiveTab('documents')}
-            className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'documents' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('documents', 'min-w-44')}
           >
             Documents & Regulations
           </button>
           <button
             onClick={() => setActiveTab('sponsors')}
-            className={`min-w-32 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'sponsors' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('sponsors', 'min-w-24')}
           >
             Sponsors
           </button>
           <button
             onClick={() => setActiveTab('tc')}
-            className={`flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'tc' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('tc', 'min-w-28')}
           >
             Starting List
           </button>
           <button
             onClick={() => setActiveTab('governance')}
-            className={`min-w-40 flex-1 py-4 text-center font-bold text-sm transition ${activeTab === 'governance' ? 'bg-white text-red-600 border-t-4 border-red-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={eventTabClass('governance', 'min-w-36')}
           >
             Audit & Finalization
           </button>
