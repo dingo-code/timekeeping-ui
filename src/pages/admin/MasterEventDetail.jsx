@@ -10,6 +10,7 @@ import SmartEntryListUpdate from './SmartEntryListUpdate';
 import EventDocumentsTab from './EventDocumentsTab';
 import EventSponsorsTab from './EventSponsorsTab';
 import { entryListPDFRowsToImportRows, parseEntryListPDF } from '../../utils/entryListPdf';
+import { parseStartingListPDF } from '../../utils/startingListPdf';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 const RESULT_STATUS_STYLES = {
@@ -2485,88 +2486,6 @@ function readExcelValue(row, candidateHeaders) {
     if (match) return match[1];
   }
   return '';
-}
-
-async function parseStartingListPDF(file) {
-  installStartingListPDFCompatibility();
-  const pdfjs = await import('pdfjs-dist');
-  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-  pdfjs.GlobalWorkerOptions.workerSrc = `${worker.default}?v=20260926-1`;
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const parsedRows = [];
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-    const content = await page.getTextContent();
-    const items = content.items
-      .map((item) => ({
-        text: cleanExcelText(item.str),
-        x: Number(item.transform?.[4] || 0),
-        y: Number(item.transform?.[5] || 0),
-      }))
-      .filter((item) => item.text);
-    const orderItems = items
-      .filter((item) => item.x < viewport.width * 0.04 && /^\d+$/.test(item.text) && item.y > 35)
-      .sort((a, b) => b.y - a.y);
-
-    for (const orderItem of orderItems) {
-      const rowItems = items.filter((item) => Math.abs(item.y - orderItem.y) <= 2.5);
-      const carNumberItem = rowItems.find((item) => (
-        item.x >= viewport.width * 0.04 &&
-        item.x < viewport.width * 0.09 &&
-        /^\d+$/.test(item.text)
-      ));
-      const targetTimeItem = rowItems.find((item) => (
-        item.x >= viewport.width * 0.9 && /^\d{1,2}[:.,]\d{2}(?:[:.,]\d{2})?$/.test(item.text)
-      ));
-      if (!carNumberItem) continue;
-      parsedRows.push({
-        '*': orderItem.text,
-        'CAR NO': carNumberItem.text,
-        'TC TIME': targetTimeItem?.text || '',
-      });
-    }
-  }
-
-  if (parsedRows.length === 0) {
-    throw new Error('Format tabel PDF tidak dikenali. Kolom urutan dan CAR NO tidak ditemukan.');
-  }
-  return parsedRows;
-}
-
-function installStartingListPDFCompatibility() {
-  if (!Promise.withResolvers) {
-    Promise.withResolvers = () => {
-      let resolve;
-      let reject;
-      const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-      });
-      return { promise, resolve, reject };
-    };
-  }
-  if (!Array.prototype.at) {
-    Object.defineProperty(Array.prototype, 'at', {
-      configurable: true,
-      writable: true,
-      value(index) {
-        const position = Number(index);
-        return this[position < 0 ? this.length + position : position];
-      },
-    });
-  }
-  if (!String.prototype.at) {
-    Object.defineProperty(String.prototype, 'at', {
-      configurable: true,
-      writable: true,
-      value(index) {
-        const position = Number(index);
-        return this[position < 0 ? this.length + position : position];
-      },
-    });
-  }
 }
 
 function normalizeExcelHeader(value) {
