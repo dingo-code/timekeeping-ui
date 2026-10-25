@@ -754,7 +754,9 @@ export default function MasterEventDetail() {
 
       setIsParticipantModalOpen(false);
       fetchEventData();
-    } catch (err) { alert('Gagal menyimpan peserta'); }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal menyimpan peserta');
+    }
   };
 
   const handleImportEntryListFile = async (event) => {
@@ -1611,6 +1613,7 @@ export default function MasterEventDetail() {
 
               <div className="rounded-xl border border-gray-200 p-5">
                 <h3 className="font-black text-gray-800">Permintaan Koreksi</h3>
+                <p className="mt-1 text-xs text-gray-500">Admin boleh menyetujui permintaan yang dibuatnya sendiri. Permintaan dari Kamar Hitung wajib diproses Admin.</p>
                 <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
                   {correctionRequests.length === 0 && <p className="text-sm text-gray-500">Belum ada permintaan koreksi.</p>}
                   {correctionRequests.map((request) => (

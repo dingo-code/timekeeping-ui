@@ -44,11 +44,12 @@ export default function KamarHitung() {
   };
 
   const selectedStage = stages.find((stage) => stage.id === selectedSS) || null;
+  const selectedStageResultStatus = String(selectedStage?.result_status || '').toUpperCase();
   const canEditStageInput = Boolean(
     selectedStage &&
-    selectedStage.is_open !== false &&
-    !['FINAL', 'LOCKED'].includes(String(selectedStage.result_status || '').toUpperCase())
+    ['RUNNING', 'PROVISIONAL'].includes(selectedStageResultStatus)
   );
+  const requiresCorrectionApproval = ['FINAL', 'LOCKED'].includes(selectedStageResultStatus);
   const canDeleteStageInput = canEditStageInput;
   const selectedPracticeData = practices.find((practice) => practice.id === selectedPractice) || null;
   const selectedEventData = events.find((event) => event.id === selectedEvent) || null;
@@ -455,7 +456,7 @@ export default function KamarHitung() {
         onBlur={() => saveInlineTime(record, field)}
         onKeyDown={(event) => handleTimeInputKeyDown(event, record, field)}
         placeholder={displayValue || placeholder}
-        title={canEdit ? 'Klik untuk koreksi waktu' : 'Waktu hanya dapat diedit pada record aktif OK di SS yang masih RUNNING'}
+        title={canEdit ? 'Klik untuk koreksi waktu' : 'Waktu hanya dapat diedit saat SS RUNNING atau PROVISIONAL oleh Kamar Hitung'}
       />
     );
   };
@@ -508,7 +509,7 @@ export default function KamarHitung() {
           if (event.key === 'Escape') { event.preventDefault(); updateTimeDraft(record.id, 'given_elapsed', formatMs(record.elapsed_time_ms, timeDecimalPlaces)); event.currentTarget.blur(); }
         }}
         className="w-28 rounded border border-transparent bg-transparent px-2 py-1 text-center font-mono text-xs font-bold text-blue-700 outline-none hover:border-blue-200 hover:bg-white focus:border-blue-500 focus:bg-white disabled:text-gray-400"
-        title={canEdit ? 'Edit langsung untuk memberikan Given Time official' : 'Given Time hanya dapat diubah pada record aktif OK di SS yang masih RUNNING'}
+        title={canEdit ? 'Edit langsung untuk memberikan Given Time official' : 'Given Time hanya dapat diubah saat SS RUNNING atau PROVISIONAL oleh Kamar Hitung'}
       />
       {record.is_given_time && <span title={record.given_time_reason} className="cursor-help rounded bg-orange-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-orange-700">Given Time</span>}
     </div>;
@@ -603,6 +604,27 @@ export default function KamarHitung() {
     }
   };
 
+  const requestStageCorrection = async () => {
+    if (!selectedEvent || !selectedSS || !requiresCorrectionApproval) return;
+    const reason = window.prompt('Jelaskan alasan koreksi result SS:');
+    if (!reason?.trim()) return;
+    const description = window.prompt('Jelaskan data yang akan dikoreksi (waktu, penalti, status, atau lainnya):');
+    if (!description?.trim()) return;
+    try {
+      await api.post('/governance/result-corrections', {
+        event_id: selectedEvent,
+        ss_id: selectedSS,
+        reason: reason.trim(),
+        proposed_changes: { description: description.trim() },
+      });
+      alert(role === 'admin'
+        ? 'Permintaan koreksi dibuat. Admin dapat menyetujuinya melalui Event Control.'
+        : 'Permintaan koreksi dikirim dan harus disetujui Admin.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Gagal mengajukan koreksi result.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white p-4 shadow-sm">
@@ -676,8 +698,19 @@ export default function KamarHitung() {
               <div>
                 <h2 className="font-bold text-gray-700">Data Pencatatan Waktu (Live) {selectedStage ? `- ${stageLabel(selectedStage)}` : ''}</h2>
                 <p className="mt-1 text-xs font-semibold text-gray-500">{filteredRecords.length} dari {records.length} record tampil.</p>
+                {selectedStageResultStatus === 'PROVISIONAL' && (
+                  <p className="mt-1 text-xs font-bold text-amber-700">Tutup sementara — input pos berhenti, pengolahan Kamar Hitung tetap aktif.</p>
+                )}
+                {requiresCorrectionApproval && (
+                  <p className="mt-1 text-xs font-bold text-red-700">Result {selectedStageResultStatus} — perubahan memerlukan persetujuan koreksi.</p>
+                )}
               </div>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                {requiresCorrectionApproval && (
+                  <button type="button" onClick={requestStageCorrection} className="h-9 whitespace-nowrap rounded-lg bg-red-700 px-3 text-xs font-black uppercase text-white hover:bg-red-800">
+                    Ajukan Koreksi
+                  </button>
+                )}
                 <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)} className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-xs font-black uppercase text-gray-700 outline-none focus:border-red-500">
                   <option value="none">Tanpa Grouping</option>
                   <option value="class">Grouping Per Class</option>
