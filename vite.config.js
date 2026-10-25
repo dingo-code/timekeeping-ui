@@ -14,6 +14,7 @@ export default defineConfig({
         assetFileNames: (assetInfo) => {
           const name = assetInfo.names?.[0] || assetInfo.name || ''
           if (name.endsWith('.traineddata.gz')) return 'ocr/[name][extname]'
+          if (/^tesseract-core(?:-[a-z]+)*\.wasm\.js$/.test(name)) return 'ocr-core/[name][extname]'
           return 'assets/[name]-[hash][extname]'
         },
       },

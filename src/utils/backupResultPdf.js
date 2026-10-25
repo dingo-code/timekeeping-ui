@@ -158,10 +158,17 @@ async function extractOcrPages(pdf, onProgress) {
   if (typeof document === 'undefined') throw new Error('Browser tidak menyediakan canvas untuk OCR.');
 
   notifyProgress(onProgress, 'Memuat komponen OCR lokal...');
-  const [tesseract, workerAsset, coreAsset, languageAsset] = await Promise.all([
+  const [tesseract, workerAsset, coreAssets, languageAsset] = await Promise.all([
     import('tesseract.js'),
     import('tesseract.js/dist/worker.min.js?url'),
-    import('tesseract.js-core/tesseract-core-lstm.wasm.js?url'),
+    Promise.all([
+      import('tesseract.js-core/tesseract-core.wasm.js?url'),
+      import('tesseract.js-core/tesseract-core-lstm.wasm.js?url'),
+      import('tesseract.js-core/tesseract-core-simd.wasm.js?url'),
+      import('tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'),
+      import('tesseract.js-core/tesseract-core-relaxedsimd.wasm.js?url'),
+      import('tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js?url'),
+    ]),
     import('@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url'),
   ]);
   const { createWorker, PSM } = tesseract;
@@ -172,13 +179,18 @@ async function extractOcrPages(pdf, onProgress) {
     throw new Error('Lokasi model bahasa OCR lokal tidak valid.');
   }
   const langPath = languageUrl.href.slice(0, -(`/${languageFileName}`.length));
+  const workerPath = new URL(workerAsset.default, window.location.href).href;
+  const coreUrls = coreAssets.map((asset) => new URL(asset.default, window.location.href));
+  const coreDirectories = new Set(coreUrls.map((url) => url.href.slice(0, url.href.lastIndexOf('/'))));
+  if (coreDirectories.size !== 1) throw new Error('Lokasi mesin OCR lokal tidak konsisten.');
+  const [corePath] = coreDirectories;
   let activePage = 0;
   const worker = await createOcrWorker(createWorker, {
-    workerPath: workerAsset.default,
-    corePath: coreAsset.default,
+    workerPath,
+    corePath,
     langPath,
     gzip: true,
-    cacheMethod: 'none',
+    cachePath: 'rally-ocr-v2',
     workerBlobURL: true,
     logger: (message) => notifyOcrProgress(onProgress, message, activePage, pdf.numPages),
   });
@@ -231,18 +243,27 @@ async function extractOcrPages(pdf, onProgress) {
 function createOcrWorker(createWorker, options) {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let lastStatus = 'memulai worker';
+    const reportProgress = options.logger;
     const finishReject = (error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
       const detail = error instanceof Error ? error.message : String(error || 'Kesalahan worker tidak diketahui.');
-      reject(new Error(`Mesin OCR lokal gagal dimulai: ${detail}`));
+      reject(new Error(`Mesin OCR lokal gagal dimulai pada tahap ${lastStatus}: ${detail}`));
     };
     const timeoutId = setTimeout(() => {
-      finishReject('proses inisialisasi melewati 90 detik. Muat ulang halaman lalu coba kembali.');
-    }, 90000);
+      finishReject('proses inisialisasi melewati 3 menit. Muat ulang halaman lalu coba kembali.');
+    }, 180000);
 
-    createWorker('eng', 1, { ...options, errorHandler: finishReject })
+    createWorker('eng', 1, {
+      ...options,
+      logger: (message) => {
+        lastStatus = String(message?.status || lastStatus);
+        if (typeof reportProgress === 'function') reportProgress(message);
+      },
+      errorHandler: finishReject,
+    })
       .then((worker) => {
         if (settled) {
           worker.terminate().catch(() => {});
