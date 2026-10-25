@@ -427,7 +427,7 @@ export default function InputMonitoring() {
 }
 
 function StageInputTables({ records, timeDecimalPlaces, searchQuery, showStage }) {
-  const tcRecords = sortInputRecords(
+  const tcRecords = sortTCInputRecords(
     records.filter((record) => record.target_tc_time || record.tc_time),
     ['tc_time', 'target_tc_time'],
     '_tc_input_order'
@@ -761,13 +761,23 @@ function resolveInputOrder(previous, record, signatureFields, clockFields, order
 }
 
 function sortInputRecords(records, clockFields, orderField) {
+  return [...records].sort((a, b) => compareInputRecords(a, b, clockFields, orderField));
+}
+
+function sortTCInputRecords(records, clockFields, orderField) {
   return [...records].sort((a, b) => {
-    const timeDifference = inputOrderValue(b, clockFields, orderField) - inputOrderValue(a, clockFields, orderField);
-    if (timeDifference !== 0) return timeDifference;
-    const startNumberDifference = String(a.start_number || '').localeCompare(String(b.start_number || ''), 'id', { numeric: true });
-    if (startNumberDifference !== 0) return startNumberDifference;
-    return String(a.id || '').localeCompare(String(b.id || ''));
+    const actualTCPosition = Number(Boolean(b.tc_time)) - Number(Boolean(a.tc_time));
+    if (actualTCPosition !== 0) return actualTCPosition;
+    return compareInputRecords(a, b, clockFields, orderField);
   });
+}
+
+function compareInputRecords(a, b, clockFields, orderField) {
+  const timeDifference = inputOrderValue(b, clockFields, orderField) - inputOrderValue(a, clockFields, orderField);
+  if (timeDifference !== 0) return timeDifference;
+  const startNumberDifference = String(a.start_number || '').localeCompare(String(b.start_number || ''), 'id', { numeric: true });
+  if (startNumberDifference !== 0) return startNumberDifference;
+  return String(a.id || '').localeCompare(String(b.id || ''));
 }
 
 function inputOrderValue(record, clockFields, orderField) {
