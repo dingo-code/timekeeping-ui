@@ -165,7 +165,9 @@ export default function Leaderboard({ embedded = false }) {
     setError('');
     try {
       const res = await api.get('/public/events');
-      const nextEvents = res.data.data || [];
+      const nextEvents = (res.data.data || []).filter((event) => (
+        String(event.result_status || '').trim().toUpperCase() !== 'COMPLETED'
+      ));
       setEvents(nextEvents);
       if (nextEvents.length > 0) {
         const requestedEvent = nextEvents.find((event) => event.id === requestedEventId);

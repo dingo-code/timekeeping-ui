@@ -112,7 +112,9 @@ export default function InputMonitoring() {
     setError('');
     try {
       const res = await api.get('/public/events');
-      const nextEvents = res.data.data || [];
+      const nextEvents = (res.data.data || []).filter((event) => (
+        String(event.result_status || '').trim().toUpperCase() !== 'COMPLETED'
+      ));
       setEvents(nextEvents);
       setSelectedEventId(nextEvents[0]?.id || '');
     } catch (err) {
