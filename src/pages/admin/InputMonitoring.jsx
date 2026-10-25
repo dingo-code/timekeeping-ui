@@ -427,10 +427,9 @@ export default function InputMonitoring() {
 }
 
 function StageInputTables({ records, timeDecimalPlaces, searchQuery, showStage }) {
-  const tcRecords = sortInputRecords(
-    records.filter((record) => record.target_tc_time || record.tc_time),
-    ['tc_time', 'target_tc_time']
-  );
+  const tcRecords = [...records]
+    .filter((record) => record.target_tc_time || record.tc_time)
+    .sort((a, b) => inputTimestamp(b) - inputTimestamp(a));
   const startRecords = sortInputRecords(
     records.filter((record) => record.start_time),
     ['start_time']
