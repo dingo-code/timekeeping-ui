@@ -87,8 +87,9 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
       const provider = options.ocrPageProvider || extractOcrPages;
       ocrResult = await provider(pdf, options.onProgress);
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error || 'Kesalahan tidak diketahui.');
       throw new Error(
-        `OCR otomatis gagal dijalankan. Pastikan perangkat terhubung internet saat pertama kali memakai OCR. ${error.message || ''}`.trim(),
+        `OCR otomatis gagal dijalankan: ${detail}`,
         { cause: error },
       );
     }
@@ -146,10 +147,27 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
 async function extractOcrPages(pdf, onProgress) {
   if (typeof document === 'undefined') throw new Error('Browser tidak menyediakan canvas untuk OCR.');
 
-  const { createWorker, PSM } = await import('tesseract.js');
+  const [tesseract, workerAsset, coreAsset, languageAsset] = await Promise.all([
+    import('tesseract.js'),
+    import('tesseract.js/dist/worker.min.js?url'),
+    import('tesseract.js-core/tesseract-core-lstm.wasm.js?url'),
+    import('@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url'),
+  ]);
+  const languageResponse = await fetch(languageAsset.default);
+  if (!languageResponse.ok) {
+    throw new Error(`Model bahasa OCR lokal gagal dimuat (HTTP ${languageResponse.status}).`);
+  }
+  const language = {
+    code: 'eng',
+    data: new Uint8Array(await languageResponse.arrayBuffer()),
+  };
+  const { createWorker, PSM } = tesseract;
   const scale = 2.5;
   let activePage = 0;
-  const worker = await createWorker('eng', 1, {
+  const worker = await createWorker([language], 1, {
+    workerPath: workerAsset.default,
+    corePath: coreAsset.default,
+    workerBlobURL: false,
     logger: (message) => {
       const progress = Math.round(Math.max(0, Math.min(1, Number(message.progress) || 0)) * 100);
       if (activePage) {
