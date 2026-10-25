@@ -170,7 +170,7 @@ export default function PrintResults() {
   const stageResultTime = (stageTime) => {
     if (!stageTime) return '-';
     if (
-      (stageTime.status === 'OK' && stageTime.finish_time) ||
+      (stageTime.status === 'OK' && (stageTime.finish_time || stageTime.is_given_time)) ||
       stageTime.status === 'BWTM' ||
       (stageTime.status === 'DNF' && Number(stageTime.total_time_ms) > 0) ||
       (stageTime.status === 'DNS' && Number(stageTime.total_time_ms) > 0)
@@ -204,7 +204,7 @@ export default function PrintResults() {
     };
     const hasStageResult = (stageTime) => (
       (
-        (stageTime?.status === 'OK' && Boolean(stageTime.finish_time)) ||
+        (stageTime?.status === 'OK' && (Boolean(stageTime.finish_time) || stageTime.is_given_time)) ||
         stageTime?.status === 'BWTM' ||
         (stageTime?.status === 'DNF' && numericMs(stageTime.total_time_ms) > 0) ||
         (stageTime?.status === 'DNS' && numericMs(stageTime.total_time_ms) > 0)

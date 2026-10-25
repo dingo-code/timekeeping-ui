@@ -1293,7 +1293,7 @@ function buildOverallEntries(entries, selectedStage) {
     const totalTimeMs = numericMs(stageTime?.total_time_ms);
     if (totalTimeMs <= 0) return false;
     if (['BWTM', 'DNF', 'DNS'].includes(stageTime?.status)) return true;
-    return stageTime?.status === 'OK' && hasCompleteTime(stageTime);
+    return stageTime?.status === 'OK' && (hasCompleteTime(stageTime) || stageTime.is_given_time);
   };
   const terminalStatus = (stageTimes) => (
     stageTimes.find((stageTime) => ['DNF', 'DNS', 'DSQ'].includes(stageTime.status))?.status || ''
@@ -1419,13 +1419,13 @@ function normalizeStageEntries(records) {
   const hasDisplayStatus = (record) => ['BWTM', 'DNF', 'DNS'].includes(record.status);
   const rawActiveRecords = records.filter((record) => (
     record.is_active !== false &&
-    (hasCompleteTime(record) || hasDisplayStatus(record))
+    (hasCompleteTime(record) || record.is_given_time || hasDisplayStatus(record))
   ));
   const hasStageResult = (record) => {
     const totalTimeMs = numericMs(record.total_time_ms);
     if (totalTimeMs <= 0) return false;
     if (['BWTM', 'DNF', 'DNS'].includes(record.status)) return true;
-    return record.status === 'OK' && hasCompleteTime(record);
+    return record.status === 'OK' && (hasCompleteTime(record) || record.is_given_time);
   };
   const stageRecordWeight = (record) => {
     if (hasStageResult(record)) return 0;
