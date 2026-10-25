@@ -224,7 +224,7 @@ export default function InputMonitoring() {
           is_shakedown: Boolean(stage.is_shakedown || record.is_shakedown),
         }))
       ));
-      setRecords(merged);
+      setRecords((previousRecords) => withIndependentInputOrder(previousRecords, merged));
     } catch (err) {
       setError(err.response?.data?.error || 'Gagal memuat monitoring input.');
     } finally {
@@ -427,16 +427,20 @@ export default function InputMonitoring() {
 }
 
 function StageInputTables({ records, timeDecimalPlaces, searchQuery, showStage }) {
-  const tcRecords = [...records]
-    .filter((record) => record.target_tc_time || record.tc_time)
-    .sort((a, b) => inputTimestamp(b) - inputTimestamp(a));
+  const tcRecords = sortInputRecords(
+    records.filter((record) => record.target_tc_time || record.tc_time),
+    ['tc_time', 'target_tc_time'],
+    '_tc_input_order'
+  );
   const startRecords = sortInputRecords(
     records.filter((record) => record.start_time),
-    ['start_time']
+    ['start_time'],
+    '_start_input_order'
   );
   const finishRecords = sortInputRecords(
     records.filter((record) => record.finish_time),
-    ['finish_time']
+    ['finish_time'],
+    '_finish_input_order'
   );
 
   return (
@@ -728,12 +732,46 @@ function inputTimestamp(record) {
   return 0;
 }
 
-function sortInputRecords(records, clockFields) {
-  return [...records].sort((a, b) => {
-    const timeDifference = inputClockTimestamp(b, clockFields) - inputClockTimestamp(a, clockFields);
-    if (timeDifference !== 0) return timeDifference;
-    return inputTimestamp(b) - inputTimestamp(a);
+function withIndependentInputOrder(previousRecords, nextRecords) {
+  const previousById = new Map(previousRecords.map((record) => [record.id, record]));
+  const changedAt = Date.now();
+
+  return nextRecords.map((record) => {
+    const previous = previousById.get(record.id);
+    return {
+      ...record,
+      _tc_input_order: resolveInputOrder(previous, record, ['target_tc_time', 'tc_time'], ['tc_time', 'target_tc_time'], '_tc_input_order', changedAt),
+      _start_input_order: resolveInputOrder(previous, record, ['start_time'], ['start_time'], '_start_input_order', changedAt),
+      _finish_input_order: resolveInputOrder(previous, record, ['finish_time'], ['finish_time'], '_finish_input_order', changedAt),
+    };
   });
+}
+
+function resolveInputOrder(previous, record, signatureFields, clockFields, orderField, changedAt) {
+  const currentSignature = signatureFields.map((field) => record[field] || '').join('|');
+  if (!currentSignature.replaceAll('|', '')) return 0;
+
+  if (previous) {
+    const previousSignature = signatureFields.map((field) => previous[field] || '').join('|');
+    if (currentSignature !== previousSignature) return changedAt;
+    if (previous[orderField]) return previous[orderField];
+  }
+
+  return inputClockTimestamp(record, clockFields);
+}
+
+function sortInputRecords(records, clockFields, orderField) {
+  return [...records].sort((a, b) => {
+    const timeDifference = inputOrderValue(b, clockFields, orderField) - inputOrderValue(a, clockFields, orderField);
+    if (timeDifference !== 0) return timeDifference;
+    const startNumberDifference = String(a.start_number || '').localeCompare(String(b.start_number || ''), 'id', { numeric: true });
+    if (startNumberDifference !== 0) return startNumberDifference;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+}
+
+function inputOrderValue(record, clockFields, orderField) {
+  return Number(record[orderField]) || inputClockTimestamp(record, clockFields);
 }
 
 function inputClockTimestamp(record, clockFields) {
