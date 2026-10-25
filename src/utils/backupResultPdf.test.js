@@ -79,6 +79,8 @@ test('infers SS and shifted car-number columns from OCR rows without table heade
         pageNumber: 1,
         width: PAGE_WIDTH,
         items: [
+          item('GROUP', 220, 780),
+          item(':', 260, 780),
           item('1', 16, 721),
           item('75', 58, 721),
           item('TEAM', 82, 721),
@@ -87,6 +89,7 @@ test('infers SS and shifted car-number columns from OCR rows without table heade
           item('4:32.04', 390, 721),
           item('0:00', 433, 721),
           item('4:32.04', 466, 721),
+          item('G1', 275, 780),
         ].map(toParsedItem),
       }],
     }),
@@ -96,6 +99,7 @@ test('infers SS and shifted car-number columns from OCR rows without table heade
   assert.equal(result.ocrConfidence, 91.4);
   assert.equal(result.profile, 'Group Result - visual OCR');
   assert.equal(result.stageOrder, 1);
+  assert.equal(result.groupName, 'G1');
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].number, 75);
   assert.equal(result.rows[0].elapsedMs, 272040);

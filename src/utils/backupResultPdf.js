@@ -77,6 +77,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
   let profile = detectGroupStageProfile(pages, combinedText)
     || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
   let rows = pages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
+  let parsedPages = pages;
   let usedOcr = false;
   let ocrConfidence = null;
 
@@ -100,6 +101,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
       || detectOcrStageProfile(ocrPages, combinedText, fileName, options.stageOrderHint)
       || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
     rows = ocrPages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
+    parsedPages = ocrPages;
     usedOcr = true;
     ocrConfidence = Number.isFinite(ocrResult.confidence) ? ocrResult.confidence : null;
   }
@@ -127,7 +129,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
   });
 
   const stageMatch = profile.kind === 'stage' ? combinedText.match(/\bSS\s*([0-9]{1,2})\b/i) : null;
-  const groupName = detectGroupName(combinedText);
+  const groupName = detectGroupName(parsedPages, combinedText, fileName);
   const unreadableCount = rows.filter((row) => !row.readable).length;
 
   return {
@@ -161,20 +163,20 @@ async function extractOcrPages(pdf, onProgress) {
     import('tesseract.js-core/tesseract-core-lstm.wasm.js?url'),
     import('@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url'),
   ]);
-  const languageResponse = await fetch(languageAsset.default);
-  if (!languageResponse.ok) {
-    throw new Error(`Model bahasa OCR lokal gagal dimuat (HTTP ${languageResponse.status}).`);
-  }
-  const language = {
-    code: 'eng',
-    data: new Uint8Array(await languageResponse.arrayBuffer()),
-  };
   const { createWorker, PSM } = tesseract;
   const scale = 3.5;
+  const languageFileName = 'eng.traineddata.gz';
+  const languageUrl = new URL(languageAsset.default, window.location.href);
+  if (!languageUrl.pathname.endsWith(`/${languageFileName}`)) {
+    throw new Error('Lokasi model bahasa OCR lokal tidak valid.');
+  }
+  const langPath = languageUrl.href.slice(0, -(`/${languageFileName}`.length));
   let activePage = 0;
-  const worker = await createWorker([language], 1, {
+  const worker = await createWorker('eng', 1, {
     workerPath: workerAsset.default,
     corePath: coreAsset.default,
+    langPath,
+    gzip: true,
     workerBlobURL: false,
     logger: (message) => {
       const progress = Math.round(Math.max(0, Math.min(1, Number(message.progress) || 0)) * 100);
@@ -505,9 +507,27 @@ function positiveInteger(value) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-function detectGroupName(value) {
-  const match = String(value || '').match(/\bGROUP\s*:\s*([A-Z0-9][A-Z0-9._/-]*)/i);
-  return match ? cleanText(match[1]).toUpperCase() : '';
+function detectGroupName(pages, value, fileName) {
+  const textMatch = String(value || '').match(/\bGROUP\s*:\s*([A-Z]{1,3}\d{1,3}[A-Z0-9._/-]*)/i);
+  if (textMatch) return normalizeScopeName(textMatch[1]);
+
+  for (const page of pages) {
+    const anchors = page.items.filter((item) => /^GROUP:?$/i.test(item.text));
+    for (const anchor of anchors) {
+      const candidate = page.items
+        .filter((item) => (
+          item.x > anchor.x
+          && item.x - anchor.x < page.width * 0.35
+          && Math.abs(item.y - anchor.y) <= Math.max(8, page.width * 0.012)
+          && /^[A-Z]{1,3}\d{1,3}[A-Z0-9._/-]*$/i.test(item.text)
+        ))
+        .sort((a, b) => a.x - b.x)[0];
+      if (candidate) return normalizeScopeName(candidate.text);
+    }
+  }
+
+  const fileMatch = String(fileName || '').match(/(?:^|[^A-Z0-9])(G(?:R)?\d{1,3}[A-Z0-9]*)(?=[^A-Z0-9]|$)/i);
+  return fileMatch ? normalizeScopeName(fileMatch[1]) : '';
 }
 
 function normalizeScopeName(value) {

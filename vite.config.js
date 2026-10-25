@@ -8,5 +8,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  
+  build: {
+    rolldownOptions: {
+      output: {
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.names?.[0] || assetInfo.name || ''
+          if (name.endsWith('.traineddata.gz')) return 'ocr/[name][extname]'
+          return 'assets/[name]-[hash][extname]'
+        },
+      },
+    },
+  },
 })
