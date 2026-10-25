@@ -139,6 +139,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
     isShakedown: profile.kind === 'shakedown',
     pages: pdf.numPages,
     stageOrder: profile.stageOrder || (stageMatch ? Number(stageMatch[1]) : null),
+    stageOrders: profile.stageOrders || (profile.stageOrder ? [profile.stageOrder] : stageMatch ? [Number(stageMatch[1])] : []),
     groupName,
     rows,
     unreadableCount,
@@ -332,6 +333,9 @@ function parsePageRows(items, width, pageNumber, profile) {
     const line = items
       .filter((item) => Math.abs(item.y - candidate.y) <= 1.5)
       .sort((a, b) => a.x - b.x);
+    const stageTimesMs = Object.fromEntries((profile.stageTimes || []).map((stage) => (
+      [stage.order, parseDurationMs(columnText(line, width, stage.range))]
+    )));
     const stageRaw = columnText(line, width, ranges.stageTime);
     const penaltyRaw = ranges.penalty ? columnText(line, width, ranges.penalty) : '';
     const totalRaw = ranges.totalTime ? columnText(line, width, ranges.totalTime) : '';
@@ -342,7 +346,8 @@ function parsePageRows(items, width, pageNumber, profile) {
 
     // Angka pada kolom CAR NO hanya dianggap baris peserta jika di sisi kanan
     // terdapat data result, atau di sisi kiri terdeteksi posisi dan identitas.
-    if (!stageRaw && !penaltyRaw && !totalRaw && !status && !(position && (entrant || driver))) return [];
+    const hasStageTime = Object.values(stageTimesMs).some((value) => value != null);
+    if (!stageRaw && !hasStageTime && !penaltyRaw && !totalRaw && !status && !(position && (entrant || driver))) return [];
 
     const number = Number(candidate.text);
     const elapsedMs = parseDurationMs(stageRaw);
@@ -367,6 +372,7 @@ function parsePageRows(items, width, pageNumber, profile) {
       className: columnText(line, width, ranges.className),
       vehicle: cleanText(`${columnText(line, width, ranges.car)} ${columnText(line, width, ranges.type)}`),
       elapsedMs,
+      stageTimesMs,
       penaltyMs,
       totalTimeMs,
       status,
@@ -380,6 +386,7 @@ function parsePageRows(items, width, pageNumber, profile) {
         start: false,
         finish: false,
         elapsed: elapsedMs != null,
+        stageTimes: Object.fromEntries(Object.entries(stageTimesMs).map(([order, value]) => [order, value != null])),
         penalty: profile.comparePenalty !== false && Boolean(ranges.penalty) && penaltyMs != null,
         total: profile.compareTotal !== false && Boolean(ranges.totalTime) && totalTimeMs != null,
         status: Boolean(status),
@@ -419,7 +426,11 @@ function detectGroupStageProfile(pages, combinedText) {
     const latestStage = stageColumns.reduce((latest, column, index) => (
       column.order > latest.order ? { ...column, index } : latest
     ), { order: 0, x: 0, index: 0 });
-    const stageTime = anchorRange(anchors, latestStage.index, page.width);
+    const stageTimes = stageColumns.map((column, index) => ({
+      order: column.order,
+      range: anchorRange(anchors, index, page.width),
+    }));
+    const stageTime = stageTimes[latestStage.index].range;
     const penalty = anchorRange(anchors, stageColumns.length, page.width);
     const totalTime = anchorRange(anchors, stageColumns.length + 1, page.width);
     const firstStageStart = anchorRange(anchors, 0, page.width)[0];
@@ -429,8 +440,10 @@ function detectGroupStageProfile(pages, combinedText) {
       kind: 'stage',
       label: 'Group Result - cumulative SS table',
       stageOrder: latestStage.order,
-      comparePenalty: isSingleStage,
-      compareTotal: isSingleStage,
+      stageOrders: stageColumns.map((column) => column.order),
+      stageTimes,
+      comparePenalty: true,
+      compareTotal: true,
       ranges: {
         position: [0, 0.04],
         number: [0.04, 0.08],
@@ -446,9 +459,9 @@ function detectGroupStageProfile(pages, combinedText) {
       },
       mapping: [
         { field: 'No Start', source: 'CAR NO', required: true },
-        { field: 'Elapsed', source: `SS${latestStage.order}`, required: true },
-        { field: 'Penalty', source: isSingleStage ? 'TOTAL PENALTY' : 'TOTAL PENALTY kumulatif (referensi)', required: false },
-        { field: 'Total Time', source: isSingleStage ? 'TOTAL TIME' : 'TOTAL TIME kumulatif (referensi)', required: false },
+        ...stageColumns.map((column) => ({ field: `SS${column.order}`, source: `SS${column.order}`, required: false })),
+        { field: 'Penalty', source: isSingleStage ? 'TOTAL PENALTY' : 'TOTAL PENALTY kumulatif', required: false },
+        { field: 'Total Time', source: isSingleStage ? 'TOTAL TIME' : 'TOTAL TIME kumulatif', required: true },
         { field: 'Status', source: 'DNS/DNF/BWTM/DSQ jika tersedia', required: false },
       ],
     };
@@ -496,6 +509,8 @@ function detectOcrStageProfile(pages, combinedText, fileName, stageOrderHint) {
       kind: 'stage',
       label: 'Group Result - visual OCR',
       stageOrder,
+      stageOrders: [stageOrder],
+      stageTimes: [{ order: stageOrder, range: stageTime }],
       comparePenalty: false,
       compareTotal: false,
       ranges: {

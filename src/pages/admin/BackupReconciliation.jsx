@@ -28,6 +28,7 @@ export default function BackupReconciliation() {
   const event = events.find((item) => item.id === eventId), decimalPlaces = event?.time_decimal_places ?? 2;
   const selectedSession = sessions.find((item) => item.id === sessionId) || null;
   const sourceLabel = sourceKind === 'pdf' ? 'PDF' : 'Spreadsheet';
+  const comparisonStageOrders = sourceKind === 'pdf' ? (pdfResult?.stageOrders || []) : [];
 
   useEffect(() => {
     api.get('/public/events').then((res) => {
@@ -154,7 +155,11 @@ export default function BackupReconciliation() {
         if (!sourceRows.length) throw new Error(`Tidak ditemukan data SS yang dapat dibaca pada sheet ${sheetName}. Periksa sheet dan profil format file.`);
       }
 
-      const fetchedWebRows = mode === 'practice' ? await fetchPractice(sessionId) : await fetchSS(sessionId);
+      const fetchedWebRows = mode === 'practice'
+        ? await fetchPractice(sessionId)
+        : sourceKind === 'pdf' && comparisonStageOrders.length > 1
+          ? await fetchCumulativeSS(eventId, comparisonStageOrders)
+          : await fetchSS(sessionId, selectedSession?.ss_order);
       const webRows = sourceKind === 'pdf'
         ? filterWebRowsForBackupPdf(fetchedWebRows, pdfResult)
         : fetchedWebRows;
@@ -169,13 +174,49 @@ export default function BackupReconciliation() {
     }
   }
 
-  async function fetchSS(id) {
+  async function fetchSS(id, stageOrder = null) {
     const res = await api.get(`/public/stages/${id}/records`);
-    return (res.data.data || []).filter((record) => record.is_active !== false).map((record) => ({
-      key: String(record.start_number), number: record.start_number, runNo: record.attempt_no || 1,
-      driver: record.driver_name || '-', className: record.class_name || '', groupName: record.group_name || '', tc: normalizeClock(record.tc_time), start: normalizeClock(record.start_time), finish: normalizeClock(record.finish_time),
-      elapsedMs: Number(record.elapsed_time_ms || 0), penaltyMs: Number(record.penalty_time_ms || 0), totalTimeMs: Number(record.total_time_ms || 0), status: record.status || 'OK',
-    }));
+    return (res.data.data || []).filter((record) => record.is_active !== false).map((record) => {
+      const elapsedMs = Number(record.elapsed_time_ms || 0);
+      return {
+        key: String(record.start_number), number: record.start_number, runNo: record.attempt_no || 1,
+        driver: record.driver_name || '-', className: record.class_name || '', groupName: record.group_name || '', tc: normalizeClock(record.tc_time), start: normalizeClock(record.start_time), finish: normalizeClock(record.finish_time),
+        elapsedMs, stageTimesMs: stageOrder ? { [stageOrder]: elapsedMs || null } : {}, penaltyMs: Number(record.penalty_time_ms || 0), totalTimeMs: Number(record.total_time_ms || 0), status: record.status || 'OK',
+      };
+    });
+  }
+
+  async function fetchCumulativeSS(nextEventId, stageOrders) {
+    const res = await api.get(`/public/race-results/${nextEventId}?group_by=overall`);
+    const entries = (res.data.data?.groups || []).flatMap((group) => group.entries || []);
+    const includedOrders = new Set(stageOrders.map(Number));
+
+    return entries.flatMap((entry) => {
+      const stageTimes = (entry.stage_times || []).filter((stageTime) => (
+        !stageTime.is_shakedown && includedOrders.has(Number(stageTime.ss_order))
+      ));
+      if (!stageTimes.length) return [];
+      const stageTimesMs = Object.fromEntries(stageOrders.map((order) => {
+        const stageTime = stageTimes.find((item) => Number(item.ss_order) === Number(order));
+        const elapsedMs = Number(stageTime?.elapsed_time_ms);
+        return [order, Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : null];
+      }));
+      const completedTimes = stageTimes.filter((stageTime) => Number(stageTime.total_time_ms) > 0);
+
+      return [{
+        key: String(entry.start_number),
+        number: entry.start_number,
+        runNo: 1,
+        driver: entry.driver_name || '-',
+        className: entry.class_name || '',
+        groupName: entry.group_name || '',
+        stageTimesMs,
+        elapsedMs: stageTimesMs[stageOrders.at(-1)] ?? null,
+        penaltyMs: completedTimes.reduce((total, stageTime) => total + Number(stageTime.penalty_time_ms || 0), 0),
+        totalTimeMs: completedTimes.reduce((total, stageTime) => total + Number(stageTime.total_time_ms || 0), 0),
+        status: entry.status || 'OK',
+      }];
+    });
   }
 
   async function fetchPractice(id) {
@@ -191,7 +232,7 @@ export default function BackupReconciliation() {
     const reportRows = filteredReportRows(rows, showOnlyIssues);
     if (!reportRows.length) return window.alert('Tidak ada data untuk didownload.');
     const XLSX = await import('xlsx'), wb = XLSX.utils.book_new();
-    const data = reportRows.map((row) => reportExportRow(row, sourceLabel, decimalPlaces, mode));
+    const data = reportRows.map((row) => reportExportRow(row, sourceLabel, decimalPlaces, mode, comparisonStageOrders));
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 8 }, { wch: 28 }, ...Array(15).fill({ wch: 20 }), { wch: 55 }];
     XLSX.utils.book_append_sheet(wb, ws, 'REKONSILIASI');
@@ -210,10 +251,25 @@ export default function BackupReconciliation() {
     doc.setFontSize(7);
     doc.text(`${event?.name || '-'} | ${sessionLabel(selectedSession, mode)} | Sumber: ${sourceFileName || sourceLabel}`, 10, 15);
     doc.text(`Total ${summary.total} | Sama ${summary.SAMA || 0} | Berbeda ${summary.BERBEDA || 0} | Dibuat ${new Date().toLocaleString('id-ID')}`, 10, 19);
+    const stageHeaders = comparisonStageOrders.flatMap((order) => [`SS${order} ${sourceLabel}`, `SS${order} Web`]);
     autoTable(doc, {
       startY: 23,
-      head: [['Hasil', 'No', 'Driver', `Elapsed ${sourceLabel}`, 'Elapsed Web', `Penalty ${sourceLabel}`, 'Penalty Web', `Total ${sourceLabel}`, 'Total Web', 'Status', 'Sumber', 'Catatan']],
-      body: reportRows.map((row) => [row.result, row.number, row.driver, displayElapsed(row.sourceElapsedMs, decimalPlaces), displayElapsed(row.webElapsedMs, decimalPlaces), displayElapsed(row.sourcePenaltyMs, decimalPlaces), displayElapsed(row.webPenaltyMs, decimalPlaces), displayElapsed(row.sourceTotalTimeMs, decimalPlaces), displayElapsed(row.webTotalTimeMs, decimalPlaces), `${row.sourceStatus || '-'} / ${row.webStatus || '-'}`, row.sourceReference || '-', row.note]),
+      head: [['Hasil', 'No', 'Driver', ...(comparisonStageOrders.length ? stageHeaders : [`Elapsed ${sourceLabel}`, 'Elapsed Web']), `Penalty ${sourceLabel}`, 'Penalty Web', `Total ${sourceLabel}`, 'Total Web', 'Status', 'Sumber', 'Catatan']],
+      body: reportRows.map((row) => [
+        row.result,
+        row.number,
+        row.driver,
+        ...(comparisonStageOrders.length
+          ? comparisonStageOrders.flatMap((order) => [displayElapsed(row.sourceStageTimesMs?.[order], decimalPlaces), displayElapsed(row.webStageTimesMs?.[order], decimalPlaces)])
+          : [displayElapsed(row.sourceElapsedMs, decimalPlaces), displayElapsed(row.webElapsedMs, decimalPlaces)]),
+        displayElapsed(row.sourcePenaltyMs, decimalPlaces),
+        displayElapsed(row.webPenaltyMs, decimalPlaces),
+        displayElapsed(row.sourceTotalTimeMs, decimalPlaces),
+        displayElapsed(row.webTotalTimeMs, decimalPlaces),
+        `${row.sourceStatus || '-'} / ${row.webStatus || '-'}`,
+        row.sourceReference || '-',
+        row.note,
+      ]),
       theme: 'grid', showHead: 'everyPage', rowPageBreak: 'avoid', margin: { left: 7, right: 7, bottom: 9 },
       styles: { fontSize: 5.5, cellPadding: 1, overflow: 'linebreak', valign: 'top' },
       headStyles: { fillColor: [17, 24, 39], textColor: 255, fontStyle: 'bold' },
@@ -248,7 +304,7 @@ export default function BackupReconciliation() {
       <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6"><Stat label="Total" value={summary.total}/><Stat label="Sama" value={summary.SAMA || 0} tone="green"/><Stat label="Berbeda" value={summary.BERBEDA || 0} tone="red"/><Stat label={sourceKind === 'pdf' ? 'Hanya PDF' : 'Hanya Spreadsheet'} value={summary[sourceKind === 'pdf' ? 'HANYA DI PDF' : 'HANYA SPREADSHEET'] || 0} tone="yellow"/><Stat label="Hanya Web" value={summary['HANYA DI WEB'] || 0} tone="blue"/><Stat label="Tidak Terbaca" value={summary['TIDAK TERBACA'] || 0} tone="orange"/></section>
       <section className="overflow-hidden rounded-xl border bg-white shadow-sm">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><div><h2 className="font-black uppercase">Hasil Perbandingan</h2><p className="text-xs text-gray-500">Toleransi: {(1 / (10 ** Math.max(0, Number(decimalPlaces) || 0))).toLocaleString('id-ID')} detik. Bidang yang tidak tersedia di PDF tidak dianggap berbeda.</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={showOnlyIssues} onChange={(e) => setShowOnlyIssues(e.target.checked)}/> Hanya bermasalah</label><button className="admin-btn-muted" onClick={exportExcelReport}>Download Excel</button><button className="admin-btn-muted" onClick={exportPdfReport}>Download PDF</button></div></header>
-        <div className="overflow-x-auto"><table className="min-w-[1850px] w-full text-[11px]"><thead className="bg-gray-900 text-[10px] uppercase text-white"><tr><th className="p-2">Hasil</th><th className="p-2">No</th>{mode === 'practice' && <th className="p-2">Run</th>}<th className="p-2 text-left">Driver</th><th className="p-2">TC</th><th className="p-2">Start</th><th className="p-2">Finish</th><th className="p-2">Elapsed</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th><th className="p-2 text-left">Bukti Sumber</th><th className="p-2 text-left">Catatan</th></tr></thead><tbody>{displayedRows.map((row) => <tr key={row.key} className="border-b align-top"><td className="p-2 text-center"><ResultBadge result={row.result}/></td><td className="p-2 text-center text-sm font-black">{row.number}</td>{mode === 'practice' && <td className="p-2 text-center font-black">{row.runNo}</td>}<td className="p-2 font-bold">{row.driver}</td><CompareCell label={sourceLabel} source={row.sourceTc} web={row.webTc} available={row.sourceAvailable?.tc}/><CompareCell label={sourceLabel} source={row.sourceStart} web={row.webStart} available={row.sourceAvailable?.start}/><CompareCell label={sourceLabel} source={row.sourceFinish} web={row.webFinish} available={row.sourceAvailable?.finish}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceElapsedMs, decimalPlaces)} web={displayElapsed(row.webElapsedMs, decimalPlaces)} available={row.sourceAvailable?.elapsed}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourcePenaltyMs, decimalPlaces)} web={displayElapsed(row.webPenaltyMs, decimalPlaces)} available={row.sourceAvailable?.penalty}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceTotalTimeMs, decimalPlaces)} web={displayElapsed(row.webTotalTimeMs, decimalPlaces)} available={row.sourceAvailable?.total}/><CompareCell label={sourceLabel} source={row.sourceStatus} web={row.webStatus} available={row.sourceAvailable?.status}/><td className="p-2 font-semibold text-gray-600">{row.sourceReference || '-'}</td><td className="max-w-[320px] p-2 font-semibold text-gray-600">{row.note}</td></tr>)}</tbody></table>{!displayedRows.length && <p className="p-10 text-center text-sm font-bold text-gray-500">Tidak ada data bermasalah.</p>}</div>
+        <div className="overflow-x-auto"><table className="min-w-[1850px] w-full text-[11px]"><thead className="bg-gray-900 text-[10px] uppercase text-white"><tr><th className="p-2">Hasil</th><th className="p-2">No</th>{mode === 'practice' && <th className="p-2">Run</th>}<th className="p-2 text-left">Driver</th><th className="p-2">TC</th><th className="p-2">Start</th><th className="p-2">Finish</th>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Elapsed</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th><th className="p-2 text-left">Bukti Sumber</th><th className="p-2 text-left">Catatan</th></tr></thead><tbody>{displayedRows.map((row) => <tr key={row.key} className="border-b align-top"><td className="p-2 text-center"><ResultBadge result={row.result}/></td><td className="p-2 text-center text-sm font-black">{row.number}</td>{mode === 'practice' && <td className="p-2 text-center font-black">{row.runNo}</td>}<td className="p-2 font-bold">{row.driver}</td><CompareCell label={sourceLabel} source={row.sourceTc} web={row.webTc} available={row.sourceAvailable?.tc}/><CompareCell label={sourceLabel} source={row.sourceStart} web={row.webStart} available={row.sourceAvailable?.start}/><CompareCell label={sourceLabel} source={row.sourceFinish} web={row.webFinish} available={row.sourceAvailable?.finish}/>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <CompareCell key={order} label={sourceLabel} source={displayElapsed(row.sourceStageTimesMs?.[order], decimalPlaces)} web={displayElapsed(row.webStageTimesMs?.[order], decimalPlaces)} available={row.sourceAvailable?.stageTimes?.[order]}/>) : <CompareCell label={sourceLabel} source={displayElapsed(row.sourceElapsedMs, decimalPlaces)} web={displayElapsed(row.webElapsedMs, decimalPlaces)} available={row.sourceAvailable?.elapsed}/>}<CompareCell label={sourceLabel} source={displayElapsed(row.sourcePenaltyMs, decimalPlaces)} web={displayElapsed(row.webPenaltyMs, decimalPlaces)} available={row.sourceAvailable?.penalty}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceTotalTimeMs, decimalPlaces)} web={displayElapsed(row.webTotalTimeMs, decimalPlaces)} available={row.sourceAvailable?.total}/><CompareCell label={sourceLabel} source={row.sourceStatus} web={row.webStatus} available={row.sourceAvailable?.status}/><td className="p-2 font-semibold text-gray-600">{row.sourceReference || '-'}</td><td className="max-w-[320px] p-2 font-semibold text-gray-600">{row.note}</td></tr>)}</tbody></table>{!displayedRows.length && <p className="p-10 text-center text-sm font-bold text-gray-500">Tidak ada data bermasalah.</p>}</div>
       </section>
     </>}
     <style>{`.field{height:2.75rem;width:100%;border-radius:.375rem;border:1px solid #d1d5db;background:white;padding:0 .75rem;font-size:.875rem;font-weight:700;outline:none}.field:focus{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.15)}`}</style>
@@ -257,7 +313,8 @@ export default function BackupReconciliation() {
 
 function PdfPreview({ result, decimalPlaces }) {
   const detectedSession = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : '-';
-  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession}{result.groupName ? ` - grup terdeteksi: ${result.groupName}` : ''} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th><th className="p-2">Stage Time</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td><td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. PDF khusus grup hanya dibandingkan dengan peserta web pada grup yang sama. Bidang yang tidak tersedia pada PDF ditandai N/A dan diabaikan.</p></section>;
+  const stageOrders = result.stageOrders || [];
+  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession}{result.groupName ? ` - grup terdeteksi: ${result.groupName}` : ''} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th>{stageOrders.length ? stageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Stage Time</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td>{stageOrders.length ? stageOrders.map((order) => <td key={order} className="p-2 text-center font-mono">{displayElapsed(row.stageTimesMs?.[order], decimalPlaces)}</td>) : <td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td>}<td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono font-black">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. Setiap kolom SS dan Total Time dibaca terpisah. Kolom SS yang masih kosong ditampilkan sebagai tanda hubung dan tidak dianggap berbeda.</p></section>;
 }
 
 function parsePractice(matrix) {
@@ -293,22 +350,32 @@ function reconcile(sourceRows, webRows, decimals, mode, sourceKind) {
     const elapsedDiff = source.available?.elapsed ? durationDifference(source.elapsedMs, web.elapsedMs) : 0;
     const penaltyDiff = source.available?.penalty ? durationDifference(source.penaltyMs, web.penaltyMs) : 0;
     const totalDiff = source.available?.total ? durationDifference(source.totalTimeMs, web.totalTimeMs) : 0;
+    const stageDifferencesMs = {};
+    Object.entries(source.stageTimesMs || {}).forEach(([order, sourceTime]) => {
+      if (sourceTime == null) return;
+      const webTime = web.stageTimesMs?.[order];
+      const difference = durationDifference(sourceTime, webTime);
+      stageDifferencesMs[order] = difference;
+      if (webTime == null) differences.push(`SS${order} belum tersedia di web`);
+      else if (!sameWithin(difference, tolerance)) differences.push(`SS${order} berbeda ${signedDuration(difference, decimals)}`);
+    });
     if (source.available?.start && !sameWithin(startDiff, tolerance)) differences.push('Start berbeda');
     if (source.available?.finish && !sameWithin(finishDiff, tolerance)) differences.push('Finish berbeda');
-    if (source.available?.elapsed && !sameWithin(elapsedDiff, tolerance)) differences.push(`Elapsed berbeda ${signedDuration(elapsedDiff, decimals)}`);
+    if (!Object.keys(source.stageTimesMs || {}).length && source.available?.elapsed && !sameWithin(elapsedDiff, tolerance)) differences.push(`Elapsed berbeda ${signedDuration(elapsedDiff, decimals)}`);
     if (source.available?.penalty && !sameWithin(penaltyDiff, tolerance)) differences.push(`Penalti berbeda ${signedDuration(penaltyDiff, decimals)}`);
     if (source.available?.total && !sameWithin(totalDiff, tolerance)) differences.push(`Total berbeda ${signedDuration(totalDiff, decimals)}`);
     if (source.available?.status && String(source.status || '').toUpperCase() !== String(web.status || '').toUpperCase()) differences.push(`Status ${source.status || '-'} vs ${web.status || '-'}`);
 
-    return combinedRow({ key, number, runNo, source, web, sourceReference, differenceMs: source.available?.total ? totalDiff : elapsedDiff, result: differences.length ? 'BERBEDA' : 'SAMA', note: differences.length ? differences.join('; ') : `Semua bidang yang tersedia di ${sourceName} cocok.` });
+    return combinedRow({ key, number, runNo, source, web, sourceReference, stageDifferencesMs, differenceMs: source.available?.total ? totalDiff : elapsedDiff, result: differences.length ? 'BERBEDA' : 'SAMA', note: differences.length ? differences.join('; ') : `Semua bidang yang tersedia di ${sourceName} cocok.` });
   }).sort((a, b) => Number(a.number) - Number(b.number) || Number(a.runNo) - Number(b.runNo));
 }
 
-function combinedRow({ key, number, runNo, source, web, sourceReference, result, note, differenceMs = null }) {
+function combinedRow({ key, number, runNo, source, web, sourceReference, result, note, differenceMs = null, stageDifferencesMs = {} }) {
   return {
     key, number, runNo, driver: web?.driver || source?.driver || '-',
     sourceTc: source?.tc || '', webTc: web?.tc || '', sourceStart: source?.start || '', webStart: web?.start || '', sourceFinish: source?.finish || '', webFinish: web?.finish || '',
     sourceElapsedMs: source?.elapsedMs ?? null, webElapsedMs: web?.elapsedMs ?? null, sourcePenaltyMs: source?.penaltyMs ?? null, webPenaltyMs: web?.penaltyMs ?? null,
+    sourceStageTimesMs: source?.stageTimesMs || {}, webStageTimesMs: web?.stageTimesMs || {}, stageDifferencesMs,
     sourceTotalTimeMs: source?.totalTimeMs ?? null, webTotalTimeMs: web?.totalTimeMs ?? null, sourceStatus: source?.status || '', webStatus: web?.status || '',
     sourceAvailable: source?.available || {}, sourceReference, result, note, differenceMs,
   };
@@ -316,11 +383,16 @@ function combinedRow({ key, number, runNo, source, web, sourceReference, result,
 
 function webOnlyRow(key, web, sourceName) { return combinedRow({ key, number: web.number, runNo: web.runNo, source: null, web, sourceReference: '', result: 'HANYA DI WEB', note: `Data tidak ditemukan pada ${sourceName}.` }); }
 
-function reportExportRow(row, sourceLabel, decimals, mode) {
+function reportExportRow(row, sourceLabel, decimals, mode, stageOrders = []) {
+  const stageColumns = Object.fromEntries(stageOrders.flatMap((order) => ([
+    [`SS${order} ${sourceLabel.toUpperCase()}`, displayElapsed(row.sourceStageTimesMs?.[order], decimals)],
+    [`SS${order} WEB`, displayElapsed(row.webStageTimesMs?.[order], decimals)],
+  ])));
   return {
     HASIL: row.result, 'NO START': row.number, RUN: mode === 'practice' ? row.runNo : '', DRIVER: row.driver,
     [`TC ${sourceLabel.toUpperCase()}`]: row.sourceTc || '', 'TC WEB': row.webTc || '', [`START ${sourceLabel.toUpperCase()}`]: row.sourceStart || '', 'START WEB': row.webStart || '',
-    [`FINISH ${sourceLabel.toUpperCase()}`]: row.sourceFinish || '', 'FINISH WEB': row.webFinish || '', [`ELAPSED ${sourceLabel.toUpperCase()}`]: displayElapsed(row.sourceElapsedMs, decimals), 'ELAPSED WEB': displayElapsed(row.webElapsedMs, decimals),
+    [`FINISH ${sourceLabel.toUpperCase()}`]: row.sourceFinish || '', 'FINISH WEB': row.webFinish || '',
+    ...(stageOrders.length ? stageColumns : { [`ELAPSED ${sourceLabel.toUpperCase()}`]: displayElapsed(row.sourceElapsedMs, decimals), 'ELAPSED WEB': displayElapsed(row.webElapsedMs, decimals) }),
     [`PENALTY ${sourceLabel.toUpperCase()}`]: displayElapsed(row.sourcePenaltyMs, decimals), 'PENALTY WEB': displayElapsed(row.webPenaltyMs, decimals), [`TOTAL ${sourceLabel.toUpperCase()}`]: displayElapsed(row.sourceTotalTimeMs, decimals), 'TOTAL WEB': displayElapsed(row.webTotalTimeMs, decimals),
     [`STATUS ${sourceLabel.toUpperCase()}`]: row.sourceStatus || '', 'STATUS WEB': row.webStatus || '', SELISIH: row.differenceMs == null ? '' : signedDuration(row.differenceMs, decimals), SUMBER: row.sourceReference || '', CATATAN: row.note,
   };

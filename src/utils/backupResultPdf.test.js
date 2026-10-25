@@ -28,7 +28,7 @@ test('reads single-stage group result columns', async () => {
   assert.equal(result.rows[0].available.total, true);
 });
 
-test('uses latest SS column and ignores cumulative totals for multi-stage group result', async () => {
+test('reads every SS column and cumulative totals for multi-stage group result', async () => {
   const result = await parseBackupResultPdfDocument(fakePdf([
     item('GROUP : G1', 210, 782),
     item('DIFF', 520, 751),
@@ -42,14 +42,39 @@ test('uses latest SS column and ignores cumulative totals for multi-stage group 
   ]), 'G1_SPO_SS2_PUT4.pdf');
 
   assert.equal(result.stageOrder, 2);
+  assert.deepEqual(result.stageOrders, [1, 2]);
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].elapsedMs, 274820);
+  assert.deepEqual(result.rows[0].stageTimesMs, { 1: 272040, 2: 274820 });
   assert.equal(result.rows[0].penaltyMs, 0);
   assert.equal(result.rows[0].totalTimeMs, 546860);
   assert.equal(result.rows[0].available.elapsed, true);
-  assert.equal(result.rows[0].available.penalty, false);
-  assert.equal(result.rows[0].available.total, false);
-  assert.match(result.mapping.find((entry) => entry.field === 'Elapsed').source, /SS2/);
+  assert.deepEqual(result.rows[0].available.stageTimes, { 1: true, 2: true });
+  assert.equal(result.rows[0].available.penalty, true);
+  assert.equal(result.rows[0].available.total, true);
+  assert.deepEqual(result.mapping.filter((entry) => /^SS\d+$/.test(entry.field)).map((entry) => entry.field), ['SS1', 'SS2']);
+});
+
+test('keeps an empty SS3 column while reading SS1, SS2, and total time', async () => {
+  const result = await parseBackupResultPdfDocument(fakePdf([
+    item('GROUP : G1', 210, 782),
+    item('DIFF', 520, 751),
+    item('SS1', 347, 746),
+    item('SS2', 383, 746),
+    item('SS3', 418, 746),
+    item('TOTAL', 452, 750),
+    item('TOTAL', 480, 751),
+    ...resultRow({ y: 727, position: 1, number: 75, driver: 'Adil Prakoso', navigator: 'Karmela', times: [
+      ['4:35.62', 343], ['4:38.23', 379], ['0:00', 452], ['9:13.85', 480],
+    ] }),
+  ]), 'G1_SPO_SS3_PUT 5.pdf');
+
+  assert.equal(result.stageOrder, 3);
+  assert.deepEqual(result.stageOrders, [1, 2, 3]);
+  assert.deepEqual(result.rows[0].stageTimesMs, { 1: 275620, 2: 278230, 3: null });
+  assert.deepEqual(result.rows[0].available.stageTimes, { 1: true, 2: true, 3: false });
+  assert.equal(result.rows[0].penaltyMs, 0);
+  assert.equal(result.rows[0].totalTimeMs, 553850);
 });
 
 test('limits group result comparison to web rows from the detected PDF group', () => {
