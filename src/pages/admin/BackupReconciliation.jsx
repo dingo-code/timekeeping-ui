@@ -85,7 +85,7 @@ export default function BackupReconciliation() {
         setSourceFileName(file.name);
         if (detectedSession) setSessionId(detectedSession.id);
         const detectedLabel = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : 'sesi belum terdeteksi';
-        const readMethod = result.usedOcr ? ' melalui OCR otomatis' : '';
+        const readMethod = result.usedOcr ? ' melalui pembacaan visual otomatis (OCR)' : '';
         setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca${readMethod} sebagai ${detectedLabel}. Periksa preview lalu tekan Bandingkan Data.`);
         return;
       }

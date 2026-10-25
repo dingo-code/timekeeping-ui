@@ -51,7 +51,7 @@ test('uses latest SS column and ignores cumulative totals for multi-stage group 
   assert.match(result.mapping.find((entry) => entry.field === 'Elapsed').source, /SS2/);
 });
 
-test('infers SS columns from OCR rows when the scan does not expose table headers', async () => {
+test('infers SS and shifted car-number columns from OCR rows without table headers', async () => {
   const progress = [];
   const result = await parseBackupResultPdfDocument(fakePdf([]), 'scan-result.pdf', {
     enableOcr: true,
@@ -63,9 +63,14 @@ test('infers SS columns from OCR rows when the scan does not expose table header
         pageNumber: 1,
         width: PAGE_WIDTH,
         items: [
-          ...resultRow({ y: 721, position: 1, number: 75, driver: 'Adil Prakoso', navigator: 'Karmela', times: [
-            ['4:32.04', 390], ['0:00', 433], ['4:32.04', 466],
-          ] }),
+          item('1', 16, 721),
+          item('75', 58, 721),
+          item('TEAM', 82, 721),
+          item('Adil Prakoso', 194, 721),
+          item('Karmela', 278, 721),
+          item('4:32.04', 390, 721),
+          item('0:00', 433, 721),
+          item('4:32.04', 466, 721),
         ].map(toParsedItem),
       }],
     }),
@@ -73,14 +78,14 @@ test('infers SS columns from OCR rows when the scan does not expose table header
 
   assert.equal(result.usedOcr, true);
   assert.equal(result.ocrConfidence, 91.4);
-  assert.equal(result.profile, 'Group Result - OCR scan');
+  assert.equal(result.profile, 'Group Result - visual OCR');
   assert.equal(result.stageOrder, 1);
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].number, 75);
   assert.equal(result.rows[0].elapsedMs, 272040);
   assert.equal(result.rows[0].available.penalty, false);
   assert.equal(result.rows[0].available.total, false);
-  assert.match(progress[0], /OCR otomatis/);
+  assert.match(progress[0], /pembacaan visual otomatis/);
 });
 
 function fakePdf(items) {

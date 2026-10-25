@@ -81,7 +81,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
   let ocrConfidence = null;
 
   if (!rows.length && options.enableOcr) {
-    notifyProgress(options.onProgress, 'PDF berupa scan/gambar atau text layer tidak dapat dibaca. Menyiapkan OCR otomatis...');
+    notifyProgress(options.onProgress, 'Tabel belum dapat dibaca dari text layer PDF. Menyiapkan pembacaan visual otomatis...');
     let ocrResult;
     try {
       const provider = options.ocrPageProvider || extractOcrPages;
@@ -110,7 +110,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
       ? 'OCR selesai, tetapi pola tabel Result belum dikenali. Pastikan gambar tegak, tajam, dan menggunakan format Result yang didukung.'
       : hasText
         ? 'PDF memiliki teks, tetapi pola tabel Result belum dikenali. Periksa preview atau gunakan profil PDF lain.'
-        : 'PDF tampaknya berupa scan/gambar. OCR otomatis tidak tersedia pada perangkat ini.');
+        : 'PDF tidak memiliki text layer yang dapat dibaca. Pembacaan visual otomatis tidak tersedia pada perangkat ini.');
   }
 
   const duplicateNumbers = new Set();
@@ -162,7 +162,7 @@ async function extractOcrPages(pdf, onProgress) {
     data: new Uint8Array(await languageResponse.arrayBuffer()),
   };
   const { createWorker, PSM } = tesseract;
-  const scale = 2.5;
+  const scale = 3.5;
   let activePage = 0;
   const worker = await createWorker([language], 1, {
     workerPath: workerAsset.default,
@@ -383,18 +383,9 @@ function detectOcrStageProfile(pages, combinedText, fileName, stageOrderHint) {
   if (!stageOrder) return null;
 
   for (const page of pages) {
-    const participantYs = page.items
-      .filter((item) => item.x / page.width >= 0.035
-        && item.x / page.width < 0.09
-        && /^\d{1,3}$/.test(item.text))
-      .map((item) => item.y);
-    if (!participantYs.length) continue;
-
-    const timeItems = page.items.filter((item) => (
-      parseDurationMs(item.text) != null
-      && participantYs.some((y) => Math.abs(y - item.y) <= 3)
-    ));
-    const timeColumns = clusterHorizontalPositions(timeItems, page.width * 0.025);
+    const timeTolerance = page.width * 0.025;
+    const timeItems = page.items.filter((item) => parseDurationMs(item.text) != null);
+    const timeColumns = clusterHorizontalPositions(timeItems, timeTolerance);
     const stageColumn = timeColumns[stageOrder - 1];
     if (!stageColumn) continue;
 
@@ -403,18 +394,34 @@ function detectOcrStageProfile(pages, combinedText, fileName, stageOrderHint) {
       Math.max(inferredRange[0], (stageColumn.x / page.width) - 0.025),
       inferredRange[1],
     ];
+    const participantYs = timeItems
+      .filter((item) => Math.abs(item.x - stageColumn.x) <= timeTolerance)
+      .map((item) => item.y);
+    const numberColumns = clusterHorizontalPositions(page.items.filter((item) => (
+      item.x / page.width < 0.2
+      && /^\d{1,3}$/.test(item.text)
+      && participantYs.some((y) => Math.abs(y - item.y) <= 3)
+    )), page.width * 0.02)
+      .filter((column) => column.values.length >= Math.max(1, Math.floor(participantYs.length / 2)));
+    const numberColumn = numberColumns.at(-1);
+    if (!numberColumn) continue;
+    const numberRatio = numberColumn.x / page.width;
+    const positionColumn = numberColumns.length > 1 ? numberColumns.at(-2) : null;
+
     return {
       kind: 'stage',
-      label: 'Group Result - OCR scan',
+      label: 'Group Result - visual OCR',
       stageOrder,
       comparePenalty: false,
       compareTotal: false,
       ranges: {
-        position: [0, 0.035],
-        number: [0.035, 0.09],
-        entrant: [0.09, 0.32],
-        driver: [0.32, 0.49],
-        navigator: [0.49, stageTime[0]],
+        position: positionColumn
+          ? [Math.max(0, (positionColumn.x / page.width) - 0.02), Math.min(1, (positionColumn.x / page.width) + 0.025)]
+          : [0, 0],
+        number: [Math.max(0, numberRatio - 0.02), Math.min(1, numberRatio + 0.04)],
+        entrant: [Math.min(0.3, numberRatio + 0.025), 0.31],
+        driver: [0.31, 0.44],
+        navigator: [0.44, stageTime[0]],
         className: [0, 0],
         car: [0, 0],
         type: [0, 0],
