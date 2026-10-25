@@ -385,7 +385,9 @@ export default function InputMonitoring() {
         <main className="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-[#151515] shadow-[0_30px_100px_rgba(0,0,0,0.38)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-widest text-white">Feed Input</h2>
+              <h2 className="text-sm font-black uppercase tracking-widest text-white">
+                {monitorMode === 'practice' ? 'Feed Practice' : 'Monitoring Input Terpisah'}
+              </h2>
               <p className="mt-1 text-xs font-bold text-gray-500">{monitorMode === 'practice' ? (selectedPracticeId === 'all' ? 'Semua Practice' : practices.find((practice) => practice.id === selectedPracticeId)?.name) : (selectedStageId === 'all' ? 'Semua SS' : stageLabel(stages.find((stage) => stage.id === selectedStageId)))}</p>
             </div>
             <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
@@ -408,70 +410,140 @@ export default function InputMonitoring() {
             </div>
           </div>
 
-          {monitorMode === 'practice' ? <PracticeFeed runs={filteredPracticeRuns} timeDecimalPlaces={timeDecimalPlaces} searchQuery={searchQuery} /> : <><div className="hidden min-h-[420px] flex-1 overflow-x-auto xl:block">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-black text-left text-[11px] uppercase tracking-widest text-gray-500">
-                  <th className="p-3">Input</th>
-                  <th className="p-3 text-center">No</th>
-                  <th className="p-3">Entrant</th>
-                  <th className="p-3">Driver / Navigator</th>
-                  <th className="p-3 text-center">Class</th>
-                  <th className="p-3 text-center">TC</th>
-                  <th className="p-3 text-center">Start</th>
-                  <th className="p-3 text-center">Finish</th>
-                  <th className="p-3 text-right">Total</th>
-                  <th className="p-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRecords.length === 0 ? (
-                  <tr>
-                    <td colSpan="10" className="h-[360px] p-10 text-center">
-                      <EmptyState searchQuery={searchQuery} />
-                    </td>
-                  </tr>
-                ) : (
-                  filteredRecords.map((record) => (
-                    <tr key={record.id} className={`border-t border-white/10 ${rowClass(record)}`}>
-                      <td className="p-3">
-                        <div className="font-black text-white">{inputKind(record)}</div>
-                        <div className="mt-0.5 font-mono text-xs font-bold text-gray-400">{inputTimeLabel(record)}</div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1 font-black text-white">{record.start_number}</span>
-                      </td>
-                      <td className="p-3 text-xs font-bold uppercase tracking-wider text-gray-400">{record.team_name || '-'}</td>
-                      <td className="p-3">
-                        <div className="font-black text-white">{runDriverName(record)}</div>
-                        <div className="mt-0.5 text-xs font-bold text-gray-300">{record.codriver_name || '-'}</div>
-                      </td>
-                      <td className="p-3 text-center text-xs font-black uppercase tracking-wider text-gray-300">{record.class_name || '-'}</td>
-                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.tc_time)}</td>
-                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockSeconds(record.start_time)}</td>
-                      <td className="p-3 text-center font-mono font-bold text-gray-300">{formatClockCentiseconds(record.finish_time, timeDecimalPlaces)}</td>
-                      <td className="p-3 text-right font-mono text-base font-black text-yellow-300">{formatMs(record.total_time_ms, timeDecimalPlaces)}</td>
-                      <td className="p-3"><StatusPill status={displayStatus(record)} /></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex-1 space-y-3 p-3 xl:hidden">
-            {filteredRecords.length === 0 ? (
-              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-black">
-                <EmptyState searchQuery={searchQuery} />
-              </div>
-            ) : (
-              filteredRecords.map((record) => <RecordCard key={record.id} record={record} timeDecimalPlaces={timeDecimalPlaces} />)
-            )}
-          </div></>}
+          {monitorMode === 'practice' ? (
+            <PracticeFeed runs={filteredPracticeRuns} timeDecimalPlaces={timeDecimalPlaces} searchQuery={searchQuery} />
+          ) : (
+            <StageInputTables
+              records={filteredRecords}
+              timeDecimalPlaces={timeDecimalPlaces}
+              searchQuery={searchQuery}
+              showStage={selectedStageId === 'all'}
+            />
+          )}
         </main>
       </div>
     </div>
   );
+}
+
+function StageInputTables({ records, timeDecimalPlaces, searchQuery, showStage }) {
+  const tcRecords = sortInputRecords(
+    records.filter((record) => record.target_tc_time || record.tc_time),
+    ['tc_time', 'target_tc_time']
+  );
+  const startRecords = sortInputRecords(
+    records.filter((record) => record.start_time),
+    ['start_time']
+  );
+  const finishRecords = sortInputRecords(
+    records.filter((record) => record.finish_time),
+    ['finish_time']
+  );
+
+  return (
+    <div className="grid flex-1 gap-4 overflow-y-auto p-3 xl:grid-cols-3 xl:items-start">
+      <SplitInputTable
+        title="TC"
+        rows={tcRecords}
+        headers={['No Start', 'Target TC', 'TC']}
+        emptyText="Belum ada jadwal atau input TC."
+        searchQuery={searchQuery}
+        titleClassName="border-cyan-400/30 bg-cyan-950/60 text-cyan-200"
+      >
+        {tcRecords.map((record) => (
+          <tr key={record.id} className="border-t border-white/10 bg-cyan-950/20 transition hover:bg-cyan-950/40">
+            <StartNumberCell record={record} showStage={showStage} />
+            <TimeCell value={formatClockSeconds(record.target_tc_time)} />
+            <TimeCell value={formatClockSeconds(record.tc_time)} highlight={Boolean(record.tc_time)} />
+          </tr>
+        ))}
+      </SplitInputTable>
+
+      <SplitInputTable
+        title="Start"
+        rows={startRecords}
+        headers={['No Start', 'Start']}
+        emptyText="Belum ada input Start."
+        searchQuery={searchQuery}
+        titleClassName="border-blue-400/30 bg-blue-950/60 text-blue-200"
+      >
+        {startRecords.map((record) => (
+          <tr key={record.id} className="border-t border-white/10 bg-blue-950/20 transition hover:bg-blue-950/40">
+            <StartNumberCell record={record} showStage={showStage} />
+            <TimeCell value={formatClockSeconds(record.start_time)} highlight />
+          </tr>
+        ))}
+      </SplitInputTable>
+
+      <SplitInputTable
+        title="Finish"
+        rows={finishRecords}
+        headers={['No Start', 'Finish', 'Total Time']}
+        emptyText="Belum ada input Finish."
+        searchQuery={searchQuery}
+        titleClassName="border-green-400/30 bg-green-950/60 text-green-200"
+      >
+        {finishRecords.map((record) => (
+          <tr key={record.id} className="border-t border-white/10 bg-green-950/20 transition hover:bg-green-950/40">
+            <StartNumberCell record={record} showStage={showStage} />
+            <TimeCell value={formatClockCentiseconds(record.finish_time, timeDecimalPlaces)} highlight />
+            <TimeCell value={formatMs(record.total_time_ms, timeDecimalPlaces)} highlight tone="yellow" />
+          </tr>
+        ))}
+      </SplitInputTable>
+    </div>
+  );
+}
+
+function SplitInputTable({ title, rows, headers, emptyText, searchQuery, titleClassName, children }) {
+  return (
+    <section className="min-w-0 overflow-hidden rounded-lg border border-white/10 bg-black/40 shadow-lg">
+      <div className={`flex items-center justify-between border-b px-4 py-3 ${titleClassName}`}>
+        <h3 className="text-sm font-black uppercase tracking-[0.22em]">Tabel {title}</h3>
+        <span className="rounded bg-black/40 px-2.5 py-1 text-xs font-black text-white">{rows.length}</span>
+      </div>
+      <div className="max-h-[62vh] overflow-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-black">
+            <tr className="text-[10px] uppercase tracking-widest text-gray-500">
+              {headers.map((header) => (
+                <th key={header} className="whitespace-nowrap p-3 text-center">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={headers.length} className="h-40 p-5 text-center text-xs font-bold text-gray-500">
+                  {searchQuery ? `Tidak ada hasil untuk “${searchQuery}”.` : emptyText}
+                </td>
+              </tr>
+            ) : children}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function StartNumberCell({ record, showStage }) {
+  return (
+    <td className="p-3 text-center">
+      <span className="inline-flex min-w-12 justify-center rounded bg-black px-3 py-1.5 text-base font-black text-white">
+        {record.start_number}
+      </span>
+      {showStage && (
+        <span className="mt-1 block text-[9px] font-black uppercase tracking-wider text-gray-500">
+          {stageShortLabel(record)}
+        </span>
+      )}
+    </td>
+  );
+}
+
+function TimeCell({ value, highlight = false, tone = 'white' }) {
+  const colorClass = tone === 'yellow' ? 'text-yellow-300' : highlight ? 'text-white' : 'text-gray-500';
+  return <td className={`whitespace-nowrap p-3 text-center font-mono text-sm font-black ${colorClass}`}>{value}</td>;
 }
 
 function PracticeFeed({ runs, timeDecimalPlaces, searchQuery }) {
@@ -503,39 +575,6 @@ function PracticeRunCard({ run, timeDecimalPlaces }) {
     <div className="mt-3 grid grid-cols-2 gap-2"><MiniMetric label="Race No" value={run.race_start_number || '-'} /><MiniMetric label="Run" value={run.run_no || '-'} /><MiniMetric label="Start" value={formatClockSeconds(run.start_time)} /><MiniMetric label="Finish" value={formatClockCentiseconds(run.finish_time, timeDecimalPlaces)} /><MiniMetric label="Elapsed" value={formatMs(run.elapsed_time_ms, timeDecimalPlaces)} highlight /><MiniMetric label="Input" value={practiceInputTime(run, timeDecimalPlaces)} /></div>
     <div className="mt-3"><StatusPill status={practiceDisplayStatus(run)} /></div>
   </article>;
-}
-
-function RecordCard({ record, timeDecimalPlaces = 2 }) {
-  return (
-    <article className={`rounded-lg border border-white/10 p-4 ${rowClass(record) || 'bg-neutral-800'}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs font-black uppercase tracking-widest text-red-300">{inputKind(record)}</div>
-          <h2 className="mt-1 break-words text-xl font-black text-white">{runDriverName(record)}</h2>
-          <p className="text-xs font-bold text-gray-300">{record.codriver_name || '-'}</p>
-          <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{record.team_name || '-'}</p>
-          <p className="mt-1 text-[11px] font-black uppercase tracking-wider text-gray-400">Class {record.class_name || '-'}</p>
-        </div>
-        <div className="rounded bg-black px-3 py-2 text-center">
-          <div className="text-[9px] font-black uppercase text-gray-500">No</div>
-          <div className="text-2xl font-black text-white">{record.start_number}</div>
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-gray-300">
-        <MiniMetric label="SS" value={`${stageShortLabel(record)} ${record.ss_name || ''}`.trim()} />
-        <MiniMetric label="Entrant" value={record.team_name || '-'} />
-        <MiniMetric label="Class" value={record.class_name || '-'} />
-        <MiniMetric label="Waktu Input" value={inputTimeLabel(record)} />
-        <MiniMetric label="TC" value={formatClockSeconds(record.tc_time)} />
-        <MiniMetric label="Start" value={formatClockSeconds(record.start_time)} />
-        <MiniMetric label="Finish" value={formatClockCentiseconds(record.finish_time, timeDecimalPlaces)} />
-        <MiniMetric label="Total" value={formatMs(record.total_time_ms, timeDecimalPlaces)} highlight />
-      </div>
-      <div className="mt-3">
-        <StatusPill status={displayStatus(record)} />
-      </div>
-    </article>
-  );
 }
 
 function Summary({ label, value, accent = 'red' }) {
@@ -611,11 +650,6 @@ function stageShortLabel(record) {
   return `SS ${record.ss_order || '-'}`;
 }
 
-function runDriverName(record) {
-  if (record.is_shakedown && record.attempt_no) return `${record.driver_name} (Run ${record.attempt_no})`;
-  return record.driver_name || '-';
-}
-
 function matchesInputSearch(record, query, isPractice) {
   const keyword = normalizeSearchValue(query);
   if (!keyword) return true;
@@ -677,13 +711,6 @@ function displayStatus(record) {
   return record.status || 'OK';
 }
 
-function inputTimeLabel(record) {
-  if (inputKind(record) === 'TARGET TC' && record.target_tc_time) {
-    return formatDateWithClock(record.created_at || record.updated_at, record.target_tc_time);
-  }
-  return formatDateTime(record.updated_at || record.created_at);
-}
-
 function inputTimestamp(record) {
   const candidates = [
     record.updated_at,
@@ -698,6 +725,22 @@ function inputTimestamp(record) {
     if (Number.isFinite(timestamp)) return timestamp;
     const clockValue = parseClock(value);
     if (clockValue > 0) return clockValue;
+  }
+  return 0;
+}
+
+function sortInputRecords(records, clockFields) {
+  return [...records].sort((a, b) => {
+    const timeDifference = inputClockTimestamp(b, clockFields) - inputClockTimestamp(a, clockFields);
+    if (timeDifference !== 0) return timeDifference;
+    return inputTimestamp(b) - inputTimestamp(a);
+  });
+}
+
+function inputClockTimestamp(record, clockFields) {
+  for (const field of clockFields) {
+    const value = parseClock(record[field]);
+    if (value > 0) return value;
   }
   return 0;
 }
@@ -722,11 +765,6 @@ function formatClockSeconds(value) {
   return `${match[1]}:${match[2]}:${match[3]}`;
 }
 
-function formatClockDots(value) {
-  const clock = formatClockSeconds(value);
-  return clock === '-' ? '-' : clock.replaceAll(':', '.');
-}
-
 function rowClass(record) {
   const status = displayStatus(record);
   if (status === 'STARTED') return 'bg-blue-950/50';
@@ -746,31 +784,6 @@ function statusClass(status) {
   if (status === 'DNS') return 'bg-yellow-200 text-yellow-950';
   if (status === 'DSQ') return 'bg-red-200 text-red-950';
   return 'bg-gray-200 text-gray-950';
-}
-
-function formatDateTime(value) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
-}
-
-function formatDateWithClock(dateValue, clockValue) {
-  const clock = formatClockDots(clockValue);
-  if (!dateValue) return clock;
-
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return clock;
-
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  return `${day}/${month}, ${clock}`;
 }
 
 function websocketOrigin() {
