@@ -157,6 +157,7 @@ export function filterWebRowsForBackupPdf(rows, pdfResult) {
 async function extractOcrPages(pdf, onProgress) {
   if (typeof document === 'undefined') throw new Error('Browser tidak menyediakan canvas untuk OCR.');
 
+  notifyProgress(onProgress, 'Memuat komponen OCR lokal...');
   const [tesseract, workerAsset, coreAsset, languageAsset] = await Promise.all([
     import('tesseract.js'),
     import('tesseract.js/dist/worker.min.js?url'),
@@ -172,20 +173,14 @@ async function extractOcrPages(pdf, onProgress) {
   }
   const langPath = languageUrl.href.slice(0, -(`/${languageFileName}`.length));
   let activePage = 0;
-  const worker = await createWorker('eng', 1, {
+  const worker = await createOcrWorker(createWorker, {
     workerPath: workerAsset.default,
     corePath: coreAsset.default,
     langPath,
     gzip: true,
-    workerBlobURL: false,
-    logger: (message) => {
-      const progress = Math.round(Math.max(0, Math.min(1, Number(message.progress) || 0)) * 100);
-      if (activePage) {
-        notifyProgress(onProgress, `Menjalankan OCR halaman ${activePage}/${pdf.numPages} (${progress}%)...`);
-      } else {
-        notifyProgress(onProgress, `Menyiapkan mesin OCR (${progress}%)...`);
-      }
-    },
+    cacheMethod: 'none',
+    workerBlobURL: true,
+    logger: (message) => notifyOcrProgress(onProgress, message, activePage, pdf.numPages),
   });
 
   const pages = [];
@@ -210,7 +205,11 @@ async function extractOcrPages(pdf, onProgress) {
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: context, viewport }).promise;
-      const { data } = await worker.recognize(canvas, {}, { blocks: true, text: true });
+      const { data } = await withTimeout(
+        worker.recognize(canvas, {}, { blocks: true, text: true }),
+        180000,
+        `OCR halaman ${pageNumber} melewati batas waktu. Coba tutup aplikasi lain lalu ulangi proses.`,
+      );
       const items = ocrBlocksToItems(data.blocks);
       pages.push({ items, width: canvas.width, pageNumber });
       if (Number.isFinite(data.confidence)) confidences.push(data.confidence);
@@ -227,6 +226,60 @@ async function extractOcrPages(pdf, onProgress) {
       ? confidences.reduce((total, value) => total + value, 0) / confidences.length
       : null,
   };
+}
+
+function createOcrWorker(createWorker, options) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      const detail = error instanceof Error ? error.message : String(error || 'Kesalahan worker tidak diketahui.');
+      reject(new Error(`Mesin OCR lokal gagal dimulai: ${detail}`));
+    };
+    const timeoutId = setTimeout(() => {
+      finishReject('proses inisialisasi melewati 90 detik. Muat ulang halaman lalu coba kembali.');
+    }, 90000);
+
+    createWorker('eng', 1, { ...options, errorHandler: finishReject })
+      .then((worker) => {
+        if (settled) {
+          worker.terminate().catch(() => {});
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve(worker);
+      })
+      .catch(finishReject);
+  });
+}
+
+function notifyOcrProgress(callback, message, activePage, pageCount) {
+  const status = String(message?.status || '');
+  const progress = Math.round(Math.max(0, Math.min(1, Number(message?.progress) || 0)) * 100);
+
+  if (activePage && status === 'recognizing text') {
+    notifyProgress(callback, `Menjalankan OCR halaman ${activePage}/${pageCount} (${progress}%)...`);
+    return;
+  }
+
+  const labels = {
+    'loading tesseract core': 'Memuat inti OCR lokal...',
+    'initializing tesseract': 'Menginisialisasi mesin OCR...',
+    'loading language traineddata': `Memuat model bahasa OCR lokal (${progress}%)...`,
+    'initializing api': 'Menyiapkan pembaca teks OCR...',
+  };
+  notifyProgress(callback, labels[status] || 'Menyiapkan mesin OCR lokal...');
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 function ocrBlocksToItems(blocks) {
