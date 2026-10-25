@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseBackupResultPdfDocument } from './backupResultPdf.js';
+import { filterWebRowsForBackupPdf, parseBackupResultPdfDocument } from './backupResultPdf.js';
 
 const PAGE_WIDTH = 596;
 
@@ -18,6 +18,7 @@ test('reads single-stage group result columns', async () => {
 
   assert.equal(result.profile, 'Group Result - cumulative SS table');
   assert.equal(result.stageOrder, 1);
+  assert.equal(result.groupName, 'G1');
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].number, 75);
   assert.equal(result.rows[0].elapsedMs, 272040);
@@ -49,6 +50,21 @@ test('uses latest SS column and ignores cumulative totals for multi-stage group 
   assert.equal(result.rows[0].available.penalty, false);
   assert.equal(result.rows[0].available.total, false);
   assert.match(result.mapping.find((entry) => entry.field === 'Elapsed').source, /SS2/);
+});
+
+test('limits group result comparison to web rows from the detected PDF group', () => {
+  const rows = filterWebRowsForBackupPdf([
+    { number: 75, groupName: 'G1' },
+    { number: 35, groupName: 'g1' },
+    { number: 93, groupName: 'G2' },
+  ], { groupName: 'G1' });
+
+  assert.deepEqual(rows.map((row) => row.number), [75, 35]);
+});
+
+test('keeps all web rows when the PDF has no detected group scope', () => {
+  const rows = [{ number: 75, groupName: 'G1' }, { number: 93, groupName: 'G2' }];
+  assert.equal(filterWebRowsForBackupPdf(rows, { groupName: '' }), rows);
 });
 
 test('infers SS and shifted car-number columns from OCR rows without table headers', async () => {

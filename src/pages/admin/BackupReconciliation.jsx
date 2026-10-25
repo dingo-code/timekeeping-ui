@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
-import { readBackupResultPdf } from '../../utils/backupResultPdf';
+import { filterWebRowsForBackupPdf, readBackupResultPdf } from '../../utils/backupResultPdf';
 import { detectSSSpreadsheetProfile, parseSSSpreadsheet } from '../../utils/backupSpreadsheet';
 import { formatMs } from '../../utils/timeFormat';
 
@@ -85,8 +85,9 @@ export default function BackupReconciliation() {
         setSourceFileName(file.name);
         if (detectedSession) setSessionId(detectedSession.id);
         const detectedLabel = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : 'sesi belum terdeteksi';
+        const scopeLabel = result.groupName ? `, grup ${result.groupName}` : '';
         const readMethod = result.usedOcr ? ' melalui pembacaan visual otomatis (OCR)' : '';
-        setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca${readMethod} sebagai ${detectedLabel}. Periksa preview lalu tekan Bandingkan Data.`);
+        setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca${readMethod} sebagai ${detectedLabel}${scopeLabel}. Periksa preview lalu tekan Bandingkan Data.`);
         return;
       }
 
@@ -153,9 +154,13 @@ export default function BackupReconciliation() {
         if (!sourceRows.length) throw new Error(`Tidak ditemukan data SS yang dapat dibaca pada sheet ${sheetName}. Periksa sheet dan profil format file.`);
       }
 
-      const webRows = mode === 'practice' ? await fetchPractice(sessionId) : await fetchSS(sessionId);
+      const fetchedWebRows = mode === 'practice' ? await fetchPractice(sessionId) : await fetchSS(sessionId);
+      const webRows = sourceKind === 'pdf'
+        ? filterWebRowsForBackupPdf(fetchedWebRows, pdfResult)
+        : fetchedWebRows;
       setRows(reconcile(sourceRows, webRows, decimalPlaces, mode, sourceKind));
-      setMessage(`${sourceRows.length} data ${sourceLabel.toLowerCase()} dibandingkan dengan ${webRows.length} data web secara read-only.`);
+      const scopeLabel = sourceKind === 'pdf' && pdfResult.groupName ? ` dalam grup ${pdfResult.groupName}` : '';
+      setMessage(`${sourceRows.length} data ${sourceLabel.toLowerCase()} dibandingkan dengan ${webRows.length} data web${scopeLabel} secara read-only.`);
     } catch (error) {
       setRows([]);
       setMessage(error.response?.data?.error || error.message || 'Gagal membandingkan data.');
@@ -168,7 +173,7 @@ export default function BackupReconciliation() {
     const res = await api.get(`/public/stages/${id}/records`);
     return (res.data.data || []).filter((record) => record.is_active !== false).map((record) => ({
       key: String(record.start_number), number: record.start_number, runNo: record.attempt_no || 1,
-      driver: record.driver_name || '-', tc: normalizeClock(record.tc_time), start: normalizeClock(record.start_time), finish: normalizeClock(record.finish_time),
+      driver: record.driver_name || '-', className: record.class_name || '', groupName: record.group_name || '', tc: normalizeClock(record.tc_time), start: normalizeClock(record.start_time), finish: normalizeClock(record.finish_time),
       elapsedMs: Number(record.elapsed_time_ms || 0), penaltyMs: Number(record.penalty_time_ms || 0), totalTimeMs: Number(record.total_time_ms || 0), status: record.status || 'OK',
     }));
   }
@@ -252,7 +257,7 @@ export default function BackupReconciliation() {
 
 function PdfPreview({ result, decimalPlaces }) {
   const detectedSession = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : '-';
-  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th><th className="p-2">Stage Time</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td><td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. Hanya bidang yang tersedia pada PDF yang dibandingkan; TC, Start, Finish, Penalti, atau Total yang tidak tersedia akan ditandai N/A dan diabaikan.</p></section>;
+  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession}{result.groupName ? ` - grup terdeteksi: ${result.groupName}` : ''} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th><th className="p-2">Stage Time</th><th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td><td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. PDF khusus grup hanya dibandingkan dengan peserta web pada grup yang sama. Bidang yang tidak tersedia pada PDF ditandai N/A dan diabaikan.</p></section>;
 }
 
 function parsePractice(matrix) {

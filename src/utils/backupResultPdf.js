@@ -127,6 +127,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
   });
 
   const stageMatch = profile.kind === 'stage' ? combinedText.match(/\bSS\s*([0-9]{1,2})\b/i) : null;
+  const groupName = detectGroupName(combinedText);
   const unreadableCount = rows.filter((row) => !row.readable).length;
 
   return {
@@ -136,12 +137,19 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
     isShakedown: profile.kind === 'shakedown',
     pages: pdf.numPages,
     stageOrder: profile.stageOrder || (stageMatch ? Number(stageMatch[1]) : null),
+    groupName,
     rows,
     unreadableCount,
     mapping: profile.mapping,
     usedOcr,
     ocrConfidence,
   };
+}
+
+export function filterWebRowsForBackupPdf(rows, pdfResult) {
+  const groupName = normalizeScopeName(pdfResult?.groupName);
+  if (!groupName) return rows;
+  return rows.filter((row) => normalizeScopeName(row.groupName) === groupName);
 }
 
 async function extractOcrPages(pdf, onProgress) {
@@ -495,6 +503,15 @@ function findStatus(value) {
 function positiveInteger(value) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function detectGroupName(value) {
+  const match = String(value || '').match(/\bGROUP\s*:\s*([A-Z0-9][A-Z0-9._/-]*)/i);
+  return match ? cleanText(match[1]).toUpperCase() : '';
+}
+
+function normalizeScopeName(value) {
+  return cleanText(value).toUpperCase();
 }
 
 function cleanText(value) {
