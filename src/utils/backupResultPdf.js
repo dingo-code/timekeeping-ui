@@ -74,7 +74,8 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf')
   }
 
   const combinedText = pageTexts.join(' ');
-  const profile = /\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage;
+  const profile = detectGroupStageProfile(pages, combinedText)
+    || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
   const rows = pages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
 
   if (!rows.length) {
@@ -106,7 +107,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf')
     resultType: profile.kind,
     isShakedown: profile.kind === 'shakedown',
     pages: pdf.numPages,
-    stageOrder: stageMatch ? Number(stageMatch[1]) : null,
+    stageOrder: profile.stageOrder || (stageMatch ? Number(stageMatch[1]) : null),
     rows,
     unreadableCount,
     mapping: profile.mapping,
@@ -174,12 +175,90 @@ function parsePageRows(items, width, pageNumber, profile) {
         start: false,
         finish: false,
         elapsed: elapsedMs != null,
-        penalty: Boolean(ranges.penalty) && penaltyMs != null,
-        total: Boolean(ranges.totalTime) && totalTimeMs != null,
+        penalty: profile.comparePenalty !== false && Boolean(ranges.penalty) && penaltyMs != null,
+        total: profile.compareTotal !== false && Boolean(ranges.totalTime) && totalTimeMs != null,
         status: Boolean(status),
       },
     }];
   });
+}
+
+function detectGroupStageProfile(pages, combinedText) {
+  if (!/\bGROUP\b/i.test(combinedText) || !/\bDIFF\b/i.test(combinedText)) return null;
+
+  for (const page of pages) {
+    const stageColumns = page.items
+      .map((item) => {
+        const match = item.text.match(/^SS\s*([0-9]{1,2})$/i);
+        return match ? { order: Number(match[1]), x: item.x } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x);
+    if (!stageColumns.length) continue;
+
+    const lastStageX = stageColumns.at(-1).x;
+    const totalColumns = page.items
+      .filter((item) => /^TOTAL$/i.test(item.text) && item.x > lastStageX)
+      .sort((a, b) => a.x - b.x);
+    if (totalColumns.length < 2) continue;
+
+    const firstDiff = page.items
+      .filter((item) => /^DIFF$/i.test(item.text) && item.x > totalColumns[1].x)
+      .sort((a, b) => a.x - b.x)[0];
+    const anchors = [
+      ...stageColumns.map((column) => column.x),
+      totalColumns[0].x,
+      totalColumns[1].x,
+      firstDiff?.x || page.width,
+    ];
+    const latestStage = stageColumns.reduce((latest, column, index) => (
+      column.order > latest.order ? { ...column, index } : latest
+    ), { order: 0, x: 0, index: 0 });
+    const stageTime = anchorRange(anchors, latestStage.index, page.width);
+    const penalty = anchorRange(anchors, stageColumns.length, page.width);
+    const totalTime = anchorRange(anchors, stageColumns.length + 1, page.width);
+    const firstStageStart = anchorRange(anchors, 0, page.width)[0];
+    const isSingleStage = stageColumns.length === 1;
+
+    return {
+      kind: 'stage',
+      label: 'Group Result - cumulative SS table',
+      stageOrder: latestStage.order,
+      comparePenalty: isSingleStage,
+      compareTotal: isSingleStage,
+      ranges: {
+        position: [0, 0.04],
+        number: [0.04, 0.08],
+        entrant: [0.08, 0.32],
+        driver: [0.32, 0.465],
+        navigator: [0.465, firstStageStart],
+        className: [0, 0],
+        car: [0, 0],
+        type: [0, 0],
+        stageTime,
+        penalty,
+        totalTime,
+      },
+      mapping: [
+        { field: 'No Start', source: 'CAR NO', required: true },
+        { field: 'Elapsed', source: `SS${latestStage.order}`, required: true },
+        { field: 'Penalty', source: isSingleStage ? 'TOTAL PENALTY' : 'TOTAL PENALTY kumulatif (referensi)', required: false },
+        { field: 'Total Time', source: isSingleStage ? 'TOTAL TIME' : 'TOTAL TIME kumulatif (referensi)', required: false },
+        { field: 'Status', source: 'DNS/DNF/BWTM/DSQ jika tersedia', required: false },
+      ],
+    };
+  }
+
+  return null;
+}
+
+function anchorRange(anchors, index, width) {
+  const current = anchors[index];
+  const previous = anchors[index - 1];
+  const next = anchors[index + 1];
+  const start = previous == null ? current - ((next - current) / 2) : (previous + current) / 2;
+  const end = next == null ? width : (current + next) / 2;
+  return [Math.max(0, start / width), Math.min(1, end / width)];
 }
 
 function columnText(items, width, [start, end]) {
