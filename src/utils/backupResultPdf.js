@@ -45,15 +45,15 @@ const RESULT_PROFILES = {
   },
 };
 
-export async function readBackupResultPdf(file) {
+export async function readBackupResultPdf(file, onProgress, stageOrderHint = null) {
   const pdfjs = await import('pdfjs-dist');
   const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = `${worker.default}?v=20260926-1`;
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  return parseBackupResultPdfDocument(pdf, file.name);
+  return parseBackupResultPdfDocument(pdf, file.name, { enableOcr: true, onProgress, stageOrderHint });
 }
 
-export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf') {
+export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf', options = {}) {
   const pages = [];
   const pageTexts = [];
 
@@ -73,16 +73,43 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf')
     pages.push({ items, width: viewport.width, pageNumber });
   }
 
-  const combinedText = pageTexts.join(' ');
-  const profile = detectGroupStageProfile(pages, combinedText)
+  let combinedText = pageTexts.join(' ');
+  let profile = detectGroupStageProfile(pages, combinedText)
     || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
-  const rows = pages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
+  let rows = pages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
+  let usedOcr = false;
+  let ocrConfidence = null;
+
+  if (!rows.length && options.enableOcr) {
+    notifyProgress(options.onProgress, 'PDF berupa scan/gambar atau text layer tidak dapat dibaca. Menyiapkan OCR otomatis...');
+    let ocrResult;
+    try {
+      const provider = options.ocrPageProvider || extractOcrPages;
+      ocrResult = await provider(pdf, options.onProgress);
+    } catch (error) {
+      throw new Error(
+        `OCR otomatis gagal dijalankan. Pastikan perangkat terhubung internet saat pertama kali memakai OCR. ${error.message || ''}`.trim(),
+        { cause: error },
+      );
+    }
+
+    const ocrPages = ocrResult.pages || [];
+    combinedText = ocrPages.map((page) => page.items.map((item) => item.text).join(' ')).join(' ');
+    profile = detectGroupStageProfile(ocrPages, combinedText)
+      || detectOcrStageProfile(ocrPages, combinedText, fileName, options.stageOrderHint)
+      || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
+    rows = ocrPages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
+    usedOcr = true;
+    ocrConfidence = Number.isFinite(ocrResult.confidence) ? ocrResult.confidence : null;
+  }
 
   if (!rows.length) {
     const hasText = pageTexts.some((text) => text.trim().length > 20);
-    throw new Error(hasText
-      ? 'PDF memiliki teks, tetapi pola tabel Result belum dikenali. Periksa preview atau gunakan profil PDF lain.'
-      : 'PDF tampaknya berupa scan/gambar. Jalankan OCR terlebih dahulu sebelum membandingkan.');
+    throw new Error(usedOcr
+      ? 'OCR selesai, tetapi pola tabel Result belum dikenali. Pastikan gambar tegak, tajam, dan menggunakan format Result yang didukung.'
+      : hasText
+        ? 'PDF memiliki teks, tetapi pola tabel Result belum dikenali. Periksa preview atau gunakan profil PDF lain.'
+        : 'PDF tampaknya berupa scan/gambar. OCR otomatis tidak tersedia pada perangkat ini.');
   }
 
   const duplicateNumbers = new Set();
@@ -111,7 +138,83 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf')
     rows,
     unreadableCount,
     mapping: profile.mapping,
+    usedOcr,
+    ocrConfidence,
   };
+}
+
+async function extractOcrPages(pdf, onProgress) {
+  if (typeof document === 'undefined') throw new Error('Browser tidak menyediakan canvas untuk OCR.');
+
+  const { createWorker, PSM } = await import('tesseract.js');
+  const scale = 2.5;
+  let activePage = 0;
+  const worker = await createWorker('eng', 1, {
+    logger: (message) => {
+      const progress = Math.round(Math.max(0, Math.min(1, Number(message.progress) || 0)) * 100);
+      if (activePage) {
+        notifyProgress(onProgress, `Menjalankan OCR halaman ${activePage}/${pdf.numPages} (${progress}%)...`);
+      } else {
+        notifyProgress(onProgress, `Menyiapkan mesin OCR (${progress}%)...`);
+      }
+    },
+  });
+
+  const pages = [];
+  const confidences = [];
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.AUTO,
+      preserve_interword_spaces: '1',
+      user_defined_dpi: String(Math.round(72 * scale)),
+    });
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      activePage = pageNumber;
+      notifyProgress(onProgress, `Menjalankan OCR halaman ${pageNumber}/${pdf.numPages} (0%)...`);
+      const page = await pdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Canvas OCR tidak dapat dibuat.');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      const { data } = await worker.recognize(canvas, {}, { blocks: true, text: true });
+      const items = ocrBlocksToItems(data.blocks);
+      pages.push({ items, width: canvas.width, pageNumber });
+      if (Number.isFinite(data.confidence)) confidences.push(data.confidence);
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  return {
+    pages,
+    confidence: confidences.length
+      ? confidences.reduce((total, value) => total + value, 0) / confidences.length
+      : null,
+  };
+}
+
+function ocrBlocksToItems(blocks) {
+  return (blocks || []).flatMap((block) => (block.paragraphs || []).flatMap((paragraph) => (
+    (paragraph.lines || []).flatMap((line) => {
+      const y = Number(line.bbox?.y0 || 0);
+      return (line.words || []).flatMap((word) => {
+        const text = cleanText(word.text);
+        return text ? [{ text, x: Number(word.bbox?.x0 || 0), y }] : [];
+      });
+    })
+  )));
+}
+
+function notifyProgress(callback, message) {
+  if (typeof callback === 'function') callback(message);
 }
 
 function parsePageRows(items, width, pageNumber, profile) {
@@ -250,6 +353,78 @@ function detectGroupStageProfile(pages, combinedText) {
   }
 
   return null;
+}
+
+function detectOcrStageProfile(pages, combinedText, fileName, stageOrderHint) {
+  const stagePattern = /(?:^|[^A-Z0-9])SS[\s_-]*([0-9]{1,2})(?=$|[^0-9])/gi;
+  const fileMatch = [...String(fileName || '').matchAll(stagePattern)][0];
+  const textStages = [...String(combinedText || '').matchAll(stagePattern)].map((match) => Number(match[1]));
+  const stageOrder = fileMatch
+    ? Number(fileMatch[1])
+    : positiveInteger(stageOrderHint) || (textStages.length ? Math.max(...textStages) : null);
+  if (!stageOrder) return null;
+
+  for (const page of pages) {
+    const participantYs = page.items
+      .filter((item) => item.x / page.width >= 0.035
+        && item.x / page.width < 0.09
+        && /^\d{1,3}$/.test(item.text))
+      .map((item) => item.y);
+    if (!participantYs.length) continue;
+
+    const timeItems = page.items.filter((item) => (
+      parseDurationMs(item.text) != null
+      && participantYs.some((y) => Math.abs(y - item.y) <= 3)
+    ));
+    const timeColumns = clusterHorizontalPositions(timeItems, page.width * 0.025);
+    const stageColumn = timeColumns[stageOrder - 1];
+    if (!stageColumn) continue;
+
+    const inferredRange = anchorRange(timeColumns.map((column) => column.x), stageOrder - 1, page.width);
+    const stageTime = [
+      Math.max(inferredRange[0], (stageColumn.x / page.width) - 0.025),
+      inferredRange[1],
+    ];
+    return {
+      kind: 'stage',
+      label: 'Group Result - OCR scan',
+      stageOrder,
+      comparePenalty: false,
+      compareTotal: false,
+      ranges: {
+        position: [0, 0.035],
+        number: [0.035, 0.09],
+        entrant: [0.09, 0.32],
+        driver: [0.32, 0.49],
+        navigator: [0.49, stageTime[0]],
+        className: [0, 0],
+        car: [0, 0],
+        type: [0, 0],
+        stageTime,
+      },
+      mapping: [
+        { field: 'No Start', source: 'CAR NO (OCR)', required: true },
+        { field: 'Elapsed', source: `SS${stageOrder} (OCR)`, required: true },
+        { field: 'Status', source: 'DNS/DNF/BWTM/DSQ jika terbaca OCR', required: false },
+      ],
+    };
+  }
+
+  return null;
+}
+
+function clusterHorizontalPositions(items, tolerance) {
+  const clusters = [];
+  [...items].sort((a, b) => a.x - b.x).forEach((item) => {
+    const cluster = clusters.find((entry) => Math.abs(entry.x - item.x) <= tolerance);
+    if (cluster) {
+      cluster.values.push(item.x);
+      cluster.x = cluster.values.reduce((total, value) => total + value, 0) / cluster.values.length;
+    } else {
+      clusters.push({ x: item.x, values: [item.x] });
+    }
+  });
+  return clusters.sort((a, b) => a.x - b.x);
 }
 
 function anchorRange(anchors, index, width) {

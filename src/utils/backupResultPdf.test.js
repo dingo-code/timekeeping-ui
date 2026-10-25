@@ -51,6 +51,38 @@ test('uses latest SS column and ignores cumulative totals for multi-stage group 
   assert.match(result.mapping.find((entry) => entry.field === 'Elapsed').source, /SS2/);
 });
 
+test('infers SS columns from OCR rows when the scan does not expose table headers', async () => {
+  const progress = [];
+  const result = await parseBackupResultPdfDocument(fakePdf([]), 'scan-result.pdf', {
+    enableOcr: true,
+    stageOrderHint: 1,
+    onProgress: (message) => progress.push(message),
+    ocrPageProvider: async () => ({
+      confidence: 91.4,
+      pages: [{
+        pageNumber: 1,
+        width: PAGE_WIDTH,
+        items: [
+          ...resultRow({ y: 721, position: 1, number: 75, driver: 'Adil Prakoso', navigator: 'Karmela', times: [
+            ['4:32.04', 390], ['0:00', 433], ['4:32.04', 466],
+          ] }),
+        ].map(toParsedItem),
+      }],
+    }),
+  });
+
+  assert.equal(result.usedOcr, true);
+  assert.equal(result.ocrConfidence, 91.4);
+  assert.equal(result.profile, 'Group Result - OCR scan');
+  assert.equal(result.stageOrder, 1);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].number, 75);
+  assert.equal(result.rows[0].elapsedMs, 272040);
+  assert.equal(result.rows[0].available.penalty, false);
+  assert.equal(result.rows[0].available.total, false);
+  assert.match(progress[0], /OCR otomatis/);
+});
+
 function fakePdf(items) {
   return {
     numPages: 1,
@@ -76,4 +108,8 @@ function resultRow({ y, position, number, driver, navigator, times }) {
 
 function item(str, x, y) {
   return { str, transform: [1, 0, 0, 1, x, y] };
+}
+
+function toParsedItem(value) {
+  return { text: value.str, x: value.transform[4], y: value.transform[5] };
 }
