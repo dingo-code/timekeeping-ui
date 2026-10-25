@@ -79,12 +79,14 @@ test('keeps an empty SS3 column while reading SS1, SS2, and total time', async (
 
 test('limits group result comparison to web rows from the detected PDF group', () => {
   const rows = filterWebRowsForBackupPdf([
-    { number: 75, groupName: 'G1' },
+    { number: 75, groupName: 'G1 - G1' },
     { number: 35, groupName: 'g1' },
+    { number: 132, groupName: 'Group G1' },
     { number: 93, groupName: 'G2' },
+    { number: 10, groupName: 'G10 - G10' },
   ], { groupName: 'G1' });
 
-  assert.deepEqual(rows.map((row) => row.number), [75, 35]);
+  assert.deepEqual(rows.map((row) => row.number), [75, 35, 132]);
 });
 
 test('keeps all web rows when the PDF has no detected group scope', () => {

@@ -620,7 +620,9 @@ function detectGroupName(pages, value, fileName) {
 }
 
 function normalizeScopeName(value) {
-  return cleanText(value).toUpperCase();
+  const normalized = cleanText(value).toUpperCase();
+  const groupCode = normalized.match(/\bG(?:R)?\d{1,3}[A-Z0-9]*\b/);
+  return groupCode?.[0] || normalized;
 }
 
 function cleanText(value) {
