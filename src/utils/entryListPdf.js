@@ -1,4 +1,5 @@
 const PDF_ROW_Y_TOLERANCE = 1.5;
+const PDF_TEMPLATE_WIDTH = 595.92;
 
 export async function parseEntryListPDF(file) {
   installPDFCompatibility();
@@ -10,69 +11,18 @@ export async function parseEntryListPDF(file) {
   const pdf = await pdfjs.getDocument({
     data: new Uint8Array(await file.arrayBuffer()),
   }).promise;
+  return parseEntryListPDFDocument(pdf);
+}
+
+export async function parseEntryListPDFDocument(pdf) {
   const rows = [];
   let readableTextItems = 0;
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
-    const lines = [];
-
-    content.items.forEach((item) => {
-      const value = cleanText(item.str);
-      if (!value) return;
-      readableTextItems += 1;
-
-      const y = item.transform[5];
-      let line = lines.find((candidate) => Math.abs(candidate.y - y) <= PDF_ROW_Y_TOLERANCE);
-      if (!line) {
-        line = { y, items: [] };
-        lines.push(line);
-      }
-      line.items.push({
-        value,
-        x: item.transform[4],
-        right: item.transform[4] + Number(item.width || 0),
-      });
-    });
-
-    lines
-      .sort((left, right) => right.y - left.y)
-      .forEach(({ items }) => {
-        const columns = {};
-        items
-          .sort((left, right) => left.x - right.x)
-          .forEach((item) => {
-            const key = columnForX(item.x);
-            if (!key) return;
-            if (!columns[key]) {
-              columns[key] = { value: item.value, right: item.right };
-              return;
-            }
-            columns[key].value = `${columns[key].value} ${item.value}`;
-            columns[key].right = Math.max(columns[key].right, item.right);
-          });
-
-        const row = {
-          participantId: '',
-          startNumber: positiveInteger(columnValue(columns, 'startNumber')),
-          entrant: columnValue(columns, 'entrant'),
-          driver: columnValue(columns, 'driver'),
-          driverRegion: columnValue(columns, 'driverRegion'),
-          navigator: columnValue(columns, 'navigator'),
-          navigatorRegion: columnValue(columns, 'navigatorRegion'),
-          classCode: columnValue(columns, 'classCode'),
-          categoryCode: columnValue(columns, 'categoryCode'),
-          car: columnValue(columns, 'car'),
-          type: columnValue(columns, 'type'),
-          sourcePage: pageNumber,
-        };
-
-        splitMergedRegion(row, columns, 'driver', 'driverRegion', 295);
-        splitMergedRegion(row, columns, 'navigator', 'navigatorRegion', 411);
-
-        if (isEntryListRow(row)) rows.push(row);
-      });
+    readableTextItems += content.items.filter((item) => cleanText(item.str)).length;
+    rows.push(...parseEntryListPDFItems(content.items, page.getViewport({ scale: 1 }).width, pageNumber));
   }
 
   if (rows.length === 0 && readableTextItems === 0) {
@@ -82,6 +32,69 @@ export async function parseEntryListPDF(file) {
     throw new Error('Struktur tabel PDF belum dikenali. Kolom yang didukung: CAR NO, ENTRANT, DRIVER, REG, NAVIGATOR, REG, GRP, CAT, CAR, dan TYPE.');
   }
 
+  return rows;
+}
+
+export function parseEntryListPDFItems(items, viewportWidth = PDF_TEMPLATE_WIDTH, pageNumber = 1) {
+  const lines = [];
+  const scale = PDF_TEMPLATE_WIDTH / (Number(viewportWidth) || PDF_TEMPLATE_WIDTH);
+  const rows = [];
+
+  items.forEach((item) => {
+    const value = cleanText(item.str);
+    if (!value) return;
+
+    const y = item.transform[5] * scale;
+    let line = lines.find((candidate) => Math.abs(candidate.y - y) <= PDF_ROW_Y_TOLERANCE);
+    if (!line) {
+      line = { y, items: [] };
+      lines.push(line);
+    }
+    line.items.push({
+      value,
+      x: item.transform[4] * scale,
+      right: (item.transform[4] + Number(item.width || 0)) * scale,
+    });
+  });
+
+  lines
+    .sort((left, right) => right.y - left.y)
+    .forEach(({ items }) => {
+      const columns = {};
+      items
+        .sort((left, right) => left.x - right.x)
+        .forEach((item) => {
+          const key = columnForX(item.x);
+          if (!key) return;
+          if (!columns[key]) {
+            columns[key] = { value: item.value, right: item.right };
+            return;
+          }
+          columns[key].value = `${columns[key].value} ${item.value}`;
+          columns[key].right = Math.max(columns[key].right, item.right);
+        });
+
+      const row = {
+        participantId: '',
+        startNumber: positiveInteger(columnValue(columns, 'startNumber')),
+        entrant: columnValue(columns, 'entrant'),
+        driver: columnValue(columns, 'driver'),
+        driverRegion: columnValue(columns, 'driverRegion'),
+        navigator: columnValue(columns, 'navigator'),
+        navigatorRegion: columnValue(columns, 'navigatorRegion'),
+        classCode: columnValue(columns, 'classCode'),
+        categoryCode: columnValue(columns, 'categoryCode'),
+        car: columnValue(columns, 'car'),
+        type: columnValue(columns, 'type'),
+        sourcePage: pageNumber,
+      };
+
+      splitMergedRegion(row, columns, 'driver', 'driverRegion', 295);
+      splitMergedRegion(row, columns, 'navigator', 'navigatorRegion', 411);
+      splitMergedVehicle(row);
+
+      if (isEntryListRow(row)) rows.push(row);
+    });
   return rows;
 }
 
@@ -108,10 +121,12 @@ function columnForX(x) {
   if (x >= 190 && x < 280) return 'driver';
   if (x >= 280 && x < 315) return 'driverRegion';
   if (x >= 315 && x < 395) return 'navigator';
-  if (x >= 395 && x < 435) return 'navigatorRegion';
-  if (x >= 435 && x < 465) return 'classCode';
-  if (x >= 465 && x < 490) return 'categoryCode';
-  if (x >= 490 && x < 525) return 'car';
+  // Centered codes have different left edges: RC4 starts left of R1.
+  // The CAR data also starts left of its centered heading in the PUT5 PDF.
+  if (x >= 395 && x < 425) return 'navigatorRegion';
+  if (x >= 425 && x < 455) return 'classCode';
+  if (x >= 455 && x < 480) return 'categoryCode';
+  if (x >= 480 && x < 525) return 'car';
   if (x >= 525) return 'type';
   return '';
 }
@@ -134,6 +149,16 @@ function splitMergedRegion(row, columns, nameKey, regionKey, regionStartX) {
   if (!match) return;
   row[nameKey] = match[1];
   row[regionKey] = match[2];
+}
+
+function splitMergedVehicle(row) {
+  if (row.type || !row.car.includes(' ')) return;
+  if (/^(Land Rover|Alfa Romeo|Aston Martin|Mercedes Benz)$/i.test(row.car)) return;
+  // PDF.js can combine adjacent CAR/TYPE cells into one text item.
+  const match = row.car.match(/^(Land Rover|Alfa Romeo|Aston Martin|Mercedes Benz|\S+)\s+(.+)$/i);
+  if (!match) return;
+  row.car = match[1];
+  row.type = match[2];
 }
 
 function cleanText(value) {
