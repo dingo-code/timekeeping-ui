@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEntryListPDFDocument, parseEntryListPDFItems } from './entryListPdf.js';
+import { entryListPDFRowsToImportRows, parseEntryListPDFDocument, parseEntryListPDFItems } from './entryListPdf.js';
 
 // Coordinates and text grouping from the PUT5-26 entry-list PDF.
-function entryItems({ number = 23, classCode = 'RC4', category = 'NS', car = 'Peugeot', type = '208 Rally4', mergedCar = false } = {}) {
+function entryItems({ number = 23, order = 105, classCode = 'RC4', category = 'NS', car = 'Peugeot', type = '208 Rally4', mergedCar = false } = {}) {
   return [
-    item('105', 9.47, 518.91),
+    item(String(order), 9.47, 518.91),
     item(String(number), 32.06, 517.70),
     item('PUTKAR REBORN', 53.39, 518.30),
     item('Alfonso Marcell', 193.53, 517.70),
@@ -37,6 +37,8 @@ test('keeps the category separate from the car brand for the PUT5 layout', () =>
   assert.equal(row.car, 'Toyota');
   assert.equal(row.type, 'Corolla DX');
   assert.equal(row.navigatorRegion, 'JTG');
+  assert.equal(row.entryOrder, 105);
+  assert.equal(entryListPDFRowsToImportRows([row])[0]['NO URUT'], 105);
 });
 
 test('splits adjacent vehicle cells combined into one PDF text item', () => {
@@ -65,7 +67,7 @@ test('retains the previous layout and scaled pages', () => {
 });
 
 test('reads subsequent pages even when they do not repeat the heading', async () => {
-  const pages = [entryItems({ number: 129, classCode: 'R1' }), entryItems()];
+  const pages = [entryItems({ number: 129, order: 1, classCode: 'R1' }), entryItems({ order: 42 })];
   const rows = await parseEntryListPDFDocument({
     numPages: pages.length,
     getPage: async (number) => ({
@@ -74,6 +76,18 @@ test('reads subsequent pages even when they do not repeat the heading', async ()
     }),
   });
   assert.deepEqual(rows.map((row) => [row.startNumber, row.sourcePage]), [[129, 1], [23, 2]]);
+  assert.deepEqual(rows.map((row) => row.entryOrder), [1, 42]);
+});
+
+test('falls back to continuous file order across pages without a sequence column', async () => {
+  const rows = await parseEntryListPDFDocument({
+    numPages: 2,
+    getPage: async (number) => ({
+      getTextContent: async () => ({ items: entryItems({ number: number === 1 ? 129 : 23 }).filter((entry) => entry.transform[4] >= 25) }),
+      getViewport: () => ({ width: 595.92 }),
+    }),
+  });
+  assert.deepEqual(rows.map((row) => row.entryOrder), [1, 2]);
 });
 
 test('distinguishes scanned PDFs from unsupported text layouts', async () => {

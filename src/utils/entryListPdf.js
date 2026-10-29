@@ -32,7 +32,7 @@ export async function parseEntryListPDFDocument(pdf) {
     throw new Error('Struktur tabel PDF belum dikenali. Kolom yang didukung: CAR NO, ENTRANT, DRIVER, REG, NAVIGATOR, REG, GRP, CAT, CAR, dan TYPE.');
   }
 
-  return rows;
+  return rows.map((row, index) => ({ ...row, entryOrder: row.entryOrder || index + 1 }));
 }
 
 export function parseEntryListPDFItems(items, viewportWidth = PDF_TEMPLATE_WIDTH, pageNumber = 1) {
@@ -76,6 +76,7 @@ export function parseEntryListPDFItems(items, viewportWidth = PDF_TEMPLATE_WIDTH
 
       const row = {
         participantId: '',
+        entryOrder: positiveInteger(columnValue(columns, 'entryOrder')),
         startNumber: positiveInteger(columnValue(columns, 'startNumber')),
         entrant: columnValue(columns, 'entrant'),
         driver: columnValue(columns, 'driver'),
@@ -100,6 +101,7 @@ export function parseEntryListPDFItems(items, viewportWidth = PDF_TEMPLATE_WIDTH
 
 export function entryListPDFRowsToImportRows(rows) {
   return rows.map((row) => ({
+    'NO URUT': row.entryOrder,
     'NO START': row.startNumber,
     'ENTRANT': row.entrant,
     'TEAM': row.entrant,
@@ -116,6 +118,7 @@ export function entryListPDFRowsToImportRows(rows) {
 }
 
 function columnForX(x) {
+  if (x >= 0 && x < 25) return 'entryOrder';
   if (x >= 25 && x < 50) return 'startNumber';
   if (x >= 50 && x < 190) return 'entrant';
   if (x >= 190 && x < 280) return 'driver';

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import api, { API_ORIGIN, assetUrl } from '../../services/api';
 import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 import { formatMs as formatDurationMs } from '../../utils/timeFormat';
+import { sortEntryList } from '../../utils/entryListOrder';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
@@ -1090,7 +1091,7 @@ function StartingListSection({ entries, stages, startingListsByStage, mode, onMo
           )}
           {displayEntries.map((entry, index) => (
             <tr key={`${entry.participant_id}-${entry.id || 'entry'}`} className="border-t border-neutral-200">
-              <td className="p-4 text-center text-sm">{isStageMode ? (entry.start_order || index + 1) : index + 1}</td>
+              <td className="p-4 text-center text-sm">{isStageMode ? (entry.start_order || index + 1) : (entry.entry_order || index + 1)}</td>
               <td className="p-4 text-center">
                 <span className="inline-flex min-w-12 justify-center border border-neutral-300 bg-white px-3 py-1">{entry.start_number}</span>
               </td>
@@ -1197,7 +1198,7 @@ function buildStageWinners(stages, entriesByStage) {
 }
 
 function buildStartingList(entries) {
-  return [...entries].sort((a, b) => Number(a.start_number || 0) - Number(b.start_number || 0));
+  return sortEntryList(entries);
 }
 
 function buildStageStartingList(entries) {

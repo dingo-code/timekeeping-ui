@@ -47,7 +47,7 @@ export default function SmartEntryListUpdate({ eventId, participants, racers, te
     try {
       const cache = { racers: [...racers], teams: [...teams], vehicles: [...vehicles], regions: [...regions] };
       let updated = 0, created = 0;
-      for (const item of current) {
+      for (const [index, item] of current.entries()) {
         const oldParticipant = participants.find((p) => p.id === item.participantId);
         const driver = await ensureRacer(item.data.driver, item.data.driverRegion, oldParticipant?.driver_id, true, cache);
         const navigator = await ensureRacer(item.data.navigator, item.data.navigatorRegion, oldParticipant?.codriver_id, false, cache);
@@ -57,7 +57,7 @@ export default function SmartEntryListUpdate({ eventId, participants, racers, te
         const categoryItem = categories.find((c) => norm(c.code) === norm(item.data.categoryCode) || norm(c.description) === norm(item.data.categoryCode));
         if (!classItem) throw new Error(`Class ${item.data.classCode} untuk No ${item.data.startNumber} belum ada di master.`);
         if (!categoryItem) throw new Error(`Category ${item.data.categoryCode} untuk No ${item.data.startNumber} belum ada di master.`);
-        const payload = { start_number: item.data.startNumber, entrant_name: item.data.entrant === '-' || item.data.entrant === '–' ? '' : item.data.entrant, driver_id: driver.id, codriver_id: navigator.id, team_id: teamId, vehicle_id: vehicleId, join_car_with_participant_id: oldParticipant?.join_car_with_participant_id || '', class_id: classItem.id, category_id: categoryItem.id };
+        const payload = { entry_order: item.data.entryOrder || index + 1, start_number: item.data.startNumber, entrant_name: item.data.entrant === '-' || item.data.entrant === '–' ? '' : item.data.entrant, driver_id: driver.id, codriver_id: navigator.id, team_id: teamId, vehicle_id: vehicleId, join_car_with_participant_id: oldParticipant?.join_car_with_participant_id || '', class_id: classItem.id, category_id: categoryItem.id };
         if (oldParticipant) { await api.put(`/admin/events/${eventId}/participants/${oldParticipant.id}`, payload); updated++; }
         else { await api.post(`/admin/events/${eventId}/participants`, payload); created++; }
       }
@@ -123,10 +123,11 @@ export default function SmartEntryListUpdate({ eventId, participants, racers, te
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-900 text-xs uppercase text-white">
-            <tr><th className="p-3">No Baru</th><th className="p-3 text-left">Data File</th><th className="p-3 text-left">Dipetakan ke Peserta Lama</th><th className="p-3">Keyakinan</th></tr>
+            <tr><th className="p-3">No Urut</th><th className="p-3">No Baru</th><th className="p-3 text-left">Data File</th><th className="p-3 text-left">Dipetakan ke Peserta Lama</th><th className="p-3">Keyakinan</th></tr>
           </thead>
           <tbody>{visible.map((row) => (
             <tr key={row.key} className={`border-b ${issueRowKeys.has(row.key) ? 'bg-red-50' : ''}`}>
+              <td className="p-3 text-center font-bold text-gray-500">{row.data.entryOrder || activeMatches.indexOf(row) + 1}</td>
               <td className="p-3 text-center text-xl font-black">{row.data.startNumber}</td>
               <td className="p-3">
                 <b>{row.data.driver}</b>
@@ -155,7 +156,7 @@ function UploadPanel({ busy, onFile }) { return <div className="rounded-xl borde
 
 async function parseWorkbook(file) {
   const XLSX = await import('xlsx'), wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }), sheet = wb.Sheets[wb.SheetNames[0]], rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-  return rows.map((row) => ({ participantId: cell(row, ['PARTICIPANT ID','ENTRY ID']), startNumber: number(cell(row, ['NO START','CAR NO','START NO'])), entrant: text(cell(row, ['ENTRANT','TEAM','TIM'])), driver: text(cell(row, ['DRIVER','NAMA DRIVER'])), driverRegion: text(cell(row, ['DRIVER REGION','REG DRIVER'])), navigator: text(cell(row, ['NAVIGATOR','CODRIVER','CO DRIVER'])), navigatorRegion: text(cell(row, ['NAVIGATOR REGION','REG NAVIGATOR'])), classCode: text(cell(row, ['CLASS','CLS'])), categoryCode: text(cell(row, ['CATEGORY','CAT'])), car: text(cell(row, ['BRAND','MERK'])) || text(cell(row, ['CAR','VEHICLE','KENDARAAN'])), type: text(cell(row, ['TYPE','TIPE'])) })).filter(validSourceRow);
+  return rows.map((row) => ({ entryOrder: number(cell(row, ['NO URUT','ENTRY ORDER'])), participantId: cell(row, ['PARTICIPANT ID','ENTRY ID']), startNumber: number(cell(row, ['NO START','CAR NO','START NO'])), entrant: text(cell(row, ['ENTRANT','TEAM','TIM'])), driver: text(cell(row, ['DRIVER','NAMA DRIVER'])), driverRegion: text(cell(row, ['DRIVER REGION','REG DRIVER'])), navigator: text(cell(row, ['NAVIGATOR','CODRIVER','CO DRIVER'])), navigatorRegion: text(cell(row, ['NAVIGATOR REGION','REG NAVIGATOR'])), classCode: text(cell(row, ['CLASS','CLS'])), categoryCode: text(cell(row, ['CATEGORY','CAT'])), car: text(cell(row, ['BRAND','MERK'])) || text(cell(row, ['CAR','VEHICLE','KENDARAAN'])), type: text(cell(row, ['TYPE','TIPE'])) })).filter(validSourceRow).map((row, index) => ({ ...row, entryOrder: row.entryOrder || index + 1 }));
 }
 function validSourceRow(row) { return row.startNumber > 0 && row.driver && row.navigator && row.classCode && row.categoryCode; }
 function cell(row, headers) { for (const [key,value] of Object.entries(row || {})) if (headers.some((h) => norm(h) === norm(key))) return value; return ''; }

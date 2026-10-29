@@ -1005,6 +1005,7 @@ export default function MasterEventDetail() {
           });
 
           const payload = {
+            entry_order: parseStartNumber(readExcelValue(row, ['NO URUT', 'ENTRY ORDER'])) || index + 1,
             start_number: startNumber,
             entrant_name: entrantName === '-' || entrantName === '–' ? '' : entrantName,
             driver_id: driver.id,
@@ -1127,13 +1128,13 @@ export default function MasterEventDetail() {
         'PARTICIPANT ID', 'NO START', 'ENTRANT', 'DRIVER', 'DRIVER KIS', 'DRIVER GENDER', 'DRIVER DOB',
         'DRIVER BLOOD', 'DRIVER REGION', 'NAVIGATOR', 'NAVIGATOR KIS', 'NAVIGATOR GENDER',
         'NAVIGATOR DOB', 'NAVIGATOR BLOOD', 'NAVIGATOR REGION', 'TEAM', 'VEHICLE',
-        'BRAND', 'TYPE', 'CC', 'CLASS', 'CLASS NAME', 'GROUP', 'CATEGORY', 'JOIN CAR WITH',
+        'BRAND', 'TYPE', 'CC', 'CLASS', 'CLASS NAME', 'GROUP', 'CATEGORY', 'JOIN CAR WITH', 'NO URUT',
       ];
       const example = [
         '', 1, 'Compactindo Team', 'Nama Driver', 'KIS-001', 'L', '1990-01-31',
         'O', 'DKI Jakarta', 'Nama Navigator', 'KIS-002', 'L', '1992-02-28',
         'A', 'Jawa Barat', 'Compactindo Team', 'Toyota GR Yaris', 'Toyota', 'GR Yaris',
-        1600, 'M1', 'M1', 'M', categories[0]?.code || '', '',
+        1600, 'M1', 'M1', 'M', categories[0]?.code || '', '', 1,
       ];
       const instructions = [
         ['PETUNJUK IMPORT ENTRY LIST'],
@@ -1147,6 +1148,7 @@ export default function MasterEventDetail() {
         ['8', 'Jika ID kosong, sistem mencocokkan KIS/Driver-Navigator, lalu nomor start sebagai fallback.'],
         ['9', 'Racer yang belum ada otomatis ditambahkan ke master racer.'],
         ['10', 'Sheet CONTOH hanya sebagai referensi dan tidak ikut diimport.'],
+        ['11', 'NO URUT mengikuti urutan pada dokumen panitia. Jika kosong, digunakan urutan baris file.'],
       ];
       const categoryRows = [
         ['CODE', 'DESCRIPTION'],
@@ -1174,7 +1176,7 @@ export default function MasterEventDetail() {
           navigator.blood_type, navigatorRegion.name,
           normalizeLookupText(team.name) === normalizeLookupText(driver.full_name) && normalizeLookupText(participant.entrant_name) === normalizeLookupText(driver.full_name) ? '' : team.name,
           [vehicle.brand, vehicle.type].filter(Boolean).join(' '), vehicle.brand, vehicle.type, vehicle.engine_capacity,
-          classItem.code, classItem.name, group.code || group.name, category.code, joinParticipant?.start_number || '',
+          classItem.code, classItem.name, group.code || group.name, category.code, joinParticipant?.start_number || '', participant.entry_order || '',
         ];
       });
       const entrySheet = XLSX.utils.aoa_to_sheet([headers, ...currentRows]);
@@ -1744,6 +1746,7 @@ export default function MasterEventDetail() {
                         aria-label="Pilih semua peserta pada halaman ini"
                       />
                     </th>
+                    <th className="p-3 text-center">No Urut</th>
                     <th className="p-3 text-center">No Start</th>
                     <th className="p-3">Nama Entrant / Tim</th>
                     <th className="p-3">Driver / Navigator</th>
@@ -1753,7 +1756,7 @@ export default function MasterEventDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentParticipants.length === 0 ? <tr><td colSpan="7" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr> :
+                  {currentParticipants.length === 0 ? <tr><td colSpan="8" className="text-center p-8 text-gray-500">Tidak ada peserta ditemukan.</td></tr> :
                     currentParticipants.map(p => {
                       const joinSource = getJoinCarSource(p);
                       const joinedBy = getJoinCarParticipants(p).filter((item) => item.join_car_with_participant_id === p.id);
@@ -1768,6 +1771,7 @@ export default function MasterEventDetail() {
                             aria-label={`Pilih peserta no start ${p.start_number}`}
                           />
                         </td>
+                        <td className="p-3 text-center font-bold text-gray-500">{p.entry_order || participants.indexOf(p) + 1}</td>
                         <td className="p-3 text-center">
                           <span className="bg-black text-white font-black text-xl px-3 py-1 rounded">{p.start_number}</span>
                         </td>

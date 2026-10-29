@@ -11,10 +11,11 @@ export function analyzeRows(rows, participants) {
 }
 
 export function getReviewIssues(rows, participants) {
-  const numbers = new Map(), ids = new Map();
+  const numbers = new Map(), ids = new Map(), orders = new Map();
   for (const row of rows) {
     const number = Number(row.data.startNumber);
     numbers.set(number, [...(numbers.get(number) || []), row]);
+    if (row.data.entryOrder) orders.set(row.data.entryOrder, [...(orders.get(row.data.entryOrder) || []), row]);
     if (row.participantId) ids.set(row.participantId, [...(ids.get(row.participantId) || []), row]);
   }
 
@@ -22,6 +23,7 @@ export function getReviewIssues(rows, participants) {
     const number = Number(row.data.startNumber);
     const messages = [];
     if (numbers.get(number).length > 1) messages.push(`No ${number} muncul lebih dari sekali di file.`);
+    if (orders.get(row.data.entryOrder)?.length > 1) messages.push(`No urut ${row.data.entryOrder} muncul lebih dari sekali di file.`);
     if (row.participantId && ids.get(row.participantId).length > 1) {
       const mappedNumbers = ids.get(row.participantId).map((item) => item.data.startNumber).join(', ');
       messages.push(`No ${number}: peserta lama yang sama dipilih untuk baris ${mappedNumbers}. Pilih peserta lama yang berbeda.`);

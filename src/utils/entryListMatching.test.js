@@ -44,6 +44,14 @@ test('marks both rows for duplicate car numbers', () => {
   assert.deepEqual(issues.map((issue) => issue.rowKey), ['a', 'b']);
 });
 
+test('blocks duplicate document sequence numbers on both rows', () => {
+  const rows = [reviewRow('a', 129, 'one'), reviewRow('b', 128, 'two')];
+  rows.forEach((row) => { row.data.entryOrder = 1; });
+  const issues = getReviewIssues(rows, []);
+  assert.deepEqual(issues.map((issue) => issue.rowKey), ['a', 'b']);
+  assert.ok(issues.every((issue) => /No urut 1/.test(issue.message)));
+});
+
 test('does not reuse a replaced driver master record for a different person', () => {
   const racers = [{ id: 'old-driver', full_name: 'Edwin Djaya' }];
   assert.equal(findImportedRacer(racers, 'Iskra Scastia', 'old-driver'), undefined);
