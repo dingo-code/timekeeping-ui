@@ -11,6 +11,7 @@ import EventDocumentsTab from './EventDocumentsTab';
 import EventSponsorsTab from './EventSponsorsTab';
 import { entryListPDFRowsToImportRows, parseEntryListPDF } from '../../utils/entryListPdf';
 import { parseStartingListPDF } from '../../utils/startingListPdf';
+import { buildStartingListPayload, isWithdrawActiveOnStage } from '../../utils/startingListWithdraw';
 
 const DEFAULT_IMPORT_RACER_DOB = '1900-01-01';
 const RESULT_STATUS_STYLES = {
@@ -267,24 +268,9 @@ export default function MasterEventDetail() {
   };
 
   const startingListPayload = () => {
-    const selectedRows = selectedStageIsShakedown
-      ? tcRows.filter((row) => shakedownParticipantIds.includes(row.id))
-      : tcRows;
-    const rows = selectedRows.map((row, index) => ({
-      participant_id: row.id,
-      start_order: Number(startOrderDrafts[row.id] ?? row.start_order ?? row.start_number),
-      list_position: index + 1,
-      target_tc_time: tcTargetDrafts[row.id] ?? row.target_tc_time ?? '',
-    }));
-    const invalidRow = rows.find((row) => !Number.isInteger(row.start_order) || row.start_order <= 0);
-    if (invalidRow) {
-      throw new Error('Semua Start Ke harus berupa angka lebih besar dari 0.');
-    }
-    const duplicateOrder = rows.find((row, index) => rows.some((other, otherIndex) => otherIndex !== index && other.start_order === row.start_order));
-    if (duplicateOrder) {
-      throw new Error(`Start Ke ${duplicateOrder.start_order} dipakai lebih dari satu peserta.`);
-    }
-    return rows;
+    return buildStartingListPayload(tcRows, {
+      stage: selectedTCStage, stages, startOrderDrafts, tcTargetDrafts, shakedownParticipantIds,
+    });
   };
 
   const saveStartingList = async ({ silent = false } = {}) => {
@@ -357,6 +343,7 @@ export default function MasterEventDetail() {
       const nextTCTargetDrafts = { ...tcTargetDrafts };
       const unmatched = [];
       const imported = [];
+      const withdrawn = [];
       const importedParticipantIds = [];
       const importedParticipantIdSet = new Set();
 
@@ -365,6 +352,10 @@ export default function MasterEventDetail() {
         const participant = participantsByCarNo.get(String(carNo).trim());
         if (!participant) {
           if (carNo) unmatched.push(carNo);
+          return;
+        }
+        if (isWithdrawActiveOnSelectedStage(participant)) {
+          withdrawn.push(participant.start_number);
           return;
         }
         if (importedParticipantIdSet.has(participant.id)) {
@@ -384,7 +375,7 @@ export default function MasterEventDetail() {
         importedParticipantIdSet.add(participant.id);
       });
 
-      if (imported.length === 0) return alert('Tidak ada CAR NO yang cocok dengan Entry List event ini.');
+      if (imported.length === 0) return alert(withdrawn.length ? 'Semua peserta yang cocok di file sudah WD pada SS ini.' : 'Tidak ada CAR NO yang cocok dengan Entry List event ini.');
 
       setStartOrderDrafts(nextStartOrderDrafts);
       setTcTargetDrafts(nextTCTargetDrafts);
@@ -393,13 +384,14 @@ export default function MasterEventDetail() {
         setStartingListOrder(importedParticipantIds);
       } else {
         const remainingParticipantIds = startingListOrder
-          .filter((participantId) => !importedParticipantIdSet.has(participantId));
+          .filter((participantId) => !importedParticipantIdSet.has(participantId) && !isWithdrawActiveOnSelectedStage(participants.find((participant) => participant.id === participantId)));
         const remainingNewParticipantIds = participants
+          .filter((participant) => !isWithdrawActiveOnSelectedStage(participant))
           .map((participant) => participant.id)
           .filter((participantId) => !importedParticipantIdSet.has(participantId) && !remainingParticipantIds.includes(participantId));
         setStartingListOrder([...importedParticipantIds, ...remainingParticipantIds, ...remainingNewParticipantIds]);
       }
-      const summary = `${imported.length} peserta diimport dari ${file.name}${unmatched.length ? `, ${unmatched.length} CAR NO tidak cocok` : ''}.`;
+      const summary = `${imported.length} peserta diimport dari ${file.name}${withdrawn.length ? `, ${withdrawn.length} peserta WD dilewati` : ''}${unmatched.length ? `, ${unmatched.length} CAR NO tidak cocok` : ''}.`;
       setStartingListImportSummary(summary);
       alert(summary);
     } catch (err) {
@@ -414,7 +406,7 @@ export default function MasterEventDetail() {
       const headers = ['CAR NO', 'START KE', 'TC TIME'];
       const templateRows = selectedStageIsShakedown && shakedownParticipantIds.length > 0
         ? tcRows.filter((participant) => shakedownParticipantIds.includes(participant.id))
-        : tcRows;
+        : tcRows.filter((participant) => !isWithdrawActiveOnSelectedStage(participant));
       const rows = templateRows.map((participant, index) => [
         participant.start_number,
         startOrderDrafts[participant.id] || index + 1,
@@ -429,6 +421,7 @@ export default function MasterEventDetail() {
         ['5', 'Pilih SS atau Shakedown yang benar sebelum mengunduh dan mengimport template.'],
         ['6', 'Untuk Shakedown, hapus peserta yang tidak ikut dari file sebelum import.'],
         ['7', 'Urutan baris pada file akan dipertahankan apa adanya dan tidak di-sort otomatis.'],
+        ['8', 'Peserta WD mulai SS terpilih atau SS sebelumnya tidak mengambil nomor urut starting list.'],
       ];
       const workbook = XLSX.utils.book_new();
       const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -506,9 +499,13 @@ export default function MasterEventDetail() {
   const startingListByParticipantId = new Map(startingList.map((entry) => [entry.participant_id, entry]));
   const participantById = new Map(participants.map((participant) => [participant.id, participant]));
   const orderedParticipantIds = new Set(startingListOrder);
-  const orderedParticipants = [
+  const allTCParticipants = [
     ...startingListOrder.map((participantId) => participantById.get(participantId)).filter(Boolean),
     ...participants.filter((participant) => !orderedParticipantIds.has(participant.id)),
+  ];
+  const orderedParticipants = [
+    ...allTCParticipants.filter((participant) => !isWithdrawActiveOnSelectedStage(participant)),
+    ...allTCParticipants.filter((participant) => isWithdrawActiveOnSelectedStage(participant)),
   ];
   const tcRows = orderedParticipants.map((participant) => {
     const record = tcRecordByParticipantId.get(participant.id);
@@ -1368,10 +1365,7 @@ export default function MasterEventDetail() {
   }
 
   function isWithdrawActiveOnSelectedStage(participant) {
-    if (!participant?.withdraw_from_stage_id || !selectedTCStage) return false;
-    const withdrawStage = stages.find((stage) => stage.id === participant.withdraw_from_stage_id);
-    if (!withdrawStage) return true;
-    return Number(selectedTCStage.ss_order) >= Number(withdrawStage.ss_order);
+    return isWithdrawActiveOnStage(participant, selectedTCStage, stages);
   }
 
   const formatMsToText = (ms) => {
@@ -1837,6 +1831,7 @@ export default function MasterEventDetail() {
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Starting List SS / Shakedown</h3>
                 <p className="text-xs text-gray-500">Starting List Shakedown bersifat opsional dan hanya berisi peserta yang dipilih.</p>
+                {!selectedStageIsShakedown && tcRows.some((row) => isWithdrawActiveOnSelectedStage(row)) && <p className="mt-1 text-xs font-bold text-amber-700">Peserta WD ditampilkan di bagian bawah dan tidak mengambil nomor urut starting list SS ini.</p>}
               </div>
               <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto xl:grid-cols-[220px_260px_110px]">
                 <select
@@ -1990,9 +1985,10 @@ export default function MasterEventDetail() {
                           type="number"
                           min="1"
                           className="w-20 rounded border border-gray-300 p-2 text-center text-sm font-black outline-none focus:ring-1 focus:ring-red-500"
-                          value={startOrderDrafts[row.id] ?? row.start_order ?? ''}
+                          value={isWithdrawActive ? '' : (startOrderDrafts[row.id] ?? row.start_order ?? '')}
+                          placeholder="—"
                           onChange={(e) => setStartOrderDrafts({ ...startOrderDrafts, [row.id]: e.target.value })}
-                          disabled={selectedStageIsShakedown && !isIncludedInShakedown}
+                          disabled={isWithdrawActive || (selectedStageIsShakedown && !isIncludedInShakedown)}
                         />
                       </td>
                       <td className="p-3 text-center">
