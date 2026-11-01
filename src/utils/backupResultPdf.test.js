@@ -4,6 +4,33 @@ import { filterWebRowsForBackupPdf, parseBackupResultPdfDocument } from './backu
 
 const PAGE_WIDTH = 596;
 
+test('reads Final Classification across pages without inventing penalties or mixing diff columns into totals', async () => {
+  const headers = [item('FINAL CLASSIFICATION', 188, 542), item('SS1', 580, 499), item('SS2', 618, 499), item('SS3', 656, 499), item('SS4', 694, 499), item('TOTAL', 729, 504), item('TIME', 732, 495), item('DIFF', 770, 504), item('DIFF', 808, 504)];
+  const row = (position, number, y, times) => [
+    item(String(position), 15, y), item(String(number), 35, y), item('Driver', 188, y), item('Navigator', 304, y), item('RC2', 421, y),
+    ...times.map((text, index) => item(text, [578, 616, 654, 692, 727, 765, 802][index], y)),
+  ];
+  const pages = [
+    [...headers, ...row(1, 1, 480, ['3:37.7', '4:28.7', '3:33.9', '3:33.5', '15:13.8'])],
+    row(2, 73, 550, ['3:37.9', '4:47.9', '3:34.3', '3:33.8', '15:33.9', '+0:20.1', '+0:20.1']),
+  ];
+  const result = await parseBackupResultPdfDocument({ numPages: 2, getPage: async (n) => ({ getViewport: () => ({ width: 843 }), getTextContent: async () => ({ items: pages[n - 1] }) }) }, 'Final Classification.pdf');
+  assert.equal(result.isFinal, true);
+  assert.equal(result.stageOrder, null);
+  assert.equal(result.timeDecimalPlaces, 1);
+  assert.deepEqual(result.stageOrders, [1, 2, 3, 4]);
+  assert.equal(result.rows.length, 2);
+  assert.equal(result.rows[0].totalTimeMs, 913800);
+  assert.equal(result.rows[0].penaltyMs, null);
+  assert.equal(result.rows[0].available.penalty, false);
+  assert.equal(result.rows[1].sourcePage, 2);
+  assert.equal(result.rows[1].position, 2);
+  assert.equal(result.rows[1].diffPrevMs, 20100);
+  assert.equal(result.rows[1].diffFirstMs, 20100);
+  assert.equal(result.rows[1].totalTimeMs, 933900);
+  assert.equal(result.unreadableCount, 0);
+});
+
 test('reads single-stage group result columns', async () => {
   const result = await parseBackupResultPdfDocument(fakePdf([
     item('GROUP : G1', 223, 780),

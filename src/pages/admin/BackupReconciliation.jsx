@@ -3,8 +3,10 @@ import api from '../../services/api';
 import { filterWebRowsForBackupPdf, readBackupResultPdf } from '../../utils/backupResultPdf';
 import { detectSSSpreadsheetProfile, parseSSSpreadsheet } from '../../utils/backupSpreadsheet';
 import { formatMs } from '../../utils/timeFormat';
+import { backupDurationDifference, buildFinalBackupWebRows } from '../../utils/finalBackup';
 
 const modeMap = {
+  final: { label: 'Final Result' },
   ss: { label: 'Special Stage' },
   practice: {
     label: 'Practice',
@@ -15,6 +17,7 @@ const modeMap = {
     ],
   },
 };
+const FINAL_RESULT_SESSION = { id: 'final', name: 'Final Result - Parc Fermé' };
 
 export default function BackupReconciliation() {
   const [events, setEvents] = useState([]), [eventId, setEventId] = useState('');
@@ -26,8 +29,8 @@ export default function BackupReconciliation() {
   const [rows, setRows] = useState([]), [showOnlyIssues, setShowOnlyIssues] = useState(false);
   const [isLoading, setIsLoading] = useState(false), [message, setMessage] = useState('');
   const event = events.find((item) => item.id === eventId), decimalPlaces = event?.time_decimal_places ?? 2;
-  const comparisonTolerance = 1000 / (10 ** Math.max(0, Number(decimalPlaces) || 0));
-  const selectedSession = sessions.find((item) => item.id === sessionId) || null;
+  const comparisonTolerance = mode === 'final' && Number.isInteger(pdfResult?.timeDecimalPlaces) ? 0 : 1000 / (10 ** Math.max(0, Number(decimalPlaces) || 0));
+  const selectedSession = mode === 'final' ? FINAL_RESULT_SESSION : sessions.find((item) => item.id === sessionId) || null;
   const sourceLabel = sourceKind === 'pdf' ? 'PDF' : 'Spreadsheet';
   const comparisonStageOrders = sourceKind === 'pdf' ? (pdfResult?.stageOrders || []) : [];
 
@@ -41,16 +44,21 @@ export default function BackupReconciliation() {
 
   useEffect(() => {
     if (!eventId) return;
+    if (mode === 'final') return;
     const url = mode === 'practice' ? `/public/events/${eventId}/practices` : `/public/events/${eventId}/stages`;
+    let cancelled = false;
     api.get(url).then((res) => {
+      if (cancelled) return;
       const list = res.data.data || [];
       setSessions(list);
       setSessionId(list[0]?.id || '');
       setRows([]);
     }).catch(() => {
+      if (cancelled) return;
       setSessions([]);
       setSessionId('');
     });
+    return () => { cancelled = true; };
   }, [eventId, mode]);
 
   const summary = useMemo(() => rows.reduce((result, row) => {
@@ -74,7 +82,7 @@ export default function BackupReconciliation() {
           setMessage,
           selectedSession?.is_shakedown ? null : selectedSession?.ss_order,
         );
-        const detectedSession = result.isShakedown
+        const detectedSession = result.isFinal ? null : result.isShakedown
           ? sessions.find((item) => item.is_shakedown)
           : result.stageOrder
             ? sessions.find((item) => Number(item.ss_order) === Number(result.stageOrder))
@@ -85,14 +93,17 @@ export default function BackupReconciliation() {
         setSpreadsheetProfile(null);
         setSourceKind('pdf');
         setSourceFileName(file.name);
+        if (result.isFinal) { setMode('final'); setSessionId('final'); }
+        else if (mode === 'final') setMode('ss');
         if (detectedSession) setSessionId(detectedSession.id);
-        const detectedLabel = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : 'sesi belum terdeteksi';
+        const detectedLabel = result.isFinal ? 'Final Result' : result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : 'sesi belum terdeteksi';
         const scopeLabel = result.groupName ? `, grup ${result.groupName}` : '';
         const readMethod = result.usedOcr ? ' melalui pembacaan visual otomatis (OCR)' : '';
         setMessage(`${result.rows.length} baris dari ${result.pages} halaman PDF terbaca${readMethod} sebagai ${detectedLabel}${scopeLabel}. Periksa preview lalu tekan Bandingkan Data.`);
         return;
       }
 
+      if (mode === 'final') throw new Error('Gunakan PDF Final Classification untuk verifikasi Final Result.');
       const XLSX = await import('xlsx');
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
       const preferredSheet = mode === 'ss'
@@ -125,11 +136,13 @@ export default function BackupReconciliation() {
   }
 
   async function compare() {
-    if (!sourceReady || !sessionId) return setMessage('Pilih event, sesi, dan file backup terlebih dahulu.');
+    if (!sourceReady || (mode !== 'final' && !sessionId)) return setMessage('Pilih event, sesi, dan file backup terlebih dahulu.');
     setIsLoading(true);
     setMessage('');
     try {
-      if (sourceKind === 'pdf' && mode !== 'ss') throw new Error('Profil PDF Result saat ini hanya dapat dibandingkan dengan Special Stage.');
+      if (mode === 'final' && (sourceKind !== 'pdf' || !pdfResult?.isFinal)) throw new Error('Pilih PDF Final Classification untuk membandingkan Final Result.');
+      if (sourceKind === 'pdf' && pdfResult.isFinal && mode !== 'final') throw new Error('PDF Final Classification harus dibandingkan dengan jenis data Final Result.');
+      if (sourceKind === 'pdf' && mode === 'practice') throw new Error('PDF Result hanya dapat dibandingkan dengan Special Stage atau Final Result.');
       if (sourceKind === 'pdf' && pdfResult.isShakedown && !selectedSession?.is_shakedown) {
         throw new Error('PDF terdeteksi sebagai hasil Shakedown. Pilih sesi Shakedown sebelum membandingkan.');
       }
@@ -156,7 +169,9 @@ export default function BackupReconciliation() {
         if (!sourceRows.length) throw new Error(`Tidak ditemukan data SS yang dapat dibaca pada sheet ${sheetName}. Periksa sheet dan profil format file.`);
       }
 
-      const fetchedWebRows = mode === 'practice'
+      const fetchedWebRows = mode === 'final'
+        ? await fetchFinalResult(eventId, comparisonStageOrders)
+        : mode === 'practice'
         ? await fetchPractice(sessionId)
         : sourceKind === 'pdf' && comparisonStageOrders.length > 1
           ? await fetchCumulativeSS(eventId, comparisonStageOrders)
@@ -164,7 +179,7 @@ export default function BackupReconciliation() {
       const webRows = sourceKind === 'pdf'
         ? filterWebRowsForBackupPdf(fetchedWebRows, pdfResult)
         : fetchedWebRows;
-      setRows(reconcile(sourceRows, webRows, decimalPlaces, mode, sourceKind));
+      setRows(reconcile(sourceRows, webRows, decimalPlaces, mode, sourceKind, mode === 'final' ? pdfResult.timeDecimalPlaces : null));
       const scopeLabel = sourceKind === 'pdf' && pdfResult.groupName ? ` dalam grup ${pdfResult.groupName}` : '';
       setMessage(`${sourceRows.length} data ${sourceLabel.toLowerCase()} dibandingkan dengan ${webRows.length} data web${scopeLabel} secara read-only.`);
     } catch (error) {
@@ -173,6 +188,11 @@ export default function BackupReconciliation() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function fetchFinalResult(nextEventId, stageOrders) {
+    const res = await api.get(`/public/race-results/${nextEventId}?group_by=overall`);
+    return buildFinalBackupWebRows(res.data.data, stageOrders);
   }
 
   async function fetchSS(id, stageOrder = null) {
@@ -255,11 +275,12 @@ export default function BackupReconciliation() {
     const stageHeaders = comparisonStageOrders.flatMap((order) => [`SS${order} ${sourceLabel}`, `SS${order} Web`]);
     autoTable(doc, {
       startY: 23,
-      head: [['Hasil', 'No', 'Driver', ...(comparisonStageOrders.length ? stageHeaders : [`Elapsed ${sourceLabel}`, 'Elapsed Web']), `Penalty ${sourceLabel}`, 'Penalty Web', `Total ${sourceLabel}`, 'Total Web', 'Status', 'Sumber', 'Catatan']],
+      head: [['Hasil', 'No', 'Driver', ...(mode === 'final' ? ['Pos PDF / Web'] : []), ...(comparisonStageOrders.length ? stageHeaders : [`Elapsed ${sourceLabel}`, 'Elapsed Web']), `Penalty ${sourceLabel}`, 'Penalty Web', `Total ${sourceLabel}`, 'Total Web', ...(mode === 'final' ? ['Diff Prev PDF / Web', 'Diff 1st PDF / Web'] : []), 'Status', 'Sumber', 'Catatan']],
       body: reportRows.map((row) => [
         row.result,
         row.number,
         row.driver,
+        ...(mode === 'final' ? [`${row.sourcePosition ?? '-'} / ${row.webPosition ?? '-'}`] : []),
         ...(comparisonStageOrders.length
           ? comparisonStageOrders.flatMap((order) => [displayElapsed(row.sourceStageTimesMs?.[order], decimalPlaces), displayElapsed(row.webStageTimesMs?.[order], decimalPlaces)])
           : [displayElapsed(row.sourceElapsedMs, decimalPlaces), displayElapsed(row.webElapsedMs, decimalPlaces)]),
@@ -267,6 +288,10 @@ export default function BackupReconciliation() {
         displayElapsed(row.webPenaltyMs, decimalPlaces),
         displayElapsed(row.sourceTotalTimeMs, decimalPlaces),
         displayElapsed(row.webTotalTimeMs, decimalPlaces),
+        ...(mode === 'final' ? [
+          `${displayElapsed(row.sourceDiffPrevMs, decimalPlaces)} / ${displayElapsed(row.webDiffPrevMs, decimalPlaces)}`,
+          `${displayElapsed(row.sourceDiffFirstMs, decimalPlaces)} / ${displayElapsed(row.webDiffFirstMs, decimalPlaces)}`,
+        ] : []),
         `${row.sourceStatus || '-'} / ${row.webStatus || '-'}`,
         row.sourceReference || '-',
         row.note,
@@ -290,13 +315,13 @@ export default function BackupReconciliation() {
     <section className="rounded-xl border bg-white p-5 shadow-sm">
       <div><p className="text-xs font-black uppercase tracking-[.25em] text-red-600">Data Reconciliation</p><h1 className="mt-1 text-2xl font-black uppercase text-gray-900">Verifikasi Backup PDF / Spreadsheet</h1><p className="mt-1 text-sm text-gray-500">Perbandingan bersifat read-only. File backup tidak dapat mengubah data resmi di web.</p></div>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Field label="Jenis Data"><select value={mode} onChange={(e) => { setMode(e.target.value); setRows([]); }} className="field"><option value="ss">Special Stage</option><option value="practice">Practice</option></select></Field>
-        <Field label="Event"><select value={eventId} onChange={(e) => setEventId(e.target.value)} className="field">{events.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-        <Field label={modeMap[mode].label}><select value={sessionId} onChange={(e) => { setSessionId(e.target.value); setRows([]); }} className="field">{sessions.map((item) => <option key={item.id} value={item.id}>{sessionLabel(item, mode)}</option>)}</select></Field>
+        <Field label="Jenis Data"><select value={mode} onChange={(e) => { setMode(e.target.value); setRows([]); }} className="field"><option value="ss">Special Stage</option><option value="final">Final Result</option><option value="practice">Practice</option></select></Field>
+        <Field label="Event"><select value={eventId} onChange={(e) => { setEventId(e.target.value); setRows([]); }} className="field">{events.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+        <Field label={modeMap[mode].label}><select value={mode === 'final' ? 'final' : sessionId} onChange={(e) => { setSessionId(e.target.value); setRows([]); }} className="field">{(mode === 'final' ? [FINAL_RESULT_SESSION] : sessions).map((item) => <option key={item.id} value={item.id}>{sessionLabel(item, mode)}</option>)}</select></Field>
         <Field label="File Backup"><label className="flex h-11 cursor-pointer items-center justify-center rounded border-2 border-dashed border-gray-300 bg-gray-50 px-3 text-center text-xs font-black uppercase text-gray-600 hover:border-red-400">Pilih PDF / Excel / CSV<input className="hidden" type="file" accept=".pdf,.xlsx,.xls,.csv" onChange={(e) => { loadFile(e.target.files?.[0]); e.target.value = ''; }}/></label></Field>
         {sourceKind === 'pdf' ? <Field label="Profil Parser"><div className="flex h-11 items-center rounded border bg-blue-50 px-3 text-xs font-black text-blue-700">{pdfResult?.profile || 'PDF Result'}</div></Field> : <Field label="Sheet"><select disabled={!workbook} value={sheetName} onChange={async (e) => { const name = e.target.value; setSheetName(name); setRows([]); if (name && mode === 'ss') { const XLSX = await import('xlsx'); const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '', raw: false }); setSpreadsheetProfile(detectSSSpreadsheetProfile(matrix)); } }} className="field"><option value="">Pilih sheet</option>{workbook?.SheetNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></Field>}
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={isLoading || !sourceReady || !sessionId} onClick={compare} className="admin-btn-primary">{isLoading ? 'Memproses...' : 'Bandingkan Data'}</button>{sourceFileName && <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">{sourceFileName}</span>}{sourceKind === 'spreadsheet' && spreadsheetProfile && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">{spreadsheetProfile.label}</span>}{message && <p className="text-sm font-semibold text-gray-600">{message}</p>}</div>
+      <div className="mt-4 flex flex-wrap items-center gap-3"><button disabled={isLoading || !sourceReady || (mode !== 'final' && !sessionId)} onClick={compare} className="admin-btn-primary">{isLoading ? 'Memproses...' : 'Bandingkan Data'}</button>{sourceFileName && <span className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600">{sourceFileName}</span>}{sourceKind === 'spreadsheet' && spreadsheetProfile && <span className="rounded bg-blue-50 px-2 py-1 text-xs font-black text-blue-700">{spreadsheetProfile.label}</span>}{message && <p className="text-sm font-semibold text-gray-600">{message}</p>}</div>
     </section>
 
     {pdfResult && <PdfPreview result={pdfResult} decimalPlaces={decimalPlaces}/>}
@@ -304,8 +329,8 @@ export default function BackupReconciliation() {
     {rows.length > 0 && <>
       <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6"><Stat label="Total" value={summary.total}/><Stat label="Sama" value={summary.SAMA || 0} tone="green"/><Stat label="Berbeda" value={summary.BERBEDA || 0} tone="red"/><Stat label={sourceKind === 'pdf' ? 'Hanya PDF' : 'Hanya Spreadsheet'} value={summary[sourceKind === 'pdf' ? 'HANYA DI PDF' : 'HANYA SPREADSHEET'] || 0} tone="yellow"/><Stat label="Hanya Web" value={summary['HANYA DI WEB'] || 0} tone="blue"/><Stat label="Tidak Terbaca" value={summary['TIDAK TERBACA'] || 0} tone="orange"/></section>
       <section className="overflow-hidden rounded-xl border bg-white shadow-sm">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><div><h2 className="font-black uppercase">Hasil Perbandingan</h2><p className="text-xs text-gray-500">Toleransi: {(1 / (10 ** Math.max(0, Number(decimalPlaces) || 0))).toLocaleString('id-ID')} detik. Bidang yang tidak tersedia di PDF tidak dianggap berbeda.</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={showOnlyIssues} onChange={(e) => setShowOnlyIssues(e.target.checked)}/> Hanya bermasalah</label><button className="admin-btn-muted" onClick={exportExcelReport}>Download Excel</button><button className="admin-btn-muted" onClick={exportPdfReport}>Download PDF</button></div></header>
-        <div className="overflow-x-auto"><table className="min-w-[1850px] w-full text-[11px]"><thead className="bg-gray-900 text-[10px] uppercase text-white"><tr><th className="p-2">Hasil</th><th className="p-2">No</th>{mode === 'practice' && <th className="p-2">Run</th>}<th className="p-2 text-left">Driver</th><th className="p-2">TC</th><th className="p-2">Start</th><th className="p-2">Finish</th>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Elapsed</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th><th className="p-2 text-left">Bukti Sumber</th><th className="p-2 text-left">Catatan</th></tr></thead><tbody>{displayedRows.map((row) => <tr key={row.key} className="border-b align-top"><td className="p-2 text-center"><ResultBadge result={row.result}/></td><td className="p-2 text-center text-sm font-black">{row.number}</td>{mode === 'practice' && <td className="p-2 text-center font-black">{row.runNo}</td>}<td className="p-2 font-bold">{row.driver}</td><CompareCell label={sourceLabel} source={row.sourceTc} web={row.webTc} available={row.sourceAvailable?.tc}/><CompareCell label={sourceLabel} source={row.sourceStart} web={row.webStart} available={row.sourceAvailable?.start}/><CompareCell label={sourceLabel} source={row.sourceFinish} web={row.webFinish} available={row.sourceAvailable?.finish}/>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <CompareCell key={order} label={sourceLabel} source={displayElapsed(row.sourceStageTimesMs?.[order], decimalPlaces)} web={displayElapsed(row.webStageTimesMs?.[order], decimalPlaces)} available={row.sourceAvailable?.stageTimes?.[order]} different={row.webStageTimesMs?.[order] != null && !sameWithin(row.stageDifferencesMs?.[order], comparisonTolerance)}/>) : <CompareCell label={sourceLabel} source={displayElapsed(row.sourceElapsedMs, decimalPlaces)} web={displayElapsed(row.webElapsedMs, decimalPlaces)} available={row.sourceAvailable?.elapsed}/>}<CompareCell label={sourceLabel} source={displayElapsed(row.sourcePenaltyMs, decimalPlaces)} web={displayElapsed(row.webPenaltyMs, decimalPlaces)} available={row.sourceAvailable?.penalty}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceTotalTimeMs, decimalPlaces)} web={displayElapsed(row.webTotalTimeMs, decimalPlaces)} available={row.sourceAvailable?.total}/><CompareCell label={sourceLabel} source={row.sourceStatus} web={row.webStatus} available={row.sourceAvailable?.status}/><td className="p-2 font-semibold text-gray-600">{row.sourceReference || '-'}</td><td className="max-w-[320px] p-2 font-semibold text-gray-600">{row.note}</td></tr>)}</tbody></table>{!displayedRows.length && <p className="p-10 text-center text-sm font-bold text-gray-500">Tidak ada data bermasalah.</p>}</div>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><div><h2 className="font-black uppercase">Hasil Perbandingan</h2><p className="text-xs text-gray-500">Toleransi: {(comparisonTolerance / 1000).toLocaleString('id-ID')} detik. Bidang yang tidak tersedia di PDF tidak dianggap berbeda.{mode === 'final' && Number.isInteger(pdfResult?.timeDecimalPlaces) ? ` Waktu dibandingkan setelah pembulatan ke ${pdfResult.timeDecimalPlaces} angka desimal sesuai PDF.` : ''}</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={showOnlyIssues} onChange={(e) => setShowOnlyIssues(e.target.checked)}/> Hanya bermasalah</label><button className="admin-btn-muted" onClick={exportExcelReport}>Download Excel</button><button className="admin-btn-muted" onClick={exportPdfReport}>Download PDF</button></div></header>
+        <div className="overflow-x-auto"><table className="min-w-[1850px] w-full text-[11px]"><thead className="bg-gray-900 text-[10px] uppercase text-white"><tr><th className="p-2">Hasil</th><th className="p-2">No</th>{mode === 'practice' && <th className="p-2">Run</th>}<th className="p-2 text-left">Driver</th>{mode === 'final' && <th className="p-2">Posisi</th>}<th className="p-2">TC</th><th className="p-2">Start</th><th className="p-2">Finish</th>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Elapsed</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th>{mode === 'final' && <><th className="p-2">Diff Prev</th><th className="p-2">Diff 1st</th></>}<th className="p-2">Status</th><th className="p-2 text-left">Bukti Sumber</th><th className="p-2 text-left">Catatan</th></tr></thead><tbody>{displayedRows.map((row) => <tr key={row.key} className="border-b align-top"><td className="p-2 text-center"><ResultBadge result={row.result}/></td><td className="p-2 text-center text-sm font-black">{row.number}</td>{mode === 'practice' && <td className="p-2 text-center font-black">{row.runNo}</td>}<td className="p-2 font-bold">{row.driver}</td>{mode === 'final' && <CompareCell label={sourceLabel} source={row.sourcePosition} web={row.webPosition} available={row.sourceAvailable?.position} different={row.sourcePosition !== row.webPosition}/>}<CompareCell label={sourceLabel} source={row.sourceTc} web={row.webTc} available={row.sourceAvailable?.tc}/><CompareCell label={sourceLabel} source={row.sourceStart} web={row.webStart} available={row.sourceAvailable?.start}/><CompareCell label={sourceLabel} source={row.sourceFinish} web={row.webFinish} available={row.sourceAvailable?.finish}/>{comparisonStageOrders.length ? comparisonStageOrders.map((order) => <CompareCell key={order} label={sourceLabel} source={displayElapsed(row.sourceStageTimesMs?.[order], decimalPlaces)} web={displayElapsed(row.webStageTimesMs?.[order], decimalPlaces)} available={row.sourceAvailable?.stageTimes?.[order]} different={row.webStageTimesMs?.[order] != null && !sameWithin(row.stageDifferencesMs?.[order], comparisonTolerance)}/>) : <CompareCell label={sourceLabel} source={displayElapsed(row.sourceElapsedMs, decimalPlaces)} web={displayElapsed(row.webElapsedMs, decimalPlaces)} available={row.sourceAvailable?.elapsed}/>}<CompareCell label={sourceLabel} source={displayElapsed(row.sourcePenaltyMs, decimalPlaces)} web={displayElapsed(row.webPenaltyMs, decimalPlaces)} available={row.sourceAvailable?.penalty}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceTotalTimeMs, decimalPlaces)} web={displayElapsed(row.webTotalTimeMs, decimalPlaces)} available={row.sourceAvailable?.total}/>{mode === 'final' && <><CompareCell label={sourceLabel} source={displayElapsed(row.sourceDiffPrevMs, decimalPlaces)} web={displayElapsed(row.webDiffPrevMs, decimalPlaces)} available={row.sourceAvailable?.diffPrev}/><CompareCell label={sourceLabel} source={displayElapsed(row.sourceDiffFirstMs, decimalPlaces)} web={displayElapsed(row.webDiffFirstMs, decimalPlaces)} available={row.sourceAvailable?.diffFirst}/></>}<CompareCell label={sourceLabel} source={row.sourceStatus} web={row.webStatus} available={row.sourceAvailable?.status}/><td className="p-2 font-semibold text-gray-600">{row.sourceReference || '-'}</td><td className="max-w-[320px] p-2 font-semibold text-gray-600">{row.note}</td></tr>)}</tbody></table>{!displayedRows.length && <p className="p-10 text-center text-sm font-bold text-gray-500">Tidak ada data bermasalah.</p>}</div>
       </section>
     </>}
     <style>{`.field{height:2.75rem;width:100%;border-radius:.375rem;border:1px solid #d1d5db;background:white;padding:0 .75rem;font-size:.875rem;font-weight:700;outline:none}.field:focus{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.15)}`}</style>
@@ -313,9 +338,9 @@ export default function BackupReconciliation() {
 }
 
 function PdfPreview({ result, decimalPlaces }) {
-  const detectedSession = result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : '-';
+  const detectedSession = result.isFinal ? 'Final Result' : result.isShakedown ? 'Shakedown' : result.stageOrder ? `SS${result.stageOrder}` : '-';
   const stageOrders = result.stageOrders || [];
-  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession}{result.groupName ? ` - grup terdeteksi: ${result.groupName}` : ''} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th>{stageOrders.length ? stageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Stage Time</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th><th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td>{stageOrders.length ? stageOrders.map((order) => <td key={order} className="p-2 text-center font-mono">{displayElapsed(row.stageTimesMs?.[order], decimalPlaces)}</td>) : <td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td>}<td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono font-black">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td><td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. Setiap kolom SS dan Total Time dibaca terpisah. Kolom SS yang masih kosong ditampilkan sebagai tanda hubung dan tidak dianggap berbeda.</p></section>;
+  return <section className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm"><header className="border-b border-blue-100 bg-blue-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Preview & Pemetaan Kolom</p><h2 className="font-black text-gray-900">{result.fileName}</h2><p className="text-xs font-semibold text-gray-600">{result.pages} halaman - {result.rows.length} peserta - sesi terdeteksi: {detectedSession}{result.groupName ? ` - grup terdeteksi: ${result.groupName}` : ''} - tidak terbaca: {result.unreadableCount}{result.usedOcr ? ` - OCR${result.ocrConfidence == null ? '' : ` ${Math.round(result.ocrConfidence)}%`}` : ''}</p></div><div className="flex flex-wrap gap-2">{result.mapping.map((item) => <span key={item.field} className={`rounded border px-2 py-1 text-[10px] font-black ${item.required ? 'border-blue-300 bg-white text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{item.field} &larr; {item.source}</span>)}</div></div></header><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-xs"><thead className="bg-gray-900 uppercase text-white"><tr><th className="p-2">Hal.</th><th className="p-2">Pos</th><th className="p-2">No</th><th className="p-2 text-left">Driver</th><th className="p-2">Class</th>{stageOrders.length ? stageOrders.map((order) => <th key={order} className="p-2">SS{order}</th>) : <th className="p-2">Stage Time</th>}<th className="p-2">Penalty</th><th className="p-2">Total</th>{result.isFinal && <><th className="p-2">Diff Prev</th><th className="p-2">Diff 1st</th></>}<th className="p-2">Status</th></tr></thead><tbody>{result.rows.slice(0, 10).map((row) => <tr key={`${row.sourcePage}-${row.key}`} className="border-b"><td className="p-2 text-center">{row.sourcePage}</td><td className="p-2 text-center">{row.position || '-'}</td><td className="p-2 text-center font-black">{row.number}</td><td className="p-2 font-bold">{row.driver || '-'}</td><td className="p-2 text-center">{row.className || '-'}</td>{stageOrders.length ? stageOrders.map((order) => <td key={order} className="p-2 text-center font-mono">{displayElapsed(row.stageTimesMs?.[order], decimalPlaces)}</td>) : <td className="p-2 text-center font-mono">{displayElapsed(row.elapsedMs, decimalPlaces)}</td>}<td className="p-2 text-center font-mono">{displayElapsed(row.penaltyMs, decimalPlaces)}</td><td className="p-2 text-center font-mono font-black">{displayElapsed(row.totalTimeMs, decimalPlaces)}</td>{result.isFinal && <><td className="p-2 text-center font-mono">{displayElapsed(row.diffPrevMs, decimalPlaces)}</td><td className="p-2 text-center font-mono">{displayElapsed(row.diffFirstMs, decimalPlaces)}</td></>}<td className="p-2 text-center font-black">{row.status || 'Tidak tersedia'}</td></tr>)}</tbody></table></div><p className="border-t bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">Menampilkan 10 baris pertama. Setiap kolom SS dan Total Time dibaca terpisah. Kolom SS yang masih kosong ditampilkan sebagai tanda hubung dan tidak dianggap berbeda.</p></section>;
 }
 
 function parsePractice(matrix) {
@@ -330,7 +355,7 @@ function parsePractice(matrix) {
   });
 }
 
-function reconcile(sourceRows, webRows, decimals, mode, sourceKind) {
+function reconcile(sourceRows, webRows, decimals, mode, sourceKind, sourceDecimals = null) {
   const sourceMap = new Map(sourceRows.map((row) => [row.key, row]));
   const webMap = new Map(webRows.map((row) => [mode === 'practice' ? row.key : String(row.number), row]));
   const sourceOnly = sourceKind === 'pdf' ? 'HANYA DI PDF' : 'HANYA SPREADSHEET';
@@ -344,18 +369,22 @@ function reconcile(sourceRows, webRows, decimals, mode, sourceKind) {
     if (!source.readable) return combinedRow({ key, number, runNo, source, web, sourceReference, result: 'TIDAK TERBACA', note: source.parseIssue || `${sourceName} tidak dapat dibaca.` });
     if (!web) return combinedRow({ key, number, runNo, source, web: null, sourceReference, result: sourceOnly, note: `Data dari ${sourceName} belum ditemukan di web.` });
 
-    const tolerance = 1000 / (10 ** Math.max(0, Number(decimals) || 0));
+    const tolerance = mode === 'final' && Number.isInteger(sourceDecimals) ? 0 : 1000 / (10 ** Math.max(0, Number(decimals) || 0));
     const differences = [];
+    const durationDelta = (sourceTime, webTime) => backupDurationDifference(sourceTime, webTime, sourceDecimals);
     const startDiff = source.available?.start ? clockDifference(source.start, web.start) : 0;
     const finishDiff = source.available?.finish ? clockDifference(source.finish, web.finish) : 0;
-    const elapsedDiff = source.available?.elapsed ? durationDifference(source.elapsedMs, web.elapsedMs) : 0;
-    const penaltyDiff = source.available?.penalty ? durationDifference(source.penaltyMs, web.penaltyMs) : 0;
-    const totalDiff = source.available?.total ? durationDifference(source.totalTimeMs, web.totalTimeMs) : 0;
+    const elapsedDiff = source.available?.elapsed ? durationDelta(source.elapsedMs, web.elapsedMs) : 0;
+    const penaltyDiff = source.available?.penalty ? durationDelta(source.penaltyMs, web.penaltyMs) : 0;
+    const totalDiff = source.available?.total ? durationDelta(source.totalTimeMs, web.totalTimeMs) : 0;
+    if (source.available?.position && source.position !== web.position) differences.push(`Posisi ${source.position} vs ${web.position || '-'}`);
+    if (source.available?.diffPrev && !sameWithin(durationDelta(source.diffPrevMs, web.diffPrevMs), tolerance)) differences.push('Diff Prev berbeda');
+    if (source.available?.diffFirst && !sameWithin(durationDelta(source.diffFirstMs, web.diffFirstMs), tolerance)) differences.push('Diff 1st berbeda');
     const stageDifferencesMs = {};
     Object.entries(source.stageTimesMs || {}).forEach(([order, sourceTime]) => {
       if (sourceTime == null) return;
       const webTime = web.stageTimesMs?.[order];
-      const difference = durationDifference(sourceTime, webTime);
+      const difference = durationDelta(sourceTime, webTime);
       stageDifferencesMs[order] = difference;
       if (webTime == null) differences.push(`SS${order} belum tersedia di web`);
       else if (!sameWithin(difference, tolerance)) differences.push(`SS${order} berbeda ${signedDuration(difference, decimals)}`);
@@ -378,6 +407,9 @@ function combinedRow({ key, number, runNo, source, web, sourceReference, result,
     sourceElapsedMs: source?.elapsedMs ?? null, webElapsedMs: web?.elapsedMs ?? null, sourcePenaltyMs: source?.penaltyMs ?? null, webPenaltyMs: web?.penaltyMs ?? null,
     sourceStageTimesMs: source?.stageTimesMs || {}, webStageTimesMs: web?.stageTimesMs || {}, stageDifferencesMs,
     sourceTotalTimeMs: source?.totalTimeMs ?? null, webTotalTimeMs: web?.totalTimeMs ?? null, sourceStatus: source?.status || '', webStatus: web?.status || '',
+    sourcePosition: source?.position ?? null, webPosition: web?.position ?? null,
+    sourceDiffPrevMs: source?.diffPrevMs ?? null, webDiffPrevMs: web?.diffPrevMs ?? null,
+    sourceDiffFirstMs: source?.diffFirstMs ?? null, webDiffFirstMs: web?.diffFirstMs ?? null,
     sourceAvailable: source?.available || {}, sourceReference, result, note, differenceMs,
   };
 }
@@ -391,6 +423,11 @@ function reportExportRow(row, sourceLabel, decimals, mode, stageOrders = []) {
   ])));
   return {
     HASIL: row.result, 'NO START': row.number, RUN: mode === 'practice' ? row.runNo : '', DRIVER: row.driver,
+    ...(mode === 'final' ? {
+      'POS PDF': row.sourcePosition ?? '', 'POS WEB': row.webPosition ?? '',
+      'DIFF PREV PDF': displayElapsed(row.sourceDiffPrevMs, decimals), 'DIFF PREV WEB': displayElapsed(row.webDiffPrevMs, decimals),
+      'DIFF 1ST PDF': displayElapsed(row.sourceDiffFirstMs, decimals), 'DIFF 1ST WEB': displayElapsed(row.webDiffFirstMs, decimals),
+    } : {}),
     [`TC ${sourceLabel.toUpperCase()}`]: row.sourceTc || '', 'TC WEB': row.webTc || '', [`START ${sourceLabel.toUpperCase()}`]: row.sourceStart || '', 'START WEB': row.webStart || '',
     [`FINISH ${sourceLabel.toUpperCase()}`]: row.sourceFinish || '', 'FINISH WEB': row.webFinish || '',
     ...(stageOrders.length ? stageColumns : { [`ELAPSED ${sourceLabel.toUpperCase()}`]: displayElapsed(row.sourceElapsedMs, decimals), 'ELAPSED WEB': displayElapsed(row.webElapsedMs, decimals) }),
@@ -405,7 +442,6 @@ function buildStart(row, [hour, minute]) { if (blank(row[hour]) && blank(row[min
 function buildFinish(row, [hour, minute, second, fraction]) { if ([hour, minute, second, fraction].every((index) => blank(row[index]))) return ''; if (!validPart(row[hour], 23) || !validPart(row[minute], 59) || !validPart(row[second], 59)) return ''; return `${pad(row[hour])}:${pad(row[minute])}:${pad(row[second])}.${fractionDigits(row[fraction])}`; }
 function elapsed(start, finish) { if (!start || !finish) return null; let value = clockMs(finish) - clockMs(start); if (value < 0) value += 86400000; return value; }
 function clockDifference(a, b) { if (!a && !b) return 0; if (!a || !b) return null; let value = clockMs(a) - clockMs(b); if (value > 43200000) value -= 86400000; if (value < -43200000) value += 86400000; return value; }
-function durationDifference(a, b) { return a == null || b == null || !Number.isFinite(Number(a)) || !Number.isFinite(Number(b)) ? null : Number(a) - Number(b); }
 function clockMs(value) { const match = String(value || '').match(/(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?/); if (!match) return NaN; return Number(match[1]) * 3600000 + Number(match[2]) * 60000 + Number(match[3]) * 1000 + Number((match[4] || '').padEnd(3, '0')); }
 function normalizeClock(value) { const match = String(value || '').match(/(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?/); return match ? `${pad(match[1])}:${pad(match[2])}:${pad(match[3])}.${(match[4] || '').padEnd(3, '0')}` : ''; }
 function sameWithin(diff, tolerance) { return diff != null && Number.isFinite(diff) && Math.abs(diff) <= tolerance; }
@@ -416,7 +452,7 @@ function blank(value) { return value === '' || value == null; }
 function pad(value) { return String(Number(value)).padStart(2, '0'); }
 function fractionDigits(value) { const digits = String(value ?? '').replace(/\D/g, '').slice(0, 3); return digits.padEnd(3, '0'); }
 function displayElapsed(value, decimals) { return value == null || !Number.isFinite(value) ? '-' : formatMs(value, decimals); }
-function sessionLabel(item, mode) { if (!item) return '-'; return mode === 'practice' ? item.name : item.is_shakedown ? `Shakedown - ${item.ss_name}` : `SS ${item.ss_order} - ${item.ss_name}`; }
+function sessionLabel(item, mode) { if (!item) return '-'; return mode === 'final' || mode === 'practice' ? item.name : item.is_shakedown ? `Shakedown - ${item.ss_name}` : `SS ${item.ss_order} - ${item.ss_name}`; }
 function Field({ label, children }) { return <label><span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</span>{children}</label>; }
 function Stat({ label, value, tone = 'gray' }) { const colors = { gray: 'border-gray-200', green: 'border-green-400', red: 'border-red-400', yellow: 'border-yellow-400', blue: 'border-blue-400', orange: 'border-orange-400' }; return <div className={`rounded-lg border-l-4 bg-white px-3 py-2 shadow-sm ${colors[tone]}`}><p className="text-[10px] font-black uppercase text-gray-500">{label}</p><p className="text-2xl font-black">{value}</p></div>; }
 function ResultBadge({ result }) { const styles = { SAMA: 'bg-green-100 text-green-700', BERBEDA: 'bg-red-100 text-red-700', 'HANYA DI WEB': 'bg-blue-100 text-blue-700', 'TIDAK TERBACA': 'bg-orange-100 text-orange-700' }; return <span className={`inline-flex whitespace-nowrap rounded px-2 py-1 text-[9px] font-black ${styles[result] || 'bg-yellow-100 text-yellow-800'}`}>{result}</span>; }

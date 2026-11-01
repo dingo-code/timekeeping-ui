@@ -74,7 +74,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
   }
 
   let combinedText = pageTexts.join(' ');
-  let profile = detectGroupStageProfile(pages, combinedText)
+  let profile = detectFinalClassificationProfile(pages, combinedText) || detectGroupStageProfile(pages, combinedText)
     || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
   let rows = pages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
   let parsedPages = pages;
@@ -97,7 +97,7 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
 
     const ocrPages = ocrResult.pages || [];
     combinedText = ocrPages.map((page) => page.items.map((item) => item.text).join(' ')).join(' ');
-    profile = detectGroupStageProfile(ocrPages, combinedText)
+    profile = detectFinalClassificationProfile(ocrPages, combinedText) || detectGroupStageProfile(ocrPages, combinedText)
       || detectOcrStageProfile(ocrPages, combinedText, fileName, options.stageOrderHint)
       || (/\bSHAKEDOWN\b/i.test(combinedText) ? RESULT_PROFILES.shakedown : RESULT_PROFILES.stage);
     rows = ocrPages.flatMap((page) => parsePageRows(page.items, page.width, page.pageNumber, profile));
@@ -136,6 +136,8 @@ export async function parseBackupResultPdfDocument(pdf, fileName = 'backup.pdf',
     fileName,
     profile: profile.label,
     resultType: profile.kind,
+    isFinal: profile.kind === 'final',
+    timeDecimalPlaces: profile.timeDecimalPlaces ?? null,
     isShakedown: profile.kind === 'shakedown',
     pages: pdf.numPages,
     stageOrder: profile.stageOrder || (stageMatch ? Number(stageMatch[1]) : null),
@@ -339,6 +341,8 @@ function parsePageRows(items, width, pageNumber, profile) {
     const stageRaw = columnText(line, width, ranges.stageTime);
     const penaltyRaw = ranges.penalty ? columnText(line, width, ranges.penalty) : '';
     const totalRaw = ranges.totalTime ? columnText(line, width, ranges.totalTime) : '';
+    const diffPrevRaw = ranges.diffPrev ? columnText(line, width, ranges.diffPrev) : '';
+    const diffFirstRaw = ranges.diffFirst ? columnText(line, width, ranges.diffFirst) : '';
     const status = findStatus(line.filter((item) => item.x / width >= ranges.stageTime[0]).map((item) => item.text).join(' '));
     const position = positiveInteger(columnText(line, width, ranges.position));
     const entrant = columnText(line, width, ranges.entrant);
@@ -353,13 +357,14 @@ function parsePageRows(items, width, pageNumber, profile) {
     const elapsedMs = parseDurationMs(stageRaw);
     const explicitPenaltyMs = parseDurationMs(penaltyRaw);
     const totalTimeMs = parseDurationMs(totalRaw);
-    const derivedPenaltyMs = elapsedMs != null && totalTimeMs != null
+    const derivedPenaltyMs = profile.kind !== 'final' && elapsedMs != null && totalTimeMs != null
       ? Math.max(0, totalTimeMs - elapsedMs)
       : null;
     const penaltyMs = explicitPenaltyMs ?? derivedPenaltyMs;
     const readable = Number.isInteger(number)
       && number > 0
-      && (elapsedMs != null || totalTimeMs != null || Boolean(status));
+      && (elapsedMs != null || totalTimeMs != null || Boolean(status))
+      && (profile.kind !== 'final' || (position != null && totalTimeMs != null && Object.values(stageTimesMs).every((value) => value != null)));
 
     return [{
       key: String(number),
@@ -375,6 +380,8 @@ function parsePageRows(items, width, pageNumber, profile) {
       stageTimesMs,
       penaltyMs,
       totalTimeMs,
+      diffPrevMs: parseDurationMs(diffPrevRaw),
+      diffFirstMs: parseDurationMs(diffFirstRaw),
       status,
       readable,
       parseIssue: readable ? '' : `Waktu/status pada halaman ${pageNumber} tidak dapat dibaca.`,
@@ -382,6 +389,9 @@ function parsePageRows(items, width, pageNumber, profile) {
       sourceRow: position || null,
       sourceKind: 'pdf',
       available: {
+        position: profile.kind === 'final' && position != null,
+        diffPrev: profile.kind === 'final' && parseDurationMs(diffPrevRaw) != null,
+        diffFirst: profile.kind === 'final' && parseDurationMs(diffFirstRaw) != null,
         tc: false,
         start: false,
         finish: false,
@@ -393,6 +403,50 @@ function parsePageRows(items, width, pageNumber, profile) {
       },
     }];
   });
+}
+
+function detectFinalClassificationProfile(pages, text) {
+  if (!/\bFINAL\s+(?:CLASSIFICATION|RESULTS?)\b/i.test(text)) return null;
+  for (const page of pages) {
+    const columns = page.items.flatMap((item) => {
+      const match = item.text.match(/^SS\s*(\d{1,2})$/i);
+      return match ? [{ order: Number(match[1]), x: item.x }] : [];
+    }).sort((a, b) => a.x - b.x);
+    if (!columns.length) continue;
+    const total = page.items.find((item) => /^TOTAL$/i.test(item.text) && item.x > columns.at(-1).x);
+    const diffs = page.items.filter((item) => /^DIFF$/i.test(item.text) && item.x > (total?.x || Infinity)).sort((a, b) => a.x - b.x);
+    if (!total || diffs.length < 2) continue;
+    const anchors = [...columns.map((column) => column.x), total.x, ...diffs.slice(0, 2).map((item) => item.x)];
+    const stageTimes = columns.map((column, index) => ({ order: column.order, range: anchorRange(anchors, index, page.width) }));
+    const precisions = page.items.filter((item) => item.x / page.width >= stageTimes[0].range[0]).flatMap((item) => {
+      const match = item.text.match(/^\+?\d+:\d{2}(?:[.,](\d{1,3}))?$/);
+      return match ? [match[1]?.length || 0] : [];
+    });
+    return {
+      kind: 'final', label: 'Final Classification - SS dan total keseluruhan',
+      stageOrders: columns.map((column) => column.order), stageTimes,
+      timeDecimalPlaces: precisions.length ? Math.min(...precisions) : null,
+      comparePenalty: false,
+      ranges: {
+        position: [0, 0.028], number: [0.028, 0.056], entrant: [0.056, 0.221],
+        driver: [0.221, 0.329], navigator: [0.36, 0.465], className: [0.492, 0.523],
+        car: [0.55, 0.6], type: [0.6, stageTimes[0].range[0]],
+        stageTime: stageTimes.at(-1).range,
+        totalTime: anchorRange(anchors, columns.length, page.width),
+        diffPrev: anchorRange(anchors, columns.length + 1, page.width),
+        diffFirst: anchorRange(anchors, columns.length + 2, page.width),
+      },
+      mapping: [
+        { field: 'Posisi', source: 'POS', required: true },
+        { field: 'No Start', source: 'CAR NO', required: true },
+        ...columns.map((column) => ({ field: `SS${column.order}`, source: `SS${column.order}`, required: true })),
+        { field: 'Total Time', source: 'TOTAL TIME', required: true },
+        { field: 'Diff Prev', source: 'DIFF PREV', required: false },
+        { field: 'Diff 1st', source: 'DIFF 1ST', required: false },
+      ],
+    };
+  }
+  return null;
 }
 
 function detectGroupStageProfile(pages, combinedText) {
