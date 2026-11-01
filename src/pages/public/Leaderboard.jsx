@@ -3,6 +3,7 @@ import api, { API_ORIGIN, assetUrl } from '../../services/api';
 import UnofficialTimingNotice from '../../components/UnofficialTimingNotice';
 import { formatMs as formatDurationMs } from '../../utils/timeFormat';
 import { sortEntryList } from '../../utils/entryListOrder';
+import { formatResultDiff, resultSortWeight } from '../../utils/resultOrder';
 
 const reconnectDelayMs = 3000;
 const FINAL_STAGE_ID = 'final';
@@ -901,8 +902,8 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                       <td className="whitespace-nowrap p-2 font-bold text-neutral-700 sm:p-3">{entry.class_name || '-'}</td>
                       <td className="whitespace-nowrap p-2 text-right font-mono font-black text-red-600 sm:p-3">{entry.penalty_time_ms ? `+${formatMs(entry.penalty_time_ms)}` : '-'}</td>
                       <td className="whitespace-nowrap p-2 text-right font-mono font-black sm:p-3">{entry.is_shakedown && entry.status === 'DNF' ? 'DNF · Tidak Finish' : formatMs(entry.total_time_ms)}</td>
-                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{formatResultDiff(entry.gap_ms, formatMs)}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{formatResultDiff(entry.diff_first_ms, formatMs)}</td>
                     </>
                   ) : (
                     <>
@@ -917,8 +918,8 @@ function ResultsSection({ title, subtitle, entries, isLoading, emptyText, result
                       </td>
                       <td className="whitespace-nowrap p-2 font-bold text-neutral-700 sm:p-3">{entry.class_name || '-'}</td>
                       <td className="whitespace-nowrap p-2 text-right font-mono font-black sm:p-3">{formatMs(entry.total_time_ms)}</td>
-                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.gap_ms ? `+${formatMs(entry.gap_ms)}` : '-'}</td>
-                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{entry.diff_first_ms ? `+${formatMs(entry.diff_first_ms)}` : '-'}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{formatResultDiff(entry.gap_ms, formatMs)}</td>
+                      <td className="whitespace-nowrap p-2 text-right font-mono sm:p-3">{formatResultDiff(entry.diff_first_ms, formatMs)}</td>
                     </>
                   )}
                 </tr>
@@ -1371,6 +1372,8 @@ function buildOverallEntries(entries, selectedStage) {
   rows.sort((a, b) => {
     const aRankable = isRankableOverall(a);
     const bRankable = isRankableOverall(b);
+    const statusDelta = resultSortWeight(a.status, aRankable) - resultSortWeight(b.status, bRankable);
+    if (statusDelta !== 0) return statusDelta;
     if (aRankable !== bRankable) return aRankable ? -1 : 1;
     if (aRankable && a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms;
     if (aRankable && bRankable) {
@@ -1386,9 +1389,6 @@ function buildOverallEntries(entries, selectedStage) {
       if (startTimeDelta !== 0) return startTimeDelta;
     }
 
-    const aWeight = resultStatusWeight(a.status);
-    const bWeight = resultStatusWeight(b.status);
-    if (aWeight !== bWeight) return aWeight - bWeight;
     return numericMs(a.start_number) - numericMs(b.start_number);
   });
 
@@ -1428,10 +1428,7 @@ function normalizeStageEntries(records) {
     if (['BWTM', 'DNF', 'DNS'].includes(record.status)) return true;
     return record.status === 'OK' && (hasCompleteTime(record) || record.is_given_time);
   };
-  const stageRecordWeight = (record) => {
-    if (hasStageResult(record)) return 0;
-    return resultStatusWeight(record.status);
-  };
+  const stageRecordWeight = (record) => resultSortWeight(record.status, hasStageResult(record));
 
   // Shakedown dapat memiliki beberapa run aktif untuk peserta yang sama.
   // Live timing menampilkan best run per peserta; merender semua run dengan
@@ -1477,6 +1474,9 @@ function normalizeStageEntries(records) {
     const aWeight = stageRecordWeight(a);
     const bWeight = stageRecordWeight(b);
     if (aWeight !== bWeight) return aWeight - bWeight;
+    const aRankable = hasStageResult(a);
+    const bRankable = hasStageResult(b);
+    if (aRankable !== bRankable) return aRankable ? -1 : 1;
 
     const aTotal = numericMs(a.total_time_ms);
     const bTotal = numericMs(b.total_time_ms);
@@ -1524,17 +1524,6 @@ function parsePenaltyDetails(value) {
   } catch {
     return [];
   }
-}
-
-function resultStatusWeight(status) {
-  if (status === 'OK') return 0;
-  if (status === 'INCOMPLETE' || !status) return 1;
-  if (status === 'DNS') return 2;
-  if (status === 'DNF') return 3;
-  if (status === 'NOT_FINISHER') return 4;
-  if (status === 'WITHDRAW') return 5;
-  if (status === 'DSQ') return 6;
-  return 7;
 }
 
 function rerankFilteredEntries(entries, timeField) {

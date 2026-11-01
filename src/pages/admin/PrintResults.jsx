@@ -6,6 +6,7 @@ import { UnofficialResultMark } from '../../components/UnofficialTimingNotice';
 import { OrientationField, PaperSizeField, PrintLayoutStyle } from '../../components/PrintLayout';
 import { normalizePaperSize } from '../../utils/printLayout';
 import { generateReportPdfFromElement } from '../../utils/reportPdf';
+import { formatResultDiff as formatDiffMs, resultSortWeight, resultStatusWeight } from '../../utils/resultOrder';
 
 const reportTypes = [
   { value: 'overall', label: 'Overall' },
@@ -186,17 +187,6 @@ export default function PrintResults() {
   };
 
   const excludedFinalStatuses = new Set(['WITHDRAW']);
-  const stageStatusWeight = (status) => {
-    if (status === 'OK') return 0;
-    if (status === 'BWTM') return 0;
-    if (status === 'INCOMPLETE' || !status) return 1;
-    if (status === 'DSQ') return 2;
-    if (status === 'DNF') return 3;
-    if (status === 'DNS') return 4;
-    if (status === 'NOT_FINISHER') return 5;
-    return 2;
-  };
-
   const entriesForStage = (stage, sourceEntries) => {
     const numericMs = (value) => {
       const numberValue = Number(value);
@@ -219,6 +209,8 @@ export default function PrintResults() {
     rows.sort((a, b) => {
       const aOk = hasStageResult(a.stageTime);
       const bOk = hasStageResult(b.stageTime);
+      const statusDelta = resultSortWeight(a.stageTime.status, aOk) - resultSortWeight(b.stageTime.status, bOk);
+      if (statusDelta !== 0) return statusDelta;
       if (aOk !== bOk) return aOk ? -1 : 1;
       const aTotal = numericMs(a.stageTime.total_time_ms);
       const bTotal = numericMs(b.stageTime.total_time_ms);
@@ -228,11 +220,7 @@ export default function PrintResults() {
       if (aOk && bOk) {
         const startTimeDelta = compareResultStartTimes(a.stageTime.start_time, b.stageTime.start_time);
         if (startTimeDelta !== 0) return startTimeDelta;
-        return numericMs(a.entry.start_number) - numericMs(b.entry.start_number);
       }
-      const aStatusWeight = stageStatusWeight(a.stageTime.status);
-      const bStatusWeight = stageStatusWeight(b.stageTime.status);
-      if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight;
       return numericMs(a.entry.start_number) - numericMs(b.entry.start_number);
     });
 
@@ -679,12 +667,6 @@ function stageResultColumnWidths(orientation = 'landscape') {
   };
 }
 
-function formatDiffMs(value, formatMs) {
-  const diff = Number(value || 0);
-  if (!Number.isFinite(diff) || diff <= 0) return '-';
-  return `+${formatMs(diff)}`;
-}
-
 function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark, stageResultTime, resultRowClass, excludedStatuses, orientation }) {
   const columnWidths = finalResultColumnWidths(stages.length, orientation);
   const lastStage = stages.reduce((latest, stage) => {
@@ -807,7 +789,10 @@ function DnsDnfReport({ groups, stages, stageTimeFor, formatMs, orientation }) {
     rows: groups.flatMap((group) => group.entries
       .map((entry) => ({ entry, stageTime: stageTimeFor(entry, stage.id) }))
       .filter(({ stageTime }) => ['DNS', 'DNF'].includes(stageTime?.status)))
-      .sort((a, b) => Number(a.entry.start_number || 0) - Number(b.entry.start_number || 0)),
+      .sort((a, b) => (
+        resultStatusWeight(a.stageTime.status) - resultStatusWeight(b.stageTime.status) ||
+        Number(a.entry.start_number || 0) - Number(b.entry.start_number || 0)
+      )),
   })).filter(({ rows }) => rows.length > 0);
   const count = rowsByStage.reduce((total, item) => total + item.rows.length, 0);
 
@@ -889,6 +874,8 @@ function sortFinalResultEntries(entries) {
   return [...entries].sort((a, b) => {
     const aRankable = isRankableFinalEntry(a);
     const bRankable = isRankableFinalEntry(b);
+    const statusDelta = resultSortWeight(a.status, aRankable) - resultSortWeight(b.status, bRankable);
+    if (statusDelta !== 0) return statusDelta;
     if (aRankable !== bRankable) return aRankable ? -1 : 1;
     if (aRankable && Number(a.total_time_ms) !== Number(b.total_time_ms)) {
       return Number(a.total_time_ms) - Number(b.total_time_ms);
@@ -904,8 +891,6 @@ function sortFinalResultEntries(entries) {
       );
       if (startTimeDelta !== 0) return startTimeDelta;
     }
-    const statusDelta = finalResultStatusWeight(a.status) - finalResultStatusWeight(b.status);
-    if (statusDelta !== 0) return statusDelta;
     return Number(a.start_number) - Number(b.start_number);
   });
 }
@@ -939,17 +924,6 @@ function compareResultStartTimes(a, b) {
   if (!Number.isFinite(aStart)) return 1;
   if (!Number.isFinite(bStart)) return -1;
   return aStart - bStart;
-}
-
-function finalResultStatusWeight(status) {
-  if (status === 'OK') return 0;
-  if (status === 'INCOMPLETE') return 1;
-  if (status === 'DNS') return 2;
-  if (status === 'DNF') return 3;
-  if (status === 'NOT_FINISHER') return 4;
-  if (status === 'WITHDRAW') return 5;
-  if (status === 'DSQ') return 6;
-  return 7;
 }
 
 function uniqueRemarks(values) {
