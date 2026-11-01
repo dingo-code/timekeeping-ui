@@ -462,7 +462,7 @@ export default function Leaderboard({ embedded = false }) {
                 subtitle="Overall all time"
                 entries={overallForStage}
                 isLoading={isLoadingStages || isLoadingOverall}
-                emptyText="Belum ada data final overall."
+                emptyText="Belum ada hasil peserta yang dikonfirmasi masuk Parc Fermé."
                 resultView="overall"
                 timeDecimalPlaces={timeDecimalPlaces}
               />
@@ -496,7 +496,7 @@ export default function Leaderboard({ embedded = false }) {
               subtitle="Overall all time"
               entries={finalOverallEntries}
               isLoading={isLoadingStages || isLoadingOverall}
-              emptyText="Belum ada data final overall."
+              emptyText="Belum ada hasil peserta yang dikonfirmasi masuk Parc Fermé."
               resultView="overall"
               timeDecimalPlaces={timeDecimalPlaces}
             />
@@ -1316,6 +1316,7 @@ function buildOverallEntries(entries, selectedStage) {
     : 0;
 
   const rows = entries
+    .filter((entry) => !isFinal || entry.parc_ferme_confirmed === true)
     .map((entry) => {
       const stageTimes = entry.stage_times || [];
       const selectedStageTime = isFinal

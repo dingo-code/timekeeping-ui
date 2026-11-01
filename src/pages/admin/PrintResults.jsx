@@ -676,7 +676,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
   const printableGroups = groups
     .map((group) => {
       const sortedEntries = sortFinalResultEntries(group.entries
-        .filter((entry) => !excludedStatuses.has(entry.status))
+        .filter((entry) => entry.parc_ferme_confirmed === true && !excludedStatuses.has(entry.status))
         .map((entry) => normalizeFinalEntryStatus(entry, lastStage)));
       const firstTotal = Number(sortedEntries.find((entry) => isRankableFinalEntry(entry))?.total_time_ms || 0);
       let previousRankedTotal = 0;
@@ -704,7 +704,7 @@ function FinalResultReport({ groups, stages, formatMs, stageTimeFor, finalRemark
     .filter((group) => group.entries.length > 0);
 
   if (printableGroups.length === 0) {
-    return <div className="p-10 text-center text-gray-500">Belum ada data hasil untuk dicetak.</div>;
+    return <div className="p-10 text-center text-gray-500">Belum ada hasil peserta yang dikonfirmasi masuk Parc Fermé untuk dicetak.</div>;
   }
 
   return printableGroups.map((group) => (
